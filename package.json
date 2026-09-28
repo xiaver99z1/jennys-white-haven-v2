@@ -2,6 +2,7 @@
   "name": "jennys-white-haven-v2",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.17.1",
   "imports": {
     "#/*": "./src/*"
   },
@@ -43,6 +44,9 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "lightningcss"
+    ],
+    "ignoredBuiltDependencies": [
+      "unrs-resolver"
     ]
   }
 }
