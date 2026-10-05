@@ -1,0 +1,1 @@
+- `docs/client-design.md` — Aman visual rules for public pages
