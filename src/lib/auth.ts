@@ -5,22 +5,26 @@ import { prisma } from './prisma'
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
-    provider: 'postgresql', // change to "sqlite" if needed
+    provider: 'postgresql',
   }),
+
+  // Optional: Explicitly trust your production domain if needed alongside BETTER_AUTH_URL
+  trustedOrigins: [
+    process.env.BETTER_AUTH_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  ].filter(Boolean) as string[],
 
   emailAndPassword: {
     enabled: true,
-    // requireEmailVerification: false, // keep false for now while testing admin
+  },
+
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 1 day
   },
 
   // Important for TanStack Start
   plugins: [
     tanstackStartCookies(), // ← must be the last plugin
   ],
-
-  // Optional but recommended
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
-  },
 })
