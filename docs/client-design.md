@@ -1,1 +1,3 @@
-- `docs/client-design.md` — Aman visual rules for public pages
+## Client Design
+
+— Aman visual rules for public pages

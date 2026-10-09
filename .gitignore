@@ -9,5 +9,10 @@ dist-ssr
 .wrangler
 .output
 .vinxi
+db/data
 __unconfig*
 todos.json
+.agents/
+.claude/
+.cursor/
+.devin/

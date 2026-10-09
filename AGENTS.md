@@ -6,20 +6,24 @@ Admin = clean Shopify-style dashboard.
 
 ## Stack conventions
 
-- Reference `docs/stack-conventions.md` — for detailed technology stacks
+- Reference `docs/stack-conventions.md`
 
 ## Commands conventions
 
-- Reference `docs/command-conventions.md` — for detailed commands
+- Reference `docs/command-conventions.md`
 
 ## Structure conventions
 
-- Reference `docs/structure-conventions.md` — for detailed file structure
+- Reference `docs/structure-conventions.md`
 
 ## Rules conventions
 
-- Reference `docs/rules-conventions.md` — for detailed Rules
+- Reference `docs/rules-conventions.md`
 
 ## Style conventions
 
-- Reference `docs/style-conventions.md` — for detailed styling conventions
+- Reference `docs/style-conventions.md`
+
+## Auth conventions
+
+- Reference `docs/auth-conventions.md`
