@@ -1,6 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/admin/')({
+  head: () => ({
+    meta: [{ title: "Home | Jenny's White Haven" }],
+    links: [{ rel: 'icon', href: '/logo.png' }],
+  }),
   component: AdminDashboard,
 })
 

@@ -16,3 +16,4 @@ todos.json
 .claude/
 .cursor/
 .devin/
+.env.dev
