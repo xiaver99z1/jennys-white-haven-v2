@@ -2,7 +2,7 @@
   "name": "jennys-white-haven-v2",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@12.10.1",
   "imports": {
     "#/*": "./src/*"
   },
@@ -14,7 +14,8 @@
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "studio": "prisma studio --port 5555"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.7",
@@ -24,6 +25,7 @@
     "@tanstack/react-router": "latest",
     "@tanstack/react-router-devtools": "latest",
     "@tanstack/react-start": "latest",
+    "@vercel/blob": "^2.8.1",
     "better-auth": "^1.7.7",
     "nitro": "3.0.260610-beta",
     "react": "^19.2.0",

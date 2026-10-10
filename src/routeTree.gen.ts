@@ -15,6 +15,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
 import { Route as AdminGuestsRouteImport } from './routes/admin/guests'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminRoomsRouteImport } from './routes/admin/rooms'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -48,6 +49,11 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminProfileRoute = AdminProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminRoomsRoute = AdminRoomsRouteImport.update({
   id: '/rooms',
   path: '/rooms',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/': typeof AdminIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin': typeof AdminIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/': typeof AdminIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/guests'
     | '/admin/login'
+    | '/admin/profile'
     | '/admin/rooms'
     | '/admin/'
     | '/api/auth/$'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/guests'
     | '/admin/login'
+    | '/admin/profile'
     | '/admin/rooms'
     | '/admin'
     | '/api/auth/$'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/guests'
     | '/admin/login'
+    | '/admin/profile'
     | '/admin/rooms'
     | '/admin/'
     | '/api/auth/$'
@@ -171,6 +183,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/profile': {
+      id: '/admin/profile'
+      path: '/profile'
+      fullPath: '/admin/profile'
+      preLoaderRoute: typeof AdminProfileRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/rooms': {
       id: '/admin/rooms'
       path: '/rooms'
@@ -192,6 +211,7 @@ interface AdminRouteRouteChildren {
   AdminBookingsRoute: typeof AdminBookingsRoute
   AdminGuestsRoute: typeof AdminGuestsRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  AdminProfileRoute: typeof AdminProfileRoute
   AdminRoomsRoute: typeof AdminRoomsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -200,6 +220,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminBookingsRoute: AdminBookingsRoute,
   AdminGuestsRoute: AdminGuestsRoute,
   AdminLoginRoute: AdminLoginRoute,
+  AdminProfileRoute: AdminProfileRoute,
   AdminRoomsRoute: AdminRoomsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

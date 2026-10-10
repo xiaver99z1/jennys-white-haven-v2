@@ -124,9 +124,9 @@ function AdminLayout() {
   const user = sessionData?.user
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-100">
-      {/* Top Navbar with Beach Gradient Background */}
-      <header className="h-16 bg-gradient-to-r from-sky-200 via-amber-200/60 to-teal-100 border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs shrink-0">
+    <div className="h-screen w-screen flex flex-col bg-stone-100 overflow-hidden">
+      {/* Top Navbar Across Entire Screen */}
+      <header className="h-16 bg-gradient-to-r from-sky-200 via-amber-200/60 to-teal-100 border-b border-stone-200/80 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shrink-0">
         {/* Left Side: Logo -> Hamburger Icon -> Search Input */}
         <div className="flex items-center gap-0 flex-1 max-w-2xl">
           {/* Logo */}
@@ -182,12 +182,12 @@ function AdminLayout() {
             <input
               type="text"
               placeholder="Search for anything..."
-              className="w-full pl-10 pr-4 py-2 text-sm bg-white/80 backdrop-blur-xs border border-stone-300/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600/50 transition placeholder:text-stone-400 text-stone-800 relative"
+              className="w-full pl-10 pr-4 py-2 text-sm bg-white/80 backdrop-blur-xs border border-stone-300/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600/50 transition placeholder:text-stone-400 text-stone-800"
             />
           </div>
         </div>
 
-        {/* Right Side: Message, Notification & Profile Popover Menu */}
+        {/* Right Side: Message, Notification & Profile Popover */}
         <div className="flex items-center gap-1.5 sm:gap-2 ml-4">
           <button className="p-2 rounded-full hover:bg-white/40 text-stone-700 transition cursor-pointer">
             <svg
@@ -258,8 +258,7 @@ function AdminLayout() {
 
             {/* Popover Menu Dropdown */}
             {profileMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-stone-200 py-1.5 z-50 text-stone-800 animate-in fade-in zoom-in-95 duration-150">
-                {/* User Info Header */}
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-stone-200 py-1.5 z-50 text-stone-800">
                 <div className="px-4 py-2.5 border-b border-stone-100">
                   <p className="text-xs text-stone-500">Signed in as</p>
                   <p className="text-sm font-semibold text-stone-900 truncate">
@@ -269,8 +268,8 @@ function AdminLayout() {
 
                 <div className="py-1">
                   <Link
-                    to="/admin"
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-100 transition"
+                    to="/admin/profile"
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-100 transition cursor-pointer"
                   >
                     <svg
                       className="w-4 h-4 text-stone-500"
@@ -289,8 +288,8 @@ function AdminLayout() {
                   </Link>
 
                   <Link
-                    to="/admin"
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-100 transition"
+                    to="/admin/profile"
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-100 transition cursor-pointer"
                   >
                     <svg
                       className="w-4 h-4 text-stone-500"
@@ -342,22 +341,22 @@ function AdminLayout() {
         </div>
       </header>
 
-      {/* Main Container below navbar */}
-      <div className="flex flex-1 overflow-hidden relative">
+      {/* Main Container below navbar with strict height containment */}
+      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-4rem)]">
         {/* Mobile Overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden cursor-pointer transition-opacity"
+            className="fixed inset-0 top-16 z-40 bg-black/50 lg:hidden cursor-pointer transition-opacity"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
-        {/* Sidebar Navigation with Smooth Slide Transition */}
+        {/* Fixed Full-Height Sidebar anchored below the top header */}
         <aside
           className={`
-            fixed inset-y-0 left-0 z-50 bg-stone-900 text-stone-100 flex flex-col border-r border-stone-800
+            fixed top-16 bottom-0 left-0 z-20 bg-stone-900 text-stone-100 flex flex-col border-r border-stone-800
             transition-all duration-300 ease-in-out shrink-0 overflow-hidden
-            lg:relative
+            lg:relative lg:top-0 lg:h-full
             ${sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full lg:w-0 lg:translate-x-0 lg:border-r-0'}
           `}
         >
@@ -365,12 +364,12 @@ function AdminLayout() {
           <div className="w-64 flex flex-col h-full">
             {/* Mobile close button header */}
             <div className="px-5 py-4 border-b border-stone-800 flex items-center justify-between lg:hidden">
-              <span className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-stone-100">
                 Navigation
               </span>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-md hover:bg-stone-800 text-stone-400 transition cursor-pointer"
+                className="p-1.5 rounded-md hover:bg-stone-800 text-stone-100 transition cursor-pointer"
               >
                 <svg
                   className="w-5 h-5"
@@ -388,7 +387,7 @@ function AdminLayout() {
               </button>
             </div>
 
-            {/* Navigation Items with Icons */}
+            {/* Navigation Items */}
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto mt-2">
               <NavItem
                 to="/admin"
@@ -473,7 +472,7 @@ function AdminLayout() {
             <div className="p-4 border-t border-stone-800 shrink-0">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 text-sm text-stone-300 hover:text-white transition px-3 py-2 rounded-md hover:bg-stone-800 cursor-pointer"
+                className="w-full flex items-center gap-3 text-sm text-stone-100 hover:text-white transition px-3 py-2 rounded-md hover:bg-stone-800 cursor-pointer"
               >
                 <svg
                   className="w-5 h-5"
@@ -488,14 +487,14 @@ function AdminLayout() {
                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                   />
                 </svg>
-                <span>Logout</span>
+                <span>Sign out</span>
               </button>
             </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-auto transition-all duration-300">
+        {/* Isolated Scrollable Main Content Area */}
+        <main className="flex-1 overflow-y-auto h-full transition-all duration-300">
           <div className="p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>
@@ -520,7 +519,10 @@ function NavItem({
     <Link
       to={to}
       activeOptions={{ exact }}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-stone-300 hover:bg-stone-800 hover:text-white transition cursor-pointer"
+      inactiveProps={{
+        className:
+          'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-stone-100 hover:bg-stone-800 hover:text-white transition cursor-pointer',
+      }}
       activeProps={{
         className:
           'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm bg-stone-800 text-white font-medium cursor-pointer',

@@ -48,7 +48,7 @@ function AdminLoginPage() {
         <img
           src="/admin-login-logo.png"
           alt="Jenny's White Haven"
-          className="h-35 w-auto object-contain"
+          className="h-25 w-auto object-contain"
         />
       </div>
 
