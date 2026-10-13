@@ -11,12 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
+import { Route as VerifyActivationRouteImport } from './routes/verify-activation'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
 import { Route as AdminGuestsRouteImport } from './routes/admin/guests'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminRoomsRouteImport } from './routes/admin/rooms'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -27,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyActivationRoute = VerifyActivationRouteImport.update({
+  id: '/verify-activation',
+  path: '/verify-activation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -59,6 +66,11 @@ const AdminRoomsRoute = AdminRoomsRouteImport.update({
   path: '/rooms',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -68,21 +80,25 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/admin': typeof AdminIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -90,11 +106,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -103,32 +121,38 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/verify-activation'
     | '/admin/bookings'
     | '/admin/guests'
     | '/admin/login'
     | '/admin/profile'
     | '/admin/rooms'
+    | '/admin/users'
     | '/admin/'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/verify-activation'
     | '/admin/bookings'
     | '/admin/guests'
     | '/admin/login'
     | '/admin/profile'
     | '/admin/rooms'
+    | '/admin/users'
     | '/admin'
     | '/api/auth/$'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/verify-activation'
     | '/admin/bookings'
     | '/admin/guests'
     | '/admin/login'
     | '/admin/profile'
     | '/admin/rooms'
+    | '/admin/users'
     | '/admin/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -136,6 +160,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  VerifyActivationRoute: typeof VerifyActivationRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -153,6 +178,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-activation': {
+      id: '/verify-activation'
+      path: '/verify-activation'
+      fullPath: '/verify-activation'
+      preLoaderRoute: typeof VerifyActivationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -197,6 +229,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRoomsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -213,6 +252,7 @@ interface AdminRouteRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminProfileRoute: typeof AdminProfileRoute
   AdminRoomsRoute: typeof AdminRoomsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -222,6 +262,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminProfileRoute: AdminProfileRoute,
   AdminRoomsRoute: AdminRoomsRoute,
+  AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -232,6 +273,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
+  VerifyActivationRoute: VerifyActivationRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

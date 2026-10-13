@@ -11,7 +11,6 @@ export const Route = createFileRoute('/admin/login')({
 })
 
 function AdminLoginPage() {
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -29,7 +28,17 @@ function AdminLoginPage() {
       })
 
       if (error) {
-        setError(error.message || 'Invalid email or password')
+        // Better-Auth returns specific error message or code for unverified emails
+        if (
+          error.code === 'EMAIL_NOT_VERIFIED' ||
+          error.message?.toLowerCase().includes('verify')
+        ) {
+          setError(
+            'Please check your email and activate your account before logging in.',
+          )
+        } else {
+          setError(error.message || 'Invalid email or password')
+        }
         return
       }
 

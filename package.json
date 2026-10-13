@@ -2,7 +2,7 @@
   "name": "jennys-white-haven-v2",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.10.1",
+  "packageManager": "pnpm@12.11.2",
   "imports": {
     "#/*": "./src/*"
   },
@@ -14,25 +14,29 @@
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
-    "seed": "tsx prisma/seed.ts",
-    "studio": "prisma studio --port 5555"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:generate": "pnpm dlx prisma@6 generate",
+    "db:studio": "pnpm dlx prisma@6 studio --port 5555"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.7",
-    "@prisma/client": "^6.19.3",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-router": "latest",
     "@tanstack/react-router-devtools": "latest",
     "@tanstack/react-start": "latest",
+    "@types/bcryptjs": "^3.0.0",
     "@vercel/blob": "^2.8.1",
+    "bcryptjs": "^3.0.3",
     "better-auth": "^1.7.7",
     "nitro": "3.0.260610-beta",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "resend": "^6.32.1",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.3",
     "@tanstack/devtools-vite": "latest",
     "@tanstack/eslint-config": "latest",
     "@tanstack/router-cli": "^1.132.0",

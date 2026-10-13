@@ -10,35 +10,51 @@ datasource db {
 // ======================
 // Better Auth Models
 // ======================
-
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  name                   String
+  email                  String    @unique
+  emailVerified          Boolean   @default(false)
+  image                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  role                   String?   @default("receptionist")
 
-  sessions      Session[]
-  accounts      Account[]
+  // Activation & Security Tokens
+  activationToken        String?   @unique
+  activationTokenExpires DateTime?
 
-  // Optional: for admin roles later
-  role          String    @default("user") // "owner" | "admin" | "staff" | "user"
+  // Rate Limiting for Email Verification (Max 3 per day)
+  activationEmailCount   Int       @default(0)
+  lastActivationEmailSentAt DateTime?
+
+  // Better-Auth plugin fields
+  banned                 Boolean?  @default(false)
+  banReason              String?
+  banExpires             DateTime?
+
+  sessions               Session[]
+  accounts               Account[]
+
+  @@map("user")
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  userId         String
+  token          String   @unique
+  expiresAt      DateTime
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@index([userId])
+  // Required by Better-Auth Admin Plugin
+  impersonatedBy String?
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
 }
 
 model Account {
@@ -58,6 +74,7 @@ model Account {
   updatedAt             DateTime  @updatedAt
 
   @@index([userId])
+  @@map("account")
 }
 
 model Verification {
@@ -67,4 +84,6 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@map("verification")
 }

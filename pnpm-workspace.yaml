@@ -4,3 +4,12 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+permissions:
+  '@tanstack/devtools-vite':
+    skills: true
+  '@tanstack/react-start':
+    skills: true
+  prisma:
+    skills: true
+  workerd:
+    build: true
