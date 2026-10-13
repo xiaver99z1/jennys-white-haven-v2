@@ -1,6 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { auth } from '#/lib/auth'
 import { prisma } from '#/lib/prisma'
 import { Resend } from 'resend'
 import { generateSecurePassword } from '#/lib/password'
@@ -8,7 +6,6 @@ import crypto from 'crypto'
 import { hashPassword } from 'better-auth/crypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-const MAX_EMAILS_PER_DAY = 3
 
 export type ResortRole =
   'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'owner' | 'manager' | 'receptionist'
@@ -16,13 +13,12 @@ export type ResortRole =
 export const createAdminUser = createServerFn({ method: 'POST' })
   .validator((data: { name: string; email: string; role: ResortRole }) => data)
   .handler(async ({ data }) => {
-    const headers = getRequestHeaders()
     const appUrl = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
     const normalizedRole = data.role.toLowerCase()
     const now = new Date()
 
     try {
-      // 1. Check if user already exists in Prisma DB
+      // 1. Check if user already exists
       const existingUser = await prisma.user.findUnique({
         where: { email: data.email },
       })
@@ -31,52 +27,42 @@ export const createAdminUser = createServerFn({ method: 'POST' })
         throw new Error('This email address is already registered.')
       }
 
-      // 2. New User Provisioning Flow
+      // 2. Generate temporary password & hash
       const tempPassword = generateSecurePassword()
-
-      const newUser = await auth.api.createUser({
-        headers,
-        body: {
-          email: data.email,
-          password: tempPassword,
-          name: data.name,
-          role: normalizedRole as any,
-        },
-      })
-
-      if (!newUser || !newUser.user) {
-        throw new Error('Failed to create user in authentication system.')
-      }
-
+      const hashedPassword = await hashPassword(tempPassword)
       const token = crypto.randomBytes(32).toString('hex')
-      const tokenExpires = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000) // 3 days
+      const tokenExpires = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
 
-      await prisma.user.update({
-        where: { id: newUser.user.id },
+      // 3. Create User in Prisma
+      const newUser = await prisma.user.create({
         data: {
+          name: data.name,
+          email: data.email,
+          role: normalizedRole,
+          emailVerified: false,
           activationToken: token,
           activationTokenExpires: tokenExpires,
           activationEmailCount: 1,
           lastActivationEmailSentAt: now,
+          // Create associated credential Account record for Better-Auth
+          accounts: {
+            create: {
+              accountId: data.email,
+              providerId: 'credential',
+              password: hashedPassword,
+            },
+          },
         },
       })
 
       const activationUrl = `${appUrl}/verify-activation?token=${token}`
 
-      console.log('----------------------------------------')
-      console.log(`NEW ACTIVATION LINK FOR ${data.email}:`)
-      console.log(activationUrl)
-      console.log(`TEMP PASSWORD: ${tempPassword}`)
-      console.log('----------------------------------------')
-
-      // 3. Send Email with Detailed Error Handling
-      let emailResult = null
-      try {
-        emailResult = await resend.emails.send({
-          from: 'Jenny’s White Haven <onboarding@resend.dev>',
-          to: [data.email],
-          subject: 'Activate Your Account - Jenny’s White Haven Resort',
-          html: `
+      // 4. Send Email via Resend
+      await resend.emails.send({
+        from: 'Jenny’s White Haven <onboarding@resend.dev>',
+        to: [data.email],
+        subject: 'Activate Your Account - Jenny’s White Haven Resort',
+        html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 12px;">
               <h2 style="color: #b45309; margin-top: 0;">Welcome, ${data.name}!</h2>
               <p>An account has been created for you with the role of <strong>${data.role}</strong> at Jenny’s White Haven Resort.</p>
@@ -92,27 +78,20 @@ export const createAdminUser = createServerFn({ method: 'POST' })
               </div>
             </div>
           `,
-        })
-
-        if (emailResult.error) {
-          console.error('RESEND EMAIL FAILURE:', emailResult.error)
-        }
-      } catch (emailErr) {
-        console.error('RESEND SEND ERROR:', emailErr)
-      }
+      })
 
       return {
         success: true,
-        message: emailResult?.error
-          ? `User created! Note: Email delivery failed (${emailResult.error.message}). Check terminal for activation link.`
-          : 'Resort staff created successfully! Activation link sent to email.',
-        user: newUser.user,
+        message:
+          'Resort staff created successfully! Activation link sent to email.',
+        user: newUser,
       }
     } catch (error: any) {
       console.error('Error in createAdminUser:', error)
       throw new Error(error.message || 'Failed to process request.')
     }
   })
+
 export const updateAdminUser = createServerFn({ method: 'POST' })
   .validator(
     (data: {
