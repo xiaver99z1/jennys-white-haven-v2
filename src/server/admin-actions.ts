@@ -27,8 +27,8 @@ export const createAdminUser = createServerFn({ method: 'POST' })
         throw new Error('This email address is already registered.')
       }
 
-      // 2. Generate temporary password & hash
-      const tempPassword = generateSecurePassword()
+      // 2. Use static temporary password for testing
+      const tempPassword = 'Password!123'
       const hashedPassword = await hashPassword(tempPassword)
       const token = crypto.randomBytes(32).toString('hex')
       const tokenExpires = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
