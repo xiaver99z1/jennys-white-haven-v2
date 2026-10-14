@@ -1,5 +1,4 @@
-import crypto from 'crypto'
-
+import crypto from 'node:crypto'
 /**
  * Generates a secure random temporary password meeting complexity requirements:
  * - Minimum 12, Maximum 16 characters
@@ -19,18 +18,23 @@ export function generateSecurePassword(): string {
   const length = crypto.randomInt(12, 17)
 
   // Guarantee at least one of each required category
-  const passwordChars = [
-    uppercase[crypto.randomInt(uppercase.length)],
-    lowercase[crypto.randomInt(lowercase.length)],
-    numbers[crypto.randomInt(numbers.length)],
-    specials[crypto.randomInt(specials.length)],
+  const passwordChars: string[] = [
+    uppercase[crypto.randomInt(0, uppercase.length)],
+    lowercase[crypto.randomInt(0, lowercase.length)],
+    numbers[crypto.randomInt(0, numbers.length)],
+    specials[crypto.randomInt(0, specials.length)],
   ]
 
-  // Fill the remaining length with random characters from the full pool
+  // Fill remaining slots
   for (let i = passwordChars.length; i < length; i++) {
-    passwordChars.push(allChars[crypto.randomInt(allChars.length)])
+    passwordChars.push(allChars[crypto.randomInt(0, allChars.length)])
   }
 
-  // Shuffle the array securely so required characters aren't always at the start
-  return passwordChars.sort(() => crypto.randomInt(-1, 2)).join('')
+  // Proper Fisher-Yates shuffle (Guarantees no lost characters or truncated lengths)
+  for (let i = passwordChars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1)
+    ;[passwordChars[i], passwordChars[j]] = [passwordChars[j], passwordChars[i]]
+  }
+
+  return passwordChars.join('')
 }
