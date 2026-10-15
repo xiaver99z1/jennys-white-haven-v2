@@ -1,8 +1,9 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '#/lib/auth-client'
-import { logUserLogin } from '#/server/auth-actions'
 import { Eye, EyeOff } from 'lucide-react'
+import { logActivity } from '#/lib/logger'
+import { authSession } from '#/lib/auth-helpers'
 
 export const Route = createFileRoute('/admin/login')({
   head: () => ({
@@ -44,8 +45,21 @@ function AdminLoginPage() {
         return
       }
 
+      const session = await authSession()
+
       // Record login activity on the server now that session cookie is active
-      await logUserLogin()
+      if (!session || !session.user) {
+        throw new Error('No active session found.')
+      }
+
+      // Log the login activity under the user's own activity log (since they are the doer of their own login)
+      await logActivity({
+        userId: session.user.id,
+        action: 'LOGIN_SUCCESS',
+        description: `Successfully signed in to account (${session.user.email})`,
+        ipAddress: session.session.ipAddress,
+        userAgent: session.session.userAgent,
+      })
 
       window.location.replace('/admin')
     } catch (err) {
