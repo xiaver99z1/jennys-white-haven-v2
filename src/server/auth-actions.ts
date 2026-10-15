@@ -2,6 +2,56 @@ import { createServerFn } from '@tanstack/react-start'
 
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
+import { getRequestHeaders } from '@tanstack/react-start/server'
+import { prisma } from '#/lib/prisma'
+
+export const verifyActivationToken = createServerFn({ method: 'POST' })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    if (!data.token) {
+      throw new Error('Verification token is missing.')
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        activationToken: data.token,
+        activationTokenExpires: { gte: new Date() },
+      },
+    })
+
+    if (!user) {
+      throw new Error(
+        'This activation link is invalid or has already been consumed.',
+      )
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        activationToken: null,
+        activationTokenExpires: null,
+      },
+    })
+
+    const headers = getRequestHeaders()
+    const ipAddress =
+      headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
+    const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+
+    await logActivity({
+      userId: user.id,
+      action: 'ACCOUNT_ACTIVATED',
+      description: `Successfully activated account via email verification (${user.email})`,
+      ipAddress,
+      userAgent,
+    })
+
+    return {
+      success: true,
+      message: 'Email verified successfully!',
+    }
+  })
 
 export const logUserLogin = createServerFn({ method: 'POST' }).handler(
   async () => {

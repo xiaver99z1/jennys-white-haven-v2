@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
+// import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '#/lib/auth'
 import { prisma } from '#/lib/prisma'
-import { Resend } from 'resend'
-import { generateSecurePassword } from '#/lib/password'
+// import { Resend } from 'resend'
+// import { generateSecurePassword } from '#/lib/password'
 import crypto from 'crypto'
 import { hashPassword } from 'better-auth/crypto'
 import { logActivity } from '#/lib/logger' // Adjust import path if needed
@@ -296,7 +296,7 @@ export const resendVerificationEmail = createServerFn({ method: 'POST' })
         description: `Resent email verification link to ${user.name} (${user.email})`,
       })
 
-      const activationUrl = `${appUrl}/verify-activation?token=${newToken}`
+      // const activationUrl = `${appUrl}/verify-activation?token=${newToken}`
 
       // 3. Send email via Resend
       // await resend.emails.send({
