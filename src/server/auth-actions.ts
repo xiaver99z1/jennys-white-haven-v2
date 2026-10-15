@@ -85,20 +85,6 @@ export const logUserLogin = createServerFn({ method: 'POST' })
           return { success: true }
         }
       }
-
-      if (!session || !session.user) {
-        throw new Error('No active session found.')
-      }
-
-      await logActivity({
-        userId: session.user.id,
-        action: 'LOGIN_SUCCESS',
-        description: `Successfully signed in to account (${session.user.email})`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
-      })
-
-      return { success: true }
     } catch (error: any) {
       console.error('Failed to log user login:', error)
       return { success: false, error: error.message }
