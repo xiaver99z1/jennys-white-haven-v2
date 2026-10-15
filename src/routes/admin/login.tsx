@@ -44,8 +44,8 @@ function AdminLoginPage() {
         return
       }
 
-      // 👈 Safely trigger the server action to log the login
-      await logUserLogin({ data: { email } })
+      // Record login activity on the server now that session cookie is active
+      await logUserLogin()
 
       window.location.replace('/admin')
     } catch (err) {
@@ -57,6 +57,7 @@ function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-200 via-amber-200/60 to-teal-100 px-4">
+      {/* Pure Logo Outside the Card */}
       <div className="mb-6 flex flex-col items-center">
         <img
           src="/admin-login-logo.png"
@@ -65,6 +66,7 @@ function AdminLoginPage() {
         />
       </div>
 
+      {/* Login Card */}
       <div className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-stone-200/80 p-8">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
