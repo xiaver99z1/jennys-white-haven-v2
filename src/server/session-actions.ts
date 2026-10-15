@@ -1,5 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
+import { logActivity } from '#/lib/logger'
+import { parseUserAgent } from '#/lib/parse-user-agent'
+import { authSession } from '#/lib/auth-helpers'
 
 export const getUserSessions = createServerFn({ method: 'POST' })
   .validator((data: { userId: string }) => data)
@@ -41,10 +44,31 @@ export const revokeSession = createServerFn({ method: 'POST' })
   .validator((data: { token: string }) => data)
   .handler(async ({ data }) => {
     try {
-      // Instead of hard deleting, we can set expiresAt to now so it moves to History!
+      const session = await authSession()
+
+      // Find session first so we know which user it belongs to
+      const targetSession = await prisma.session.findUnique({
+        where: { token: data.token },
+        include: { user: true },
+      })
+
+      if (!targetSession) {
+        throw new Error('Session not found.')
+      }
+
+      // Expire session
       await prisma.session.update({
         where: { token: data.token },
         data: { expiresAt: new Date() },
+      })
+
+      // Log the security event
+      await logActivity({
+        userId: session.user.id,
+        action: 'SESSION_REVOKED',
+        description: `Revoked active session for user ${targetSession.user.email} (${parseUserAgent(targetSession.userAgent)})`,
+        ipAddress: targetSession.ipAddress,
+        userAgent: targetSession.userAgent,
       })
 
       return { success: true, message: 'Session revoked successfully.' }

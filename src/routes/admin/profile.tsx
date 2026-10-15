@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { authClient } from '#/lib/auth-client'
+import { logProfileActivity } from '#/server/profile-actions' // 👈 Import server action
 import { useState, useEffect } from 'react'
 
 export const Route = createFileRoute('/admin/profile')({
@@ -103,7 +104,15 @@ function AdminProfilePage() {
           type: 'success',
           text: 'Profile picture updated successfully!',
         })
-        // Dispatch event for real-time navbar avatar update
+
+        // 👈 Log avatar update activity
+        await logProfileActivity({
+          data: {
+            action: 'AVATAR_UPDATED',
+            description: 'Updated profile picture avatar',
+          },
+        })
+
         window.dispatchEvent(
           new CustomEvent('user-profile-updated', { detail: { name, image } }),
         )
@@ -135,6 +144,15 @@ function AdminProfilePage() {
           type: 'success',
           text: 'Personal information updated successfully!',
         })
+
+        // 👈 Log personal info update activity
+        await logProfileActivity({
+          data: {
+            action: 'PROFILE_UPDATED',
+            description: `Updated full name to "${name}"`,
+          },
+        })
+
         window.dispatchEvent(
           new CustomEvent('user-profile-updated', { detail: { name, image } }),
         )
@@ -183,6 +201,15 @@ function AdminProfilePage() {
           type: 'success',
           text: 'Password updated successfully! Other active sessions revoked.',
         })
+
+        // 👈 Log password update activity
+        await logProfileActivity({
+          data: {
+            action: 'PASSWORD_UPDATED',
+            description: 'Changed account password and revoked other sessions',
+          },
+        })
+
         setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
@@ -330,7 +357,6 @@ function AdminProfilePage() {
           </p>
         </div>
 
-        {/* Action Buttons appear ONLY when name is changed */}
         {hasNameChanged && (
           <div className="flex justify-end items-center gap-2 pt-2">
             <button
@@ -406,7 +432,6 @@ function AdminProfilePage() {
           </div>
         </div>
 
-        {/* Action Buttons appear ONLY when password fields have user input */}
         {hasPasswordInput && (
           <div className="flex justify-end items-center gap-2 pt-2">
             <button

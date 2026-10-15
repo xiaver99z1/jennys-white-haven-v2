@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect, useRef } from 'react'
 import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { prisma } from '#/lib/prisma'
+import { logActivity } from '#/lib/logger'
 
 const verifyActivationToken = createServerFn({ method: 'POST' })
   .validator((data: { token: string }) => data)
@@ -23,6 +25,7 @@ const verifyActivationToken = createServerFn({ method: 'POST' })
       )
     }
 
+    // 1. Activate the user account
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -32,6 +35,21 @@ const verifyActivationToken = createServerFn({ method: 'POST' })
       },
     })
 
+    // 2. Capture headers for IP and User-Agent logging
+    const headers = getRequestHeaders()
+    const ipAddress =
+      headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
+    const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+
+    // 3. Log the account activation activity under the user's ID
+    await logActivity({
+      userId: user.id,
+      action: 'ACCOUNT_ACTIVATED',
+      description: `Successfully activated account via email verification (${user.email})`,
+      ipAddress,
+      userAgent,
+    })
+
     return {
       success: true,
       message: 'Email verified successfully!',
@@ -39,7 +57,6 @@ const verifyActivationToken = createServerFn({ method: 'POST' })
   })
 
 export const Route = createFileRoute('/verify-activation')({
-  // Set Custom Page Title and Favicon via TanStack Router
   head: () => ({
     meta: [
       {
@@ -49,7 +66,7 @@ export const Route = createFileRoute('/verify-activation')({
     links: [
       {
         rel: 'icon',
-        href: '/favicon.ico', // Ensure your favicon is inside /public directory
+        href: '/favicon.ico',
       },
     ],
   }),
@@ -99,11 +116,10 @@ function VerifyActivationPage() {
       {/* Resort Branding Logo */}
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
         <img
-          src="/admin-login-logo.png" // Adjust path to your logo in public folder (e.g., /logo.png or /logo.svg)
+          src="/admin-login-logo.png"
           alt="Jenny's White Haven Resort"
           className="h-20 w-auto object-contain"
           onError={(e) => {
-            // Fallback text mark if image fails to load
             e.currentTarget.style.display = 'none'
           }}
         />

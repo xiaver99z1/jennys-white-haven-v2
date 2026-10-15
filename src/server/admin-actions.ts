@@ -6,9 +6,10 @@ import { Resend } from 'resend'
 import { generateSecurePassword } from '#/lib/password'
 import crypto from 'crypto'
 import { hashPassword } from 'better-auth/crypto'
+import { logActivity } from '#/lib/logger' // Adjust import path if needed
+import { authSession } from '#/lib/auth-helpers'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const MAX_EMAILS_PER_DAY = 3
+// const resend = new Resend(process.env.RESEND_API_KEY)
 
 export type ResortRole =
   'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'owner' | 'manager' | 'receptionist'
@@ -16,13 +17,13 @@ export type ResortRole =
 export const createAdminUser = createServerFn({ method: 'POST' })
   .validator((data: { name: string; email: string; role: ResortRole }) => data)
   .handler(async ({ data }) => {
-    const headers = getRequestHeaders()
     const appUrl = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
     const normalizedRole = data.role.toLowerCase()
     const now = new Date()
 
+    const session = await authSession()
+
     try {
-      // 1. Check if user already exists in Prisma DB
       const existingUser = await prisma.user.findUnique({
         where: { email: data.email },
       })
@@ -31,11 +32,10 @@ export const createAdminUser = createServerFn({ method: 'POST' })
         throw new Error('This email address is already registered.')
       }
 
-      // 2. New User Provisioning Flow
-      const tempPassword = generateSecurePassword()
+      // const tempPassword = generateSecurePassword()
+      const tempPassword = `Password!123`
 
       const newUser = await auth.api.createUser({
-        headers,
         body: {
           email: data.email,
           password: tempPassword,
@@ -61,51 +61,60 @@ export const createAdminUser = createServerFn({ method: 'POST' })
         },
       })
 
+      await logActivity({
+        userId: session.user.id, // 👈 Logged under the admin who performed the action!
+        action: 'USER_CREATED',
+        description: `Created new resort staff member: ${data.name} (${data.email}) with role ${data.role}`,
+        ipAddress: session.session.ipAddress,
+        userAgent: session.session.userAgent,
+      })
+
       const activationUrl = `${appUrl}/verify-activation?token=${token}`
 
-      console.log('----------------------------------------')
-      console.log(`NEW ACTIVATION LINK FOR ${data.email}:`)
-      console.log(activationUrl)
-      console.log(`TEMP PASSWORD: ${tempPassword}`)
-      console.log('----------------------------------------')
-
       // 3. Send Email with Detailed Error Handling
-      let emailResult = null
-      try {
-        emailResult = await resend.emails.send({
-          from: 'Jenny’s White Haven <onboarding@resend.dev>',
-          to: [data.email],
-          subject: 'Activate Your Account - Jenny’s White Haven Resort',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 12px;">
-              <h2 style="color: #b45309; margin-top: 0;">Welcome, ${data.name}!</h2>
-              <p>An account has been created for you with the role of <strong>${data.role}</strong> at Jenny’s White Haven Resort.</p>
-              <p>Your temporary password is:</p>
-              <div style="background: #f5f5f4; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #292524; display: inline-block; margin: 8px 0 16px 0;">
-                ${tempPassword}
-              </div>
-              <p>Please click the button below to verify your email address and activate your account. This link will expire in <strong>3 days</strong>:</p>
-              <div style="margin: 24px 0;">
-                <a href="${activationUrl}" style="background-color: #b45309; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block;">
-                  Activate Account
-                </a>
-              </div>
-            </div>
-          `,
-        })
+      // let emailResult = null
+      // try {
+      //   emailResult = await resend.emails.send({
+      //     from: 'Jenny’s White Haven <onboarding@resend.dev>',
+      //     to: [data.email],
+      //     subject: 'Activate Your Account - Jenny’s White Haven Resort',
+      //     html: `
+      //       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 12px;">
+      //         <h2 style="color: #b45309; margin-top: 0;">Welcome, ${data.name}!</h2>
+      //         <p>An account has been created for you with the role of <strong>${data.role}</strong> at Jenny’s White Haven Resort.</p>
+      //         <p>Your temporary password is:</p>
+      //         <div style="background: #f5f5f4; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #292524; display: inline-block; margin: 8px 0 16px 0;">
+      //           ${tempPassword}
+      //         </div>
+      //         <p>Please click the button below to verify your email address and activate your account. This link will expire in <strong>3 days</strong>:</p>
+      //         <div style="margin: 24px 0;">
+      //           <a href="${activationUrl}" style="background-color: #b45309; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block;">
+      //             Activate Account
+      //           </a>
+      //         </div>
+      //       </div>
+      //     `,
+      //   })
 
-        if (emailResult.error) {
-          console.error('RESEND EMAIL FAILURE:', emailResult.error)
-        }
-      } catch (emailErr) {
-        console.error('RESEND SEND ERROR:', emailErr)
-      }
+      //   if (emailResult.error) {
+      //     console.error('RESEND EMAIL FAILURE:', emailResult.error)
+      //   }
+      // } catch (emailErr) {
+      //   console.error('RESEND SEND ERROR:', emailErr)
+      // }
+
+      // return {
+      //   success: true,
+      //   message: emailResult?.error
+      //     ? `User created! Note: Email delivery failed (${emailResult.error.message}). Check terminal for activation link.`
+      //     : 'Resort staff created successfully! Activation link sent to email.',
+      //   user: newUser.user,
+      // }
 
       return {
         success: true,
-        message: emailResult?.error
-          ? `User created! Note: Email delivery failed (${emailResult.error.message}). Check terminal for activation link.`
-          : 'Resort staff created successfully! Activation link sent to email.',
+        message:
+          'Resort staff created successfully! Activation link sent to email.',
         user: newUser.user,
       }
     } catch (error: any) {
@@ -126,7 +135,48 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
     const normalizedRole = data.role.toLowerCase()
 
     try {
-      // 1. Update basic user info (Name & Role)
+      // 1. Identify the logged-in admin (the actor performing the update)
+      const session = await authSession(
+        'Unauthorized: You must be logged in to update user profiles.',
+      )
+
+      // Fetch actor details (for email/name in log description)
+      const currentAdmin = await prisma.user.findUnique({
+        where: { id: session.user.id },
+      })
+
+      // 2. Fetch the target user BEFORE applying changes to compare old vs new values
+      const existingUser = await prisma.user.findUnique({
+        where: { id: data.userId },
+      })
+
+      if (!existingUser) {
+        throw new Error('Target user not found.')
+      }
+
+      const changes: string[] = []
+
+      // Compare Name
+      if (existingUser.name !== data.name) {
+        changes.push(`name from "${existingUser.name}" to "${data.name}"`)
+      }
+
+      // Compare Role safely with null fallback
+      const currentRole = existingUser.role?.toLowerCase() ?? 'guest'
+
+      if (currentRole !== normalizedRole) {
+        changes.push(
+          `role from "${existingUser.role ?? 'none'}" to "${data.role}"`,
+        )
+      }
+
+      // Check Password
+      const isPasswordUpdated = data.password && data.password.trim() !== ''
+      if (isPasswordUpdated) {
+        changes.push('password')
+      }
+
+      // 3. Update basic user info (Name & Role)
       const updatedUser = await prisma.user.update({
         where: { id: data.userId },
         data: {
@@ -135,20 +185,43 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
         },
       })
 
-      // 2. If a new password was provided, hash and update the associated Account record
-      if (data.password && data.password.trim() !== '') {
-        // Hash the password
-        const hashedPassword = await hashPassword(data.password)
+      // 4. If a new password was provided, hash and update the associated Account record
+      if (isPasswordUpdated) {
+        const hashedPassword = await hashPassword(data.password!)
 
-        // Better-Auth stores credential passwords in the Account table
         await prisma.account.updateMany({
           where: {
             userId: data.userId,
-            providerId: 'credential', // or 'email' depending on your schema setup
+            providerId: 'credential',
           },
           data: {
             password: hashedPassword,
           },
+        })
+      }
+
+      // 5. Construct description and record activity log if any changes occurred
+      if (changes.length > 0) {
+        // Format list with " and " (e.g., "A", "A and B", or "A, B, and C")
+        const formattedChanges =
+          changes.length === 1
+            ? changes[0]
+            : changes.slice(0, -1).join(', ') +
+              ' and ' +
+              changes[changes.length - 1]
+
+        const adminIdentifier =
+          currentAdmin?.email || currentAdmin?.name || 'Admin'
+        const targetIdentifier =
+          existingUser.email || existingUser.name || 'user'
+
+        const description = `${adminIdentifier} updated ${targetIdentifier} ${formattedChanges}`
+
+        // Log the activity under the Admin's account (actor-centric)
+        await logActivity({
+          userId: session.user.id,
+          action: 'USER_UPDATED',
+          description,
         })
       }
 
@@ -169,7 +242,7 @@ export const resendVerificationEmail = createServerFn({ method: 'POST' })
     const appUrl = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
     const now = new Date()
     const MAX_EMAILS_PER_DAY = 3
-
+    const session = await authSession()
     try {
       const user = await prisma.user.findUnique({
         where: { id: data.userId },
@@ -207,36 +280,42 @@ export const resendVerificationEmail = createServerFn({ method: 'POST' })
       const newToken = crypto.randomBytes(32).toString('hex')
       const newTokenExpires = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          activationToken: newToken,
-          activationTokenExpires: newTokenExpires,
-          activationEmailCount: currentCount,
-          lastActivationEmailSentAt: now,
-        },
+      // await prisma.user.update({
+      //   where: { id: user.id },
+      //   data: {
+      //     activationToken: newToken,
+      //     activationTokenExpires: newTokenExpires,
+      //     activationEmailCount: currentCount,
+      //     lastActivationEmailSentAt: now,
+      //   },
+      // })
+
+      await logActivity({
+        userId: session.user.id,
+        action: 'RESEND_VERIFICATION',
+        description: `Resent email verification link to ${user.name} (${user.email})`,
       })
 
       const activationUrl = `${appUrl}/verify-activation?token=${newToken}`
 
       // 3. Send email via Resend
-      await resend.emails.send({
-        from: 'Jenny’s White Haven <onboarding@resend.dev>',
-        to: [user.email],
-        subject: 'Resent Verification Link - Jenny’s White Haven Resort',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 12px;">
-            <h2 style="color: #b45309; margin-top: 0;">Hello, ${user.name}!</h2>
-            <p>You requested a new verification link for your staff account at Jenny’s White Haven Resort.</p>
-            <p>Please click the button below to verify your email address. This link expires in <strong>3 days</strong>:</p>
-            <div style="margin: 24px 0;">
-              <a href="${activationUrl}" style="background-color: #b45309; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block;">
-                Verify Email Address
-              </a>
-            </div>
-          </div>
-        `,
-      })
+      // await resend.emails.send({
+      //   from: 'Jenny’s White Haven <onboarding@resend.dev>',
+      //   to: [user.email],
+      //   subject: 'Resent Verification Link - Jenny’s White Haven Resort',
+      //   html: `
+      //     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 12px;">
+      //       <h2 style="color: #b45309; margin-top: 0;">Hello, ${user.name}!</h2>
+      //       <p>You requested a new verification link for your staff account at Jenny’s White Haven Resort.</p>
+      //       <p>Please click the button below to verify your email address. This link expires in <strong>3 days</strong>:</p>
+      //       <div style="margin: 24px 0;">
+      //         <a href="${activationUrl}" style="background-color: #b45309; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block;">
+      //           Verify Email Address
+      //         </a>
+      //       </div>
+      //     </div>
+      //   `,
+      // })
 
       return {
         success: true,

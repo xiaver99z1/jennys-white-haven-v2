@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // or "sqlite" if you're using SQLite for now
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -25,7 +25,7 @@ model User {
   activationTokenExpires DateTime?
 
   // Rate Limiting for Email Verification (Max 3 per day)
-  activationEmailCount   Int       @default(0)
+  activationEmailCount      Int       @default(0)
   lastActivationEmailSentAt DateTime?
 
   // Better-Auth plugin fields
@@ -35,6 +35,7 @@ model User {
 
   sessions               Session[]
   accounts               Account[]
+  activityLogs           ActivityLog[] // ← Added missing opposite relation field
 
   @@map("user")
 }
@@ -86,4 +87,18 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@map("verification")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String   // The user who performed the action (The Actor)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String   // e.g., USER_CREATED, SESSION_REVOKED, LOGIN
+  description String   // Human-readable summary of what they did
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("activity_log")
 }

@@ -20,7 +20,7 @@ async function main() {
   }
 
   // Create user using Better Auth (so password is hashed correctly)
-  const result = await auth.api.signUpEmail({
+  await auth.api.signUpEmail({
     body: {
       email,
       password,

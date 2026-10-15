@@ -8,6 +8,7 @@ import {
   Ban,
 } from 'lucide-react'
 import { UserSessionsModal } from './UserSessionsModal'
+import { UserActivityLogsModal } from './UserActivityLogsModal'
 
 interface UserActionsDropdownProps {
   user: any
@@ -24,6 +25,7 @@ export function UserActionsDropdown({
 }: UserActionsDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false)
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false)
 
   const handleToggle = () => {
     const nextState = !isOpen
@@ -98,7 +100,7 @@ export function UserActionsDropdown({
                 <button
                   onClick={() => {
                     setIsOpen(false)
-                    console.log('Activity Log:', user.id)
+                    setIsActivityModalOpen(true)
                   }}
                   className="w-full px-4 py-2 text-left hover:bg-stone-50 hover:text-stone-900 flex items-center gap-2 transition cursor-pointer"
                 >
@@ -128,6 +130,13 @@ export function UserActionsDropdown({
       <UserSessionsModal
         isOpen={isSessionsModalOpen}
         onClose={() => setIsSessionsModalOpen(false)}
+        userId={user.id}
+        userName={user.name}
+      />
+      {/* User Activity Logs Modal */}
+      <UserActivityLogsModal
+        isOpen={isActivityModalOpen}
+        onClose={() => setIsActivityModalOpen(false)}
         userId={user.id}
         userName={user.name}
       />

@@ -7,6 +7,7 @@ import {
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
+import { logUserLogout } from '#/server/auth-actions' // 👈 Import logout action
 import { useEffect, useState, useRef } from 'react'
 import { AdminSidebar } from '#/components/AdminSidebar'
 import { AdminNavbar } from '#/components/AdminNavbar'
@@ -144,7 +145,11 @@ function AdminLayout() {
 
   const handleLogout = async () => {
     try {
+      // 👈 Record logout activity log on server before destroying session
+      await logUserLogout()
       await authClient.signOut()
+    } catch (err) {
+      console.error('Logout error:', err)
     } finally {
       window.location.replace('/admin/login')
     }
