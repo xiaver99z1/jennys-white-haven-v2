@@ -45,7 +45,7 @@ function AdminLoginPage() {
       }
 
       // 👈 Safely trigger the server action to log the login
-      await logUserLogin()
+      await logUserLogin({ data: { email } })
 
       window.location.replace('/admin')
     } catch (err) {

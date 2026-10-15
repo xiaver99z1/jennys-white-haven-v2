@@ -4,6 +4,7 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { prisma } from '#/lib/prisma'
+import { auth } from '#/lib/auth'
 
 export const verifyActivationToken = createServerFn({ method: 'POST' })
   .validator((data: { token: string }) => data)
@@ -53,16 +54,42 @@ export const verifyActivationToken = createServerFn({ method: 'POST' })
     }
   })
 
-export const logUserLogin = createServerFn({ method: 'POST' }).handler(
-  async () => {
+export const logUserLogin = createServerFn({ method: 'POST' })
+  .validator((data?: { email?: string }) => data)
+  .handler(async ({ data }) => {
     try {
-      const session = await authSession()
+      const headers = getRequestHeaders()
+      let session = await auth.api.getSession({ headers })
+
+      // Fallback: If cookie header hasn't attached yet, find user by email
+      if (!session && data?.email) {
+        const user = await prisma.user.findUnique({
+          where: { email: data.email },
+        })
+
+        if (user) {
+          const ipAddress =
+            headers.get('x-forwarded-for') ||
+            headers.get('x-real-ip') ||
+            '127.0.0.1'
+          const userAgent = headers.get('user-agent') || 'Unknown'
+
+          await logActivity({
+            userId: user.id,
+            action: 'LOGIN_SUCCESS',
+            description: `Successfully signed in to account (${user.email})`,
+            ipAddress,
+            userAgent,
+          })
+
+          return { success: true }
+        }
+      }
 
       if (!session || !session.user) {
         throw new Error('No active session found.')
       }
 
-      // Log the login activity under the user's own activity log (since they are the doer of their own login)
       await logActivity({
         userId: session.user.id,
         action: 'LOGIN_SUCCESS',
@@ -74,11 +101,9 @@ export const logUserLogin = createServerFn({ method: 'POST' }).handler(
       return { success: true }
     } catch (error: any) {
       console.error('Failed to log user login:', error)
-      // Non-blocking error so login doesn't fail just because of logging
       return { success: false, error: error.message }
     }
-  },
-)
+  })
 
 export const logUserLogout = createServerFn({ method: 'POST' }).handler(
   async () => {
