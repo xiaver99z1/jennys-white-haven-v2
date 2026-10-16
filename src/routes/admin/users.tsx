@@ -213,8 +213,9 @@ function AdminUsersPage() {
         </div>
       ),
       renderMobileCard: (user) => (
-        <div key={user.id} className="space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
+        <div key={user.id} className="space-y-2.5 relative">
+          {/* Top Row: Avatar, Info, and Actions Dropdown */}
+          <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               {user.image ? (
                 <img
@@ -236,15 +237,46 @@ function AdminUsersPage() {
                 </div>
               </div>
             </div>
-            <span
-              className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md border shrink-0 ${getRoleBadgeColor(user.role)}`}
-            >
-              {user.role || 'None'}
-            </span>
+
+            {/* Actions Ellipsis Dropdown for Mobile */}
+            <div className="shrink-0 flex items-center gap-1">
+              <span
+                className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md border ${getRoleBadgeColor(
+                  user.role,
+                )}`}
+              >
+                {user.role || 'None'}
+              </span>
+              <UserActionsDropdown
+                user={user}
+                onOpen={() => router.invalidate()}
+                onEdit={(targetUser) => setEditingUser(targetUser)}
+                onResendVerification={(targetUser) =>
+                  setResendTargetUser(targetUser)
+                }
+                onSuccess={() => router.invalidate()}
+              />
+            </div>
           </div>
+
+          {/* Bottom Footer Row */}
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-stone-100 text-stone-500">
             <span>Joined {formatDate(user.createdAt)}</span>
-            <span>{user.emailVerified ? 'Verified' : 'Unverified'}</span>
+            <span
+              className={
+                user.banned
+                  ? 'text-rose-600 font-semibold'
+                  : user.emailVerified
+                    ? 'text-emerald-600 font-semibold'
+                    : 'text-stone-500'
+              }
+            >
+              {user.banned
+                ? 'Blocked'
+                : user.emailVerified
+                  ? 'Verified'
+                  : 'Pending'}
+            </span>
           </div>
         </div>
       ),

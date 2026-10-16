@@ -218,6 +218,8 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
           userId: session.user.id,
           action: 'USER_UPDATED',
           description,
+          ipAddress: session.session.ipAddress,
+          userAgent: session.session.userAgent,
         })
       }
 
@@ -237,9 +239,9 @@ export const blockAdminUser = createServerFn({ method: 'POST' })
   .validator((data: { userId: string }) => data)
   .handler(async ({ data }) => {
     try {
-      const sessions = await authSession()
+      const session = await authSession()
       const currentAdmin = await prisma.user.findUnique({
-        where: { id: sessions.user.id },
+        where: { id: session.user.id },
       })
       const targetUser = await prisma.user.findUnique({
         where: { id: data.userId },
@@ -267,9 +269,11 @@ export const blockAdminUser = createServerFn({ method: 'POST' })
       const targetIdentifier = targetUser.email || targetUser.name || 'user'
 
       await logActivity({
-        userId: sessions.user.id,
+        userId: session.user.id,
         action: 'USER_BLOCKED',
         description: `${adminIdentifier} blocked user ${targetIdentifier}`,
+        ipAddress: session.session.ipAddress,
+        userAgent: session.session.userAgent,
       })
 
       return { success: true, user: updatedUser }
@@ -284,9 +288,9 @@ export const unblockAdminUser = createServerFn({ method: 'POST' })
   .validator((data: { userId: string }) => data)
   .handler(async ({ data }) => {
     try {
-      const sessions = await authSession()
+      const session = await authSession()
       const currentAdmin = await prisma.user.findUnique({
-        where: { id: sessions.user.id },
+        where: { id: session.user.id },
       })
       const targetUser = await prisma.user.findUnique({
         where: { id: data.userId },
@@ -309,9 +313,11 @@ export const unblockAdminUser = createServerFn({ method: 'POST' })
       const targetIdentifier = targetUser.email || targetUser.name || 'user'
 
       await logActivity({
-        userId: sessions.user.id,
+        userId: session.user.id,
         action: 'USER_UNBLOCKED',
         description: `${adminIdentifier} unblocked user ${targetIdentifier}`,
+        ipAddress: session.session.ipAddress,
+        userAgent: session.session.userAgent,
       })
 
       return { success: true, user: updatedUser }
@@ -379,6 +385,8 @@ export const resendVerificationEmail = createServerFn({ method: 'POST' })
         userId: session.user.id,
         action: 'RESEND_VERIFICATION',
         description: `Resent email verification link to ${user.name} (${user.email})`,
+        ipAddress: session.session.ipAddress,
+        userAgent: session.session.userAgent,
       })
 
       // const activationUrl = `${appUrl}/verify-activation?token=${newToken}`
