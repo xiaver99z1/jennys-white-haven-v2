@@ -32,6 +32,7 @@ const getUsersList = createServerFn({ method: 'GET' }).handler(async () => {
       emailVerified: true,
       image: true,
       role: true,
+      banned: true, // 👈 Added banned field here
       createdAt: true,
       updatedAt: true,
     },
@@ -149,8 +150,9 @@ function AdminUsersPage() {
         const statusFilter = searchValues.status || 'ALL'
         const matchesStatus =
           statusFilter === 'ALL' ||
-          (statusFilter === 'verified' && user.emailVerified) ||
-          (statusFilter === 'pending' && !user.emailVerified)
+          (statusFilter === 'blocked' && user.banned) ||
+          (statusFilter === 'verified' && !user.banned && user.emailVerified) ||
+          (statusFilter === 'pending' && !user.banned && !user.emailVerified)
 
         const dateFilter = searchValues.createdAt || ''
         const matchesDate = (() => {
@@ -277,9 +279,17 @@ function AdminUsersPage() {
         { label: 'Status...', value: 'ALL' },
         { label: 'Verified', value: 'verified' },
         { label: 'Pending', value: 'pending' },
+        { label: 'Blocked', value: 'blocked' }, // 👈 Added filter option
       ],
-      renderCell: (user) =>
-        user.emailVerified ? (
+      renderCell: (user) => {
+        if (user.banned) {
+          return (
+            <span className="inline-flex items-center gap-1.5 text-xs text-rose-700 font-medium">
+              <span className="w-2 h-2 rounded-full bg-rose-500" /> Blocked
+            </span>
+          )
+        }
+        return user.emailVerified ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-500" /> Verified
           </span>
@@ -287,7 +297,8 @@ function AdminUsersPage() {
           <span className="inline-flex items-center gap-1.5 text-xs text-stone-500 font-medium">
             <span className="w-2 h-2 rounded-full bg-stone-300" /> Pending
           </span>
-        ),
+        )
+      },
     },
     {
       key: 'createdAt',
@@ -309,12 +320,10 @@ function AdminUsersPage() {
       renderCell: (user) => (
         <UserActionsDropdown
           user={user}
-          onOpen={() => {
-            // Re-runs loader in background to fetch latest user status without page reload
-            router.invalidate()
-          }}
+          onOpen={() => router.invalidate()}
           onEdit={(targetUser) => setEditingUser(targetUser)}
           onResendVerification={(targetUser) => setResendTargetUser(targetUser)}
+          onSuccess={() => router.invalidate()} // 👈 Added
         />
       ),
     },

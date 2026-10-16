@@ -135,17 +135,14 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
     const normalizedRole = data.role.toLowerCase()
 
     try {
-      // 1. Identify the logged-in admin (the actor performing the update)
       const session = await authSession(
         'Unauthorized: You must be logged in to update user profiles.',
       )
 
-      // Fetch actor details (for email/name in log description)
       const currentAdmin = await prisma.user.findUnique({
         where: { id: session.user.id },
       })
 
-      // 2. Fetch the target user BEFORE applying changes to compare old vs new values
       const existingUser = await prisma.user.findUnique({
         where: { id: data.userId },
       })
@@ -156,7 +153,6 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
 
       const changes: string[] = []
 
-      // Compare Name
       if (existingUser.name !== data.name) {
         changes.push(`name from "${existingUser.name}" to "${data.name}"`)
       }
@@ -233,6 +229,95 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
     } catch (error: any) {
       console.error('Error updating staff profile:', error)
       throw new Error(error.message || 'Failed to update staff profile.')
+    }
+  })
+
+// Block / Ban User Action
+export const blockAdminUser = createServerFn({ method: 'POST' })
+  .validator((data: { userId: string }) => data)
+  .handler(async ({ data }) => {
+    try {
+      const sessions = await authSession()
+      const currentAdmin = await prisma.user.findUnique({
+        where: { id: sessions.user.id },
+      })
+      const targetUser = await prisma.user.findUnique({
+        where: { id: data.userId },
+      })
+
+      if (!targetUser) throw new Error('User not found.')
+
+      // Update user to banned
+      const updatedUser = await prisma.user.update({
+        where: { id: data.userId },
+        data: {
+          banned: true,
+          banReason: 'Blocked by administrator',
+        },
+      })
+
+      // Immediately revoke all active sessions for this user for security
+      await prisma.session.deleteMany({
+        where: { userId: data.userId },
+      })
+
+      // Log the activity
+      const adminIdentifier =
+        currentAdmin?.email || currentAdmin?.name || 'Admin'
+      const targetIdentifier = targetUser.email || targetUser.name || 'user'
+
+      await logActivity({
+        userId: sessions.user.id,
+        action: 'USER_BLOCKED',
+        description: `${adminIdentifier} blocked user ${targetIdentifier}`,
+      })
+
+      return { success: true, user: updatedUser }
+    } catch (error: any) {
+      console.error('Error blocking user:', error)
+      throw new Error(error.message || 'Failed to block user.')
+    }
+  })
+
+// Unblock / Unban User Action
+export const unblockAdminUser = createServerFn({ method: 'POST' })
+  .validator((data: { userId: string }) => data)
+  .handler(async ({ data }) => {
+    try {
+      const sessions = await authSession()
+      const currentAdmin = await prisma.user.findUnique({
+        where: { id: sessions.user.id },
+      })
+      const targetUser = await prisma.user.findUnique({
+        where: { id: data.userId },
+      })
+
+      if (!targetUser) throw new Error('User not found.')
+
+      // Unban user
+      const updatedUser = await prisma.user.update({
+        where: { id: data.userId },
+        data: {
+          banned: false,
+          banReason: null,
+        },
+      })
+
+      // Log the activity
+      const adminIdentifier =
+        currentAdmin?.email || currentAdmin?.name || 'Admin'
+      const targetIdentifier = targetUser.email || targetUser.name || 'user'
+
+      await logActivity({
+        userId: sessions.user.id,
+        action: 'USER_UNBLOCKED',
+        description: `${adminIdentifier} unblocked user ${targetIdentifier}`,
+      })
+
+      return { success: true, user: updatedUser }
+    } catch (error: any) {
+      console.error('Error unblocking user:', error)
+      throw new Error(error.message || 'Failed to unblock user.')
     }
   })
 
