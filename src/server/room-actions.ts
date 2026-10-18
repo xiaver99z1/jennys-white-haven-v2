@@ -4,6 +4,7 @@ import { auth } from '#/lib/auth'
 import { hasPermission } from '#/lib/permissions'
 import { logActivity } from '#/lib/logger'
 import { RoomStatus } from '@prisma/client'
+import { authSession } from '#/lib/auth-helpers'
 
 // Helper for server-side authorization with strict permission typing
 async function requirePermission(
@@ -18,16 +19,27 @@ async function requirePermission(
   return session.user
 }
 
-// 1. Get All Rooms
+// Utility to parse/extract a display name from an image URL or Base64 string
+function getImageNames(images?: string[]): string[] {
+  if (!images || images.length === 0) return []
+  return images.map((img, idx) => {
+    if (img.startsWith('data:')) {
+      const mime = img.split(';')[0].split('/')[1] || 'png'
+      return `Uploaded_Image_${idx + 1}.${mime}`
+    }
+    return img.split('/').pop() || `Image_${idx + 1}`
+  })
+}
+
 export const getRoomsList = createServerFn({ method: 'GET' }).handler(
   async () => {
     await requirePermission('view:rooms')
 
     const rooms = await prisma.room.findMany({
-      orderBy: { roomNumber: 'asc' },
+      // 👇 Remove the deletedAt restriction here so the page receives archived rooms too
+      orderBy: { createdAt: 'desc' },
     })
 
-    // Safely serialize Decimal to number for the client
     return rooms.map((room) => ({
       ...room,
       pricePerNight: Number(room.pricePerNight),
@@ -35,7 +47,6 @@ export const getRoomsList = createServerFn({ method: 'GET' }).handler(
   },
 )
 
-// 2. Create Room
 export const createRoom = createServerFn({ method: 'POST' })
   .validator(
     (data: {
@@ -73,10 +84,26 @@ export const createRoom = createServerFn({ method: 'POST' })
       },
     })
 
+    const imageNames = getImageNames(data.images)
+
+    const logDetails = [
+      `Created Room ${room.roomNumber} (${room.name})`,
+      `Type: ${room.type}`,
+      `Capacity: ${room.capacity} guests`,
+      `Price: ₱${room.pricePerNight.toLocaleString()}/night`,
+      `Description: ${room.description || 'None'}`,
+      `Amenities (${room.amenities.length}): ${room.amenities.join(', ') || 'None'}`,
+      `Uploaded Images (${imageNames.length}): ${imageNames.join(', ') || 'None'}`,
+    ].join(' | ')
+
+    const session = await authSession()
+
     await logActivity({
       userId: admin.id,
       action: 'ROOM_CREATED',
-      description: `${admin.email} created new room "${room.roomNumber}" (${room.name})`,
+      description: logDetails,
+      ipAddress: session?.session?.ipAddress ?? null,
+      userAgent: session?.session?.userAgent ?? null,
     })
 
     return {
@@ -88,7 +115,6 @@ export const createRoom = createServerFn({ method: 'POST' })
     }
   })
 
-// 3. Update Room Details / Status
 export const updateRoom = createServerFn({ method: 'POST' })
   .validator(
     (data: {
@@ -101,14 +127,16 @@ export const updateRoom = createServerFn({ method: 'POST' })
       pricePerNight?: number
       status?: RoomStatus
       amenities?: string[]
-      images?: string[] // 👈 1. Add images to validator type here
+      images?: string[]
     }) => data,
   )
   .handler(async ({ data }) => {
     const admin = await requirePermission('update:rooms')
 
-    const targetRoom = await prisma.room.findUnique({ where: { id: data.id } })
-    if (!targetRoom) throw new Error('Room not found.')
+    const existingRoom = await prisma.room.findUnique({
+      where: { id: data.id },
+    })
+    if (!existingRoom) throw new Error('Room not found.')
 
     const updatedRoom = await prisma.room.update({
       where: { id: data.id },
@@ -121,14 +149,98 @@ export const updateRoom = createServerFn({ method: 'POST' })
         pricePerNight: data.pricePerNight,
         status: data.status,
         amenities: data.amenities,
-        images: data.images, // 👈 2. Pass images to prisma update here
+        images: data.images,
       },
     })
 
+    // Calculate changes/diffs
+    const changes: string[] = []
+
+    if (data.roomNumber && data.roomNumber !== existingRoom.roomNumber) {
+      changes.push(
+        `Room Number: "${existingRoom.roomNumber}" → "${data.roomNumber}"`,
+      )
+    }
+    if (data.name && data.name !== existingRoom.name) {
+      changes.push(`Display Name: "${existingRoom.name}" → "${data.name}"`)
+    }
+    if (data.type && data.type !== existingRoom.type) {
+      changes.push(`Type: "${existingRoom.type}" → "${data.type}"`)
+    }
+    if (data.status && data.status !== existingRoom.status) {
+      changes.push(`Status: "${existingRoom.status}" → "${data.status}"`)
+    }
+    if (data.capacity && data.capacity !== existingRoom.capacity) {
+      changes.push(
+        `Capacity: ${existingRoom.capacity} → ${data.capacity} guests`,
+      )
+    }
+    if (
+      data.pricePerNight &&
+      Number(data.pricePerNight) !== Number(existingRoom.pricePerNight)
+    ) {
+      changes.push(
+        `Price: ₱${existingRoom.pricePerNight} → ₱${data.pricePerNight}`,
+      )
+    }
+    if (
+      data.description !== undefined &&
+      data.description !== existingRoom.description
+    ) {
+      changes.push(
+        `Description: "${existingRoom.description || 'None'}" → "${data.description || 'None'}"`,
+      )
+    }
+
+    // Calculate Amenity Diffs
+    if (data.amenities) {
+      const addedAmenities = data.amenities.filter(
+        (a) => !existingRoom.amenities.includes(a),
+      )
+      const removedAmenities = existingRoom.amenities.filter(
+        (a) => !data.amenities?.includes(a),
+      )
+
+      if (addedAmenities.length > 0) {
+        changes.push(`Added Amenities: [${addedAmenities.join(', ')}]`)
+      }
+      if (removedAmenities.length > 0) {
+        changes.push(`Removed Amenities: [${removedAmenities.join(', ')}]`)
+      }
+    }
+
+    // Calculate Image Diffs
+    if (data.images) {
+      const oldImageNames = getImageNames(existingRoom.images)
+      const newImageNames = getImageNames(data.images)
+
+      const addedImages = newImageNames.filter(
+        (img) => !oldImageNames.includes(img),
+      )
+      const removedImages = oldImageNames.filter(
+        (img) => !newImageNames.includes(img),
+      )
+
+      if (addedImages.length > 0) {
+        changes.push(`Added Images: [${addedImages.join(', ')}]`)
+      }
+      if (removedImages.length > 0) {
+        changes.push(`Removed Images: [${removedImages.join(', ')}]`)
+      }
+    }
+
+    const logDetails =
+      changes.length > 0
+        ? `Updated Room ${updatedRoom.roomNumber} - Changes: ${changes.join(' | ')}`
+        : `Updated Room ${updatedRoom.roomNumber} - No field changes`
+
+    const session = await authSession()
     await logActivity({
       userId: admin.id,
       action: 'ROOM_UPDATED',
-      description: `${admin.email} updated room "${updatedRoom.roomNumber}" details/status`,
+      description: logDetails,
+      ipAddress: session?.session?.ipAddress ?? null,
+      userAgent: session?.session?.userAgent ?? null,
     })
 
     return {
@@ -140,7 +252,6 @@ export const updateRoom = createServerFn({ method: 'POST' })
     }
   })
 
-// 4. Delete Room
 export const deleteRoom = createServerFn({ method: 'POST' })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
@@ -149,13 +260,54 @@ export const deleteRoom = createServerFn({ method: 'POST' })
     const room = await prisma.room.findUnique({ where: { id: data.id } })
     if (!room) throw new Error('Room not found.')
 
-    await prisma.room.delete({ where: { id: data.id } })
+    // Soft delete by updating deletedAt timestamp
+    await prisma.room.update({
+      where: { id: data.id },
+      data: { deletedAt: new Date() },
+    })
 
+    const session = await authSession()
     await logActivity({
       userId: admin.id,
       action: 'ROOM_DELETED',
-      description: `${admin.email} deleted room "${room.roomNumber}"`,
+      description: `Soft deleted (archived) Room ${room.roomNumber} (${room.name})`,
+      ipAddress: session?.session?.ipAddress ?? null,
+      userAgent: session?.session?.userAgent ?? null,
     })
 
     return { success: true }
+  })
+
+// Restore Soft-Deleted Room Action
+export const restoreRoom = createServerFn({ method: 'POST' })
+  .validator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    const admin = await requirePermission('update:rooms')
+
+    const room = await prisma.room.findUnique({ where: { id: data.id } })
+    if (!room) throw new Error('Room not found.')
+
+    // Set deletedAt back to null to restore room
+    const restoredRoom = await prisma.room.update({
+      where: { id: data.id },
+      data: { deletedAt: null },
+    })
+
+    const session = await authSession()
+    await logActivity({
+      userId: admin.id,
+      action: 'ROOM_RESTORED',
+      description: `Restored archived Room ${restoredRoom.roomNumber} (${restoredRoom.name})`,
+      ipAddress: session?.session?.ipAddress ?? null,
+      userAgent: session?.session?.userAgent ?? null,
+    })
+
+    // Map Decimal to Number for TanStack Start serialization
+    return {
+      success: true,
+      room: {
+        ...restoredRoom,
+        pricePerNight: Number(restoredRoom.pricePerNight),
+      },
+    }
   })

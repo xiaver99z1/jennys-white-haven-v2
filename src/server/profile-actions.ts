@@ -17,8 +17,8 @@ export const logProfileActivity = createServerFn({ method: 'POST' })
         userId: session.user.id,
         action: data.action,
         description: data.description,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       return { success: true }

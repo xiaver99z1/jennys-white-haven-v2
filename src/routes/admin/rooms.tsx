@@ -1,276 +1,293 @@
-import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { auth } from '#/lib/auth'
-import { hasPermission } from '#/lib/permissions'
-import { getRoomsList } from '#/server/room-actions'
-import { useState, useMemo } from 'react'
-import { AdminDataTable, type Column } from '#/components/admin/AdminDataTable'
-import { Bed, Users, CheckCircle2, Wrench, Sparkles } from 'lucide-react'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useState } from 'react'
+import { getRoomsList, restoreRoom } from '#/server/room-actions'
 import { AddRoomModal } from '#/components/admin/AddRoomModal'
 import { EditRoomModal } from '#/components/admin/EditRoomModal'
-
-const checkAccess = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getRequestHeaders } = await import('@tanstack/react-start/server')
-  const session = await auth.api.getSession({ headers: getRequestHeaders() })
-  return session?.user ?? null
-})
+import {
+  Plus,
+  Search,
+  Bed,
+  Users,
+  Archive,
+  RotateCcw,
+  Edit,
+  CheckCircle2,
+  AlertCircle,
+  Building2,
+  Sparkles,
+} from 'lucide-react'
 
 export const Route = createFileRoute('/admin/rooms')({
-  beforeLoad: async () => {
-    const user = await checkAccess()
-    if (!user) throw redirect({ to: '/admin/login' })
-    if (!hasPermission(user as any, 'view:rooms'))
-      throw redirect({ to: '/admin' })
+  loader: async () => {
+    // Fetch both active and archived rooms if needed, or fetch active by default
+    const rooms = await getRoomsList()
+    return { rooms }
   },
-  loader: async () => await getRoomsList(),
   component: AdminRoomsPage,
 })
 
-type Room = Awaited<ReturnType<typeof getRoomsList>>[number]
-type SortField = 'roomNumber' | 'type' | 'pricePerNight'
-type SortOrder = 'asc' | 'desc'
-
-function getStatusBadge(status: string) {
-  switch (status) {
-    case 'AVAILABLE':
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-          <CheckCircle2 className="w-3.5 h-3.5" /> Available
-        </span>
-      )
-    case 'OCCUPIED':
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-          <Users className="w-3.5 h-3.5" /> Occupied
-        </span>
-      )
-    case 'MAINTENANCE':
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
-          <Wrench className="w-3.5 h-3.5" /> Maintenance
-        </span>
-      )
-    case 'CLEANING':
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800">
-          <Sparkles className="w-3.5 h-3.5" /> Cleaning
-        </span>
-      )
-    default:
-      return null
-  }
-}
-
 function AdminRoomsPage() {
-  const initialRooms = Route.useLoaderData()
+  const { rooms: initialRooms } = Route.useLoaderData()
   const router = useRouter()
 
-  const [searchValues, setSearchValues] = useState<Record<string, string>>({
-    roomNumber: '',
-    type: 'ALL',
-    status: 'ALL',
-  })
-
-  // Sorting state
-  const [sortField, setSortField] = useState<SortField>('roomNumber')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
-
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL')
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null)
+  const [editingRoom, setEditingRoom] = useState<any | null>(null)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
 
-  const handleSort = (field: string) => {
-    const typedField = field as SortField
-    if (sortField === typedField) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(typedField)
-      setSortOrder('asc')
+  // Filter rooms based on search, type, and archived status
+  const filteredRooms = initialRooms.filter((room: any) => {
+    const matchesArchived = showArchived
+      ? room.deletedAt !== null
+      : room.deletedAt === null
+    const matchesSearch =
+      room.roomNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      room.type.toLowerCase().includes(searchQuery.toLowerCase())
+
+    const matchesType =
+      selectedTypeFilter === 'ALL' || room.type === selectedTypeFilter
+
+    return matchesArchived && matchesSearch && matchesType
+  })
+
+  const handleRestore = async (roomId: string, roomNumber: string) => {
+    if (!confirm(`Restore Room "${roomNumber}" back to active rooms?`)) return
+    setRestoringId(roomId)
+    try {
+      await restoreRoom({ data: { id: roomId } })
+      router.invalidate()
+    } catch (err: any) {
+      alert(err.message || 'Failed to restore room.')
+    } finally {
+      setRestoringId(null)
     }
   }
 
-  const filteredAndSortedRooms = useMemo(() => {
-    return initialRooms
-      .filter((room) => {
-        const search = searchValues.roomNumber?.toLowerCase() || ''
-        const matchesSearch =
-          !search ||
-          room.roomNumber.toLowerCase().includes(search) ||
-          room.name.toLowerCase().includes(search)
-
-        const matchesType =
-          searchValues.type === 'ALL' ||
-          room.type.toLowerCase() === searchValues.type.toLowerCase()
-
-        const matchesStatus =
-          searchValues.status === 'ALL' || room.status === searchValues.status
-
-        return matchesSearch && matchesType && matchesStatus
-      })
-      .sort((a, b) => {
-        let valA: any = a[sortField]
-        let valB: any = b[sortField]
-
-        if (typeof valA === 'string') {
-          valA = valA.toLowerCase()
-          valB = valB.toLowerCase()
-        }
-
-        if (valA < valB) return sortOrder === 'asc' ? -1 : 1
-        if (valA > valB) return sortOrder === 'asc' ? 1 : -1
-        return 0
-      })
-  }, [initialRooms, searchValues, sortField, sortOrder])
-
-  const paginatedRooms = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredAndSortedRooms.slice(start, start + pageSize)
-  }, [filteredAndSortedRooms, currentPage, pageSize])
-
-  const columns: Column<Room>[] = [
-    {
-      key: 'roomNumber',
-      header: 'Room',
-      sortable: true,
-      renderCell: (room) => (
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 font-bold flex items-center justify-center shrink-0 border border-amber-200">
-            <Bed className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-bold text-stone-900 text-sm">
-              {room.roomNumber}
-            </div>
-            <div className="text-xs text-stone-500">{room.name}</div>
-          </div>
-        </div>
-      ),
-      renderMobileCard: (room) => (
-        <div key={room.id} className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 font-bold flex items-center justify-center shrink-0 border border-amber-200">
-                <Bed className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-bold text-stone-900 text-xs truncate">
-                  {room.roomNumber} - {room.name}
-                </div>
-                <div className="text-[11px] text-amber-900 font-semibold">
-                  ₱{room.pricePerNight.toLocaleString()} / night
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setEditingRoom(room)}
-              className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-semibold rounded-lg transition shrink-0 cursor-pointer"
-            >
-              Edit
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between text-[11px] pt-2 border-t border-stone-100">
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
-              {room.type} ({room.capacity} Guests)
-            </span>
-            <span>{getStatusBadge(room.status)}</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'type',
-      header: 'Type',
-      sortable: true,
-      renderCell: (room) => (
-        <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-stone-100 text-stone-700 border border-stone-200">
-          {room.type}
-        </span>
-      ),
-    },
-    {
-      key: 'capacity',
-      header: 'Capacity',
-      renderCell: (room) => (
-        <span className="text-xs text-stone-700 font-medium">
-          {room.capacity} Guests
-        </span>
-      ),
-    },
-    {
-      key: 'pricePerNight',
-      header: 'Price / Night',
-      sortable: true,
-      renderCell: (room) => (
-        <span className="font-bold text-xs text-amber-900">
-          ₱{room.pricePerNight.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      renderCell: (room) => getStatusBadge(room.status),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      renderCell: (room) => (
-        <button
-          onClick={() => setEditingRoom(room)}
-          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg transition cursor-pointer"
-        >
-          Edit
-        </button>
-      ),
-    },
-  ]
-
   return (
-    <>
-      <AdminDataTable
-        title="Rooms"
-        data={paginatedRooms}
-        columns={columns}
-        keyField="id"
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={handleSort}
-        searchValues={searchValues}
-        onSearchChange={(key, val) => {
-          setSearchValues((prev) => ({ ...prev, [key]: val }))
-          setCurrentPage(1)
-        }}
-        onResetFilters={() => {
-          setSearchValues({ roomNumber: '', type: 'ALL', status: 'ALL' })
-          setSortField('roomNumber')
-          setSortOrder('asc')
-          setCurrentPage(1)
-        }}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        totalItems={filteredAndSortedRooms.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size)
-          setCurrentPage(1)
-        }}
-        addLabel="Add Room"
-        onAddClick={() => setIsAddModalOpen(true)}
-      />
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900 tracking-tight">
+            Rooms Management
+          </h1>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Manage room inventories, pricing, photo galleries, and amenities
+            checklists.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Toggle Archived Rooms */}
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 transition cursor-pointer ${
+              showArchived
+                ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs'
+                : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+            }`}
+          >
+            <Archive className="w-4 h-4" />
+            {showArchived ? 'View Rooms' : 'View Archived Rooms'}
+          </button>
+          {/* Add Room Button */}
+          {!showArchived && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-4 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer text-xs"
+            >
+              <Plus className="w-4 h-4" />
+              Add Room
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filters and Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Search Input */}
+        <div className="relative w-full md:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-3 text-stone-400" />
+          <input
+            type="text"
+            placeholder="Search by room number, name, type..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-stone-200 bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+          />
+        </div>
+
+        {/* Type Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+          {['ALL', 'Standard', 'Deluxe', 'Suite', 'Villa'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setSelectedTypeFilter(type)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+                selectedTypeFilter === type
+                  ? 'bg-stone-900 text-white'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Rooms Table / Grid */}
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-2xs overflow-hidden">
+        {filteredRooms.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-stone-800">No rooms found</h3>
+            <p className="text-xs text-stone-500 max-w-sm mx-auto">
+              {showArchived
+                ? 'No archived or soft-deleted rooms match your filters.'
+                : 'Get started by adding your first room.'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-stone-100 bg-stone-50/70 text-[11px] font-bold text-stone-500 uppercase tracking-wider">
+                  <th className="py-3 px-4">Room & Name</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Capacity</th>
+                  <th className="py-3 px-4">Price / Night</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Amenities</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 text-xs text-stone-700">
+                {filteredRooms.map((room: any) => (
+                  <tr key={room.id} className="hover:bg-stone-50/50 transition">
+                    {/* Room Number & Name with Image Thumbnail */}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-stone-100 border border-stone-200 overflow-hidden shrink-0">
+                          {room.images && room.images.length > 0 ? (
+                            <img
+                              src={room.images[0]}
+                              alt={room.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-stone-400">
+                              <Bed className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-stone-900">
+                            {room.roomNumber}
+                          </div>
+                          <div className="text-stone-500 text-[11px]">
+                            {room.name}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Type */}
+                    <td className="py-3 px-4 font-semibold text-stone-800">
+                      <span className="px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 border border-stone-200 text-[11px]">
+                        {room.type}
+                      </span>
+                    </td>
+
+                    {/* Capacity */}
+                    <td className="py-3 px-4 font-medium">
+                      <div className="flex items-center gap-1 text-stone-600">
+                        <Users className="w-3.5 h-3.5 text-stone-400" />
+                        <span>{room.capacity} Guests</span>
+                      </div>
+                    </td>
+
+                    {/* Price */}
+                    <td className="py-3 px-4 font-bold text-amber-900">
+                      ₱{Number(room.pricePerNight).toLocaleString()}
+                    </td>
+
+                    {/* Status */}
+                    <td className="py-3 px-4">
+                      {showArchived ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <AlertCircle className="w-3 h-3" /> Archived
+                        </span>
+                      ) : room.status === 'AVAILABLE' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" /> Available
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          <AlertCircle className="w-3 h-3" /> {room.status}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Amenities Count */}
+                    <td className="py-3 px-4">
+                      <span className="text-stone-600 font-medium">
+                        {room.amenities?.length || 0} amenities
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3 px-4 text-right">
+                      {showArchived ? (
+                        <button
+                          onClick={() =>
+                            handleRestore(room.id, room.roomNumber)
+                          }
+                          disabled={restoringId === room.id}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold rounded-xl text-xs inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 ml-auto"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          {restoringId === room.id
+                            ? 'Restoring...'
+                            : 'Restore Room'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setEditingRoom(room)}
+                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs inline-flex items-center gap-1.5 transition cursor-pointer ml-auto"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          Edit Room
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Add Room Modal */}
       <AddRoomModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={() => router.invalidate()}
       />
+
+      {/* Edit Room Modal */}
       <EditRoomModal
         isOpen={Boolean(editingRoom)}
         onClose={() => setEditingRoom(null)}
         onSuccess={() => router.invalidate()}
         room={editingRoom}
       />
-    </>
+    </div>
   )
 }

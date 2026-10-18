@@ -112,21 +112,25 @@ enum RoomStatus {
 
 model Room {
   id            String     @id @default(cuid())
-  roomNumber    String     @unique // e.g., "Villa 1" or "Room 101"
-  name          String     // e.g., "2-Bedroom Ocean View Villa"
-  type          String     // "Villa", "Deluxe", "Standard"
+  roomNumber    String     @unique
+  name          String
+  type          String
   description   String?
   capacity      Int        @default(2)
   pricePerNight Decimal    @db.Decimal(10, 2)
   status        RoomStatus @default(AVAILABLE)
   amenities     String[]   @default([])
   images        String[]   @default([])
+  
+  // Soft Delete Field
+  deletedAt     DateTime?  // NULL = active room, Timestamp = deleted/archived
 
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
   @@index([status])
   @@index([type])
+  @@index([deletedAt]) // Index for fast filtering of non-deleted rooms
   @@map("room")
 }
 

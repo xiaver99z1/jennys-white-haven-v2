@@ -93,7 +93,7 @@ function VerifyActivationPage() {
             </h2>
             <p className="text-xs text-stone-500 leading-relaxed">
               Your staff account has been successfully activated. You can now
-              sign in to access the resort portal.
+              sign in to access the portal.
             </p>
             <div className="pt-4">
               <button

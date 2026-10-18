@@ -64,9 +64,9 @@ export const createAdminUser = createServerFn({ method: 'POST' })
       await logActivity({
         userId: session.user.id, // 👈 Logged under the admin who performed the action!
         action: 'USER_CREATED',
-        description: `Created new resort staff member: ${data.name} (${data.email}) with role ${data.role}`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        description: `Created new staff member: ${data.name} (${data.email}) with role ${data.role}`,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       const activationUrl = `${appUrl}/verify-activation?token=${token}`
@@ -218,8 +218,8 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
           userId: session.user.id,
           action: 'USER_UPDATED',
           description,
-          ipAddress: session.session.ipAddress,
-          userAgent: session.session.userAgent,
+          ipAddress: session?.session?.ipAddress ?? null,
+          userAgent: session?.session?.userAgent ?? null,
         })
       }
 
@@ -272,8 +272,8 @@ export const blockAdminUser = createServerFn({ method: 'POST' })
         userId: session.user.id,
         action: 'USER_BLOCKED',
         description: `${adminIdentifier} blocked user ${targetIdentifier}`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       return { success: true, user: updatedUser }
@@ -316,8 +316,8 @@ export const unblockAdminUser = createServerFn({ method: 'POST' })
         userId: session.user.id,
         action: 'USER_UNBLOCKED',
         description: `${adminIdentifier} unblocked user ${targetIdentifier}`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       return { success: true, user: updatedUser }
@@ -385,8 +385,8 @@ export const resendVerificationEmail = createServerFn({ method: 'POST' })
         userId: session.user.id,
         action: 'RESEND_VERIFICATION',
         description: `Resent email verification link to ${user.name} (${user.email})`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       // const activationUrl = `${appUrl}/verify-activation?token=${newToken}`

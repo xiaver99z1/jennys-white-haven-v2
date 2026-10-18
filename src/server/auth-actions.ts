@@ -67,8 +67,8 @@ export const logUserLogin = createServerFn({ method: 'POST' }).handler(
         userId: session.user.id,
         action: 'LOGIN_SUCCESS',
         description: `Successfully signed in to account (${session.user.email})`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       return { success: true }
@@ -90,8 +90,8 @@ export const logUserLogout = createServerFn({ method: 'POST' }).handler(
         userId: session.user.id,
         action: 'LOGOUT',
         description: `Successfully signed out from account (${session.user.email})`,
-        ipAddress: session.session.ipAddress,
-        userAgent: session.session.userAgent,
+        ipAddress: session?.session?.ipAddress ?? null,
+        userAgent: session?.session?.userAgent ?? null,
       })
 
       return { success: true }
