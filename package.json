@@ -17,7 +17,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:generate": "pnpm dlx prisma@6 generate",
     "db:studio": "pnpm dlx prisma@6 studio --port 5555",
-    "postinstall": "prisma generate"
+    "postinstall": "pnpm prisma generate"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.7",
