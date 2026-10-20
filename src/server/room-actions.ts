@@ -36,7 +36,6 @@ export const getRoomsList = createServerFn({ method: 'GET' }).handler(
     await requirePermission('view:rooms')
 
     const rooms = await prisma.room.findMany({
-      // 👇 Remove the deletedAt restriction here so the page receives archived rooms too
       orderBy: { createdAt: 'desc' },
     })
 
@@ -57,8 +56,8 @@ export const createRoom = createServerFn({ method: 'POST' })
       capacity: number
       pricePerNight: number
       amenities?: string[]
-      images?: string[] // 👈 Add images validator
-    }) => data, // Synchronous identity validator
+      images?: string[]
+    }) => data,
   )
   .handler(async ({ data }) => {
     const admin = await requirePermission('create:rooms')
@@ -80,7 +79,7 @@ export const createRoom = createServerFn({ method: 'POST' })
         capacity: data.capacity,
         pricePerNight: data.pricePerNight,
         amenities: data.amenities,
-        images: data.images || [], // 👈 Save images array
+        images: data.images || [],
       },
     })
 
@@ -231,8 +230,8 @@ export const updateRoom = createServerFn({ method: 'POST' })
 
     const logDetails =
       changes.length > 0
-        ? `Updated Room ${updatedRoom.roomNumber} - Changes: ${changes.join(' | ')}`
-        : `Updated Room ${updatedRoom.roomNumber} - No field changes`
+        ? `Updated Room ${updatedRoom.roomNumber}. Changes: ${changes.join(' | ')}`
+        : `Updated Room ${updatedRoom.roomNumber}. No field changes`
 
     const session = await authSession()
     await logActivity({
@@ -260,7 +259,6 @@ export const deleteRoom = createServerFn({ method: 'POST' })
     const room = await prisma.room.findUnique({ where: { id: data.id } })
     if (!room) throw new Error('Room not found.')
 
-    // Soft delete by updating deletedAt timestamp
     await prisma.room.update({
       where: { id: data.id },
       data: { deletedAt: new Date() },
@@ -278,7 +276,6 @@ export const deleteRoom = createServerFn({ method: 'POST' })
     return { success: true }
   })
 
-// Restore Soft-Deleted Room Action
 export const restoreRoom = createServerFn({ method: 'POST' })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
@@ -287,7 +284,6 @@ export const restoreRoom = createServerFn({ method: 'POST' })
     const room = await prisma.room.findUnique({ where: { id: data.id } })
     if (!room) throw new Error('Room not found.')
 
-    // Set deletedAt back to null to restore room
     const restoredRoom = await prisma.room.update({
       where: { id: data.id },
       data: { deletedAt: null },
@@ -302,7 +298,6 @@ export const restoreRoom = createServerFn({ method: 'POST' })
       userAgent: session?.session?.userAgent ?? null,
     })
 
-    // Map Decimal to Number for TanStack Start serialization
     return {
       success: true,
       room: {
