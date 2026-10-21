@@ -56,7 +56,7 @@ export function UserActionsDropdown({
       setConfirmModal(null)
       onSuccess() // Refresh table loader data
     } catch (err: any) {
-      alert(err.message || 'Action failed')
+      console.error('Action failed', err)
     } finally {
       setLoading(false)
     }

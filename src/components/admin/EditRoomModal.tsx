@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { updateRoom, deleteRoom } from '#/server/room-actions'
 import {
   X,
@@ -8,7 +8,6 @@ import {
   Maximize2,
   Sparkles,
   Check,
-  AlertTriangle,
 } from 'lucide-react'
 import {
   ROOM_TYPES,
@@ -17,11 +16,14 @@ import {
   type RoomType,
 } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
+import { ConfirmModal } from './ConfirmModal'
 
 interface EditRoomModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: () => Promise<void> | void
+  onSaveStart: (roomId: string) => void
+  onDeleteStart: (roomId: string) => void
   room: {
     id: string
     roomNumber: string
@@ -40,6 +42,8 @@ export function EditRoomModal({
   isOpen,
   onClose,
   onSuccess,
+  onSaveStart,
+  onDeleteStart,
   room,
 }: EditRoomModalProps) {
   const [loading, setLoading] = useState(false)
@@ -50,7 +54,7 @@ export function EditRoomModal({
   >(null)
   const [isAmenityModalOpen, setIsAmenityModalOpen] = useState(false)
 
-  // 👇 State to control our clean custom delete confirmation modal
+  // Control custom delete confirmation popup
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -82,6 +86,43 @@ export function EditRoomModal({
       setShowDeleteConfirm(false)
     }
   }, [room])
+
+  // 🔍 Check if any fields, images, or amenities have been modified
+  const hasChanges = useMemo(() => {
+    if (!room) return false
+
+    const initialPrice = room.pricePerNight ? Number(room.pricePerNight) : 0
+    const initialCapacity = room.capacity || 2
+    const initialDesc = room.description || ''
+    const initialStatus = room.status || 'AVAILABLE'
+    const initialType = room.type || 'Standard'
+    const initialName = room.name || ''
+    const initialRoomNumber = room.roomNumber || ''
+
+    if (formData.roomNumber !== initialRoomNumber) return true
+    if (formData.name !== initialName) return true
+    if (formData.type !== initialType) return true
+    if (formData.description !== initialDesc) return true
+    if (formData.capacity !== initialCapacity) return true
+    if (formData.pricePerNight !== initialPrice) return true
+    if (formData.status !== initialStatus) return true
+
+    // Compare amenities array
+    const currentAmenities = [...formData.amenities].sort()
+    const initialAmenities = [...(room.amenities || [])].sort()
+    if (currentAmenities.length !== initialAmenities.length) return true
+    if (currentAmenities.some((val, idx) => val !== initialAmenities[idx]))
+      return true
+
+    // Compare images array
+    const currentImages = formData.images
+    const initialImages = room.images || []
+    if (currentImages.length !== initialImages.length) return true
+    if (currentImages.some((val, idx) => val !== initialImages[idx]))
+      return true
+
+    return false
+  }, [formData, room])
 
   if (!isOpen || !room) return null
 
@@ -120,8 +161,14 @@ export function EditRoomModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!room || !hasChanges) return
+
     setLoading(true)
     setError(null)
+
+    // 🔒 Lock table row & close edit modal immediately
+    onSaveStart(room.id)
+    onClose()
 
     try {
       await updateRoom({
@@ -138,27 +185,32 @@ export function EditRoomModal({
           images: formData.images,
         },
       })
-      onSuccess()
-      onClose()
+      await onSuccess()
     } catch (err: any) {
+      console.error('Failed to update room:', err)
       setError(err.message || 'Failed to update room.')
     } finally {
       setLoading(false)
     }
   }
 
-  // 👇 Executed when clicking "Confirm Delete" in our custom popup
   const handleDeleteConfirm = async () => {
+    if (!room) return
+
     setDeleting(true)
     setError(null)
 
+    // 🔒 Lock table row & close modals immediately
+    onDeleteStart(room.id)
+    setShowDeleteConfirm(false)
+    onClose()
+
     try {
       await deleteRoom({ data: { id: room.id } })
-      onSuccess()
-      onClose()
+      await onSuccess()
     } catch (err: any) {
+      console.error('Failed to delete room:', err)
       setError(err.message || 'Failed to delete room.')
-      setShowDeleteConfirm(false)
     } finally {
       setDeleting(false)
     }
@@ -430,8 +482,8 @@ export function EditRoomModal({
               <button
                 type="button"
                 disabled={deleting || loading}
-                onClick={() => setShowDeleteConfirm(true)} // 👈 Opens our clean custom modal popup
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition text-xs"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition text-xs disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" /> Delete Room
               </button>
@@ -446,8 +498,8 @@ export function EditRoomModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || deleting}
-                  className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 text-xs"
+                  disabled={loading || deleting || !hasChanges} // 🔒 Disabled if no changes were made
+                  className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   {loading ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -457,46 +509,18 @@ export function EditRoomModal({
         </div>
       </div>
 
-      {/* 👇 Custom Styled Delete Confirmation Popup Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-70 p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto border border-rose-200">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="text-base font-bold text-stone-900">
-                Archive Room {room.roomNumber}?
-              </h4>
-              <p className="text-xs text-stone-500 mt-1">
-                Are you sure you want to delete{' '}
-                <span className="font-semibold text-stone-800">
-                  "{room.name}"
-                </span>
-                ? You can restore it later from the archived rooms list.
-              </p>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium rounded-xl cursor-pointer transition text-xs"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={handleDeleteConfirm}
-                className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl shadow-md cursor-pointer transition text-xs disabled:opacity-50"
-              >
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Reusable Confirm Modal for Deletion */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        variant="danger"
+        title={`Archive Room ${room.roomNumber}?`}
+        description={`Are you sure you want to delete "${room.name}"? You can restore it later from the archived rooms list.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        isLoading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+      />
 
       <AmenitySelectorModal
         isOpen={isAmenityModalOpen}
