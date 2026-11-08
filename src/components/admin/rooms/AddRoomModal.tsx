@@ -1,61 +1,28 @@
-import { useState, useEffect, useMemo } from 'react'
-import { updateRoom, deleteRoom } from '#/server/room-actions'
-import {
-  X,
-  Bed,
-  Trash2,
-  Upload,
-  Maximize2,
-  Sparkles,
-  Check,
-} from 'lucide-react'
-import {
-  ROOM_TYPES,
-  ROOM_STATUSES,
-  type RoomStatus,
-  type RoomType,
-} from '#/lib/constants/rooms'
+import { useState } from 'react'
+import { createRoom } from '#/server/room-actions'
+import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
+import { ROOM_TYPES, type RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
-import { ConfirmModal } from './ConfirmModal'
 
-interface EditRoomModalProps {
+interface AddRoomModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: () => Promise<void> | void
-  onSaveStart: (roomId: string) => void
-  onDeleteStart: (roomId: string) => void
-  room: {
-    id: string
-    roomNumber: string
-    name: string
-    type: string
-    description?: string | null
-    capacity: number
-    pricePerNight: number | any
-    status: string
-    amenities: string[]
-    images?: string[]
-  } | null
+  onSuccess: () => void
 }
 
-export function EditRoomModal({
+export function AddRoomModal({
   isOpen,
   onClose,
   onSuccess,
-  onSaveStart,
-  onDeleteStart,
-  room,
-}: EditRoomModalProps) {
+}: AddRoomModalProps) {
   const [loading, setLoading] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedImagePreview, setSelectedImagePreview] = useState<
     string | null
   >(null)
-  const [isAmenityModalOpen, setIsAmenityModalOpen] = useState(false)
 
-  // Control custom delete confirmation popup
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  // Controls state for the new separate Amenity Modal
+  const [isAmenityModalOpen, setIsAmenityModalOpen] = useState(false)
 
   const [formData, setFormData] = useState({
     roomNumber: '',
@@ -64,67 +31,15 @@ export function EditRoomModal({
     description: '',
     capacity: 2,
     pricePerNight: 2500,
-    status: 'AVAILABLE' as RoomStatus,
-    amenities: [] as string[],
+    amenities: [
+      'Wi-Fi',
+      'Air conditioning / heating',
+      'Towels (bath, hand, face)',
+    ] as string[],
     images: [] as string[],
   })
 
-  useEffect(() => {
-    if (room) {
-      setFormData({
-        roomNumber: room.roomNumber || '',
-        name: room.name || '',
-        type: (room.type as RoomType) || 'Standard',
-        description: room.description || '',
-        capacity: room.capacity || 2,
-        pricePerNight: room.pricePerNight ? Number(room.pricePerNight) : 0,
-        status: (room.status as RoomStatus) || 'AVAILABLE',
-        amenities: room.amenities || [],
-        images: room.images || [],
-      })
-      setError(null)
-      setShowDeleteConfirm(false)
-    }
-  }, [room])
-
-  // 🔍 Check if any fields, images, or amenities have been modified
-  const hasChanges = useMemo(() => {
-    if (!room) return false
-
-    const initialPrice = room.pricePerNight ? Number(room.pricePerNight) : 0
-    const initialCapacity = room.capacity || 2
-    const initialDesc = room.description || ''
-    const initialStatus = room.status || 'AVAILABLE'
-    const initialType = room.type || 'Standard'
-    const initialName = room.name || ''
-    const initialRoomNumber = room.roomNumber || ''
-
-    if (formData.roomNumber !== initialRoomNumber) return true
-    if (formData.name !== initialName) return true
-    if (formData.type !== initialType) return true
-    if (formData.description !== initialDesc) return true
-    if (formData.capacity !== initialCapacity) return true
-    if (formData.pricePerNight !== initialPrice) return true
-    if (formData.status !== initialStatus) return true
-
-    // Compare amenities array
-    const currentAmenities = [...formData.amenities].sort()
-    const initialAmenities = [...(room.amenities || [])].sort()
-    if (currentAmenities.length !== initialAmenities.length) return true
-    if (currentAmenities.some((val, idx) => val !== initialAmenities[idx]))
-      return true
-
-    // Compare images array
-    const currentImages = formData.images
-    const initialImages = room.images || []
-    if (currentImages.length !== initialImages.length) return true
-    if (currentImages.some((val, idx) => val !== initialImages[idx]))
-      return true
-
-    return false
-  }, [formData, room])
-
-  if (!isOpen || !room) return null
+  if (!isOpen) return null
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -161,64 +76,59 @@ export function EditRoomModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!room || !hasChanges) return
-
     setLoading(true)
     setError(null)
 
-    // 🔒 Lock table row & close edit modal immediately
-    onSaveStart(room.id)
-    onClose()
-
     try {
-      await updateRoom({
+      await createRoom({
         data: {
-          id: room.id,
           roomNumber: formData.roomNumber,
           name: formData.name,
           type: formData.type,
           description: formData.description || undefined,
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
-          status: formData.status as any,
           amenities: formData.amenities,
           images: formData.images,
         },
       })
-      await onSuccess()
+
+      setFormData({
+        roomNumber: '',
+        name: '',
+        type: 'Standard',
+        description: '',
+        capacity: 2,
+        pricePerNight: 2500,
+        amenities: [
+          'Wi-Fi',
+          'Air conditioning / heating',
+          'Towels (bath, hand, face)',
+        ],
+        images: [],
+      })
+
+      onSuccess()
+      onClose()
     } catch (err: any) {
-      console.error('Failed to update room:', err)
-      setError(err.message || 'Failed to update room.')
+      setError(err.message || 'Failed to create room.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDeleteConfirm = async () => {
-    if (!room) return
+  const handleSaveAmenities = (newAmenities: string[]) => {
+    setFormData((prev) => ({ ...prev, amenities: newAmenities }))
+  }
 
-    setDeleting(true)
-    setError(null)
-
-    // 🔒 Lock table row & close modals immediately
-    onDeleteStart(room.id)
-    setShowDeleteConfirm(false)
-    onClose()
-
-    try {
-      await deleteRoom({ data: { id: room.id } })
-      await onSuccess()
-    } catch (err: any) {
-      console.error('Failed to delete room:', err)
-      setError(err.message || 'Failed to delete room.')
-    } finally {
-      setDeleting(false)
-    }
+  const handlePreview = (url: string) => {
+    setSelectedImagePreview(url)
   }
 
   return (
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        {/* Main Modal Container */}
         <div className="bg-white rounded-2xl max-w-xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-stone-200">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-100 p-5 shrink-0">
@@ -228,10 +138,10 @@ export function EditRoomModal({
               </div>
               <div>
                 <h3 className="text-base font-bold text-stone-900">
-                  Edit Room {room.roomNumber}
+                  Add New Room
                 </h3>
                 <p className="text-xs text-stone-500">
-                  Update availability, rates, photos, or amenities
+                  Configure room details, pricing, and amenities
                 </p>
               </div>
             </div>
@@ -248,6 +158,7 @@ export function EditRoomModal({
             onSubmit={handleSubmit}
             className="flex flex-col flex-1 overflow-hidden"
           >
+            {/* Scrollable Body */}
             <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
               {error && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
@@ -255,7 +166,7 @@ export function EditRoomModal({
                 </div>
               )}
 
-              {/* Photos Gallery */}
+              {/* Photos Gallery Slider */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block font-semibold text-stone-700">
@@ -288,11 +199,11 @@ export function EditRoomModal({
                         src={imgUrl}
                         alt={`Room photo ${index + 1}`}
                         className="w-full h-full object-cover cursor-pointer transition group-hover:scale-105"
-                        onClick={() => setSelectedImagePreview(imgUrl)}
+                        onClick={() => handlePreview(imgUrl)}
                       />
                       <button
                         type="button"
-                        onClick={() => setSelectedImagePreview(imgUrl)}
+                        onClick={() => handlePreview(imgUrl)}
                         className="absolute bottom-1 left-1 p-1 bg-stone-900/60 hover:bg-stone-900 text-white rounded-md transition opacity-0 group-hover:opacity-100 cursor-pointer"
                       >
                         <Maximize2 className="w-3 h-3" />
@@ -317,6 +228,8 @@ export function EditRoomModal({
                   <input
                     type="text"
                     required
+                    data-testid="room-number-input"
+                    placeholder="e.g. 101"
                     value={formData.roomNumber}
                     onChange={(e) =>
                       setFormData({ ...formData, roomNumber: e.target.value })
@@ -324,30 +237,6 @@ export function EditRoomModal({
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        status: e.target.value as RoomStatus,
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
-                  >
-                    {ROOM_STATUSES.map((status) => (
-                      <option key={status.value} value={status.value}>
-                        {status.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
                     Room Type
@@ -368,6 +257,45 @@ export function EditRoomModal({
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  Room Display Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  data-testid="room-name-input"
+                  placeholder="e.g. Deluxe Ocean View Suite"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Capacity (Guests)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    required
+                    value={formData.capacity}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        capacity: Number(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
@@ -392,45 +320,11 @@ export function EditRoomModal({
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  Display Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  Capacity (Guests)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  required
-                  value={formData.capacity}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      capacity: Number(e.target.value),
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  Description
+                  Description (Optional)
                 </label>
                 <textarea
                   rows={2}
+                  placeholder="Brief description of the room..."
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
@@ -439,7 +333,7 @@ export function EditRoomModal({
                 />
               </div>
 
-              {/* Amenities Section */}
+              {/* Clean Amenities Summary Card with Trigger Button */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block font-semibold text-stone-700">
@@ -458,7 +352,7 @@ export function EditRoomModal({
                 <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
                   {formData.amenities.length === 0 ? (
                     <p className="text-stone-400 text-xs italic">
-                      No amenities selected.
+                      No amenities selected yet.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -477,63 +371,40 @@ export function EditRoomModal({
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between p-4 border-t border-stone-100 bg-white rounded-b-2xl shrink-0">
+            {/* Fixed Sticky Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t border-stone-100 bg-white rounded-b-2xl shrink-0">
               <button
                 type="button"
-                disabled={deleting || loading}
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition text-xs disabled:opacity-50"
+                disabled={loading}
+                onClick={onClose}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium rounded-xl cursor-pointer transition text-xs"
               >
-                <Trash2 className="w-4 h-4" /> Delete Room
+                Cancel
               </button>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={loading || deleting}
-                  onClick={onClose}
-                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium rounded-xl cursor-pointer transition text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || deleting || !hasChanges} // 🔒 Disabled if no changes were made
-                  className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-                >
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 text-xs"
+              >
+                {loading ? 'Creating...' : 'Create Room'}
+              </button>
             </div>
           </form>
         </div>
       </div>
 
-      {/* Reusable Confirm Modal for Deletion */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        variant="danger"
-        title={`Archive Room ${room.roomNumber}?`}
-        description={`Are you sure you want to delete "${room.name}"? You can restore it later from the archived rooms list.`}
-        confirmText="Yes, Delete"
-        cancelText="Cancel"
-        isLoading={deleting}
-        onConfirm={handleDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-      />
-
+      {/* Separate Amenity Selection Modal */}
       <AmenitySelectorModal
         isOpen={isAmenityModalOpen}
         onClose={() => setIsAmenityModalOpen(false)}
         selectedAmenities={formData.amenities}
-        onSave={(newAmenities) =>
-          setFormData((prev) => ({ ...prev, amenities: newAmenities }))
-        }
+        onSave={handleSaveAmenities}
       />
 
+      {/* Lightbox Preview Modal */}
       {selectedImagePreview && (
         <div
-          className="fixed inset-0 bg-black/90 z-80 flex items-center justify-center p-4 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/90 z-70 flex items-center justify-center p-4 backdrop-blur-sm"
           onClick={() => setSelectedImagePreview(null)}
         >
           <button

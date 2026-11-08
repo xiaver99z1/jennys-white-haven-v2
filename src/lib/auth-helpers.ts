@@ -1,18 +1,27 @@
-import { getRequestHeaders } from '@tanstack/react-start/server' // or 'vinxi/http'
+import { createServerOnlyFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '#/lib/auth'
 
 /**
- * Ensures the request is authenticated and returns the entire session object if you need user details (email, role, IP, userAgent)
+ * Safely retrieves request headers on the server only
  */
-export async function authSession(
-  errorMessage = 'Unauthorized: Authentication required.',
-) {
-  const headers = getRequestHeaders()
-  const session = await auth.api.getSession({ headers })
+export const getServerHeaders = createServerOnlyFn(() => {
+  return getRequestHeaders()
+})
 
-  if (!session || !session.user) {
-    throw new Error(errorMessage)
-  }
+/**
+ * Ensures the request is authenticated and returns the entire session object
+ * if you need user details (email, role, IP, userAgent)
+ */
+export const authSession = createServerOnlyFn(
+  async (errorMessage = 'Unauthorized: Authentication required.') => {
+    const headers = getRequestHeaders()
+    const session = await auth.api.getSession({ headers })
 
-  return session
-}
+    if (!session || !session.user) {
+      throw new Error(errorMessage)
+    }
+
+    return session
+  },
+)

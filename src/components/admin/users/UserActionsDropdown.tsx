@@ -8,8 +8,8 @@ import {
   Ban,
   ShieldCheck,
 } from 'lucide-react'
-import { UserSessionsModal } from './UserSessionsModal'
-import { UserActivityLogsModal } from './UserActivityLogsModal'
+import { UserSessionsModal } from '#/components/admin/users/UserSessionsModal'
+import { UserActivityLogsModal } from '#/components/admin/users/UserActivityLogsModal'
 import { blockAdminUser, unblockAdminUser } from '#/server/admin-actions'
 
 interface UserActionsDropdownProps {
@@ -17,7 +17,7 @@ interface UserActionsDropdownProps {
   onEdit: (user: any) => void
   onResendVerification: (user: any) => void
   onOpen?: () => void
-  onSuccess: () => void // 👈 Callback to refresh table data after block/unblock
+  onSuccess: () => void
 }
 
 export function UserActionsDropdown({
@@ -44,7 +44,6 @@ export function UserActionsDropdown({
   }
 
   const handleBlockUnblockAction = async () => {
-    if (!confirmModal) return
     setLoading(true)
 
     try {
@@ -54,7 +53,7 @@ export function UserActionsDropdown({
         await unblockAdminUser({ data: { userId: user.id } })
       }
       setConfirmModal(null)
-      onSuccess() // Refresh table loader data
+      onSuccess()
     } catch (err: any) {
       console.error('Action failed', err)
     } finally {

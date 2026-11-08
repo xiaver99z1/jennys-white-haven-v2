@@ -7,10 +7,10 @@ import {
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
-import { logUserLogout } from '#/server/auth-actions' // 👈 Import logout action
+import { logUserLogout } from '#/server/auth-actions'
 import { useEffect, useState, useRef } from 'react'
-import { AdminSidebar } from '#/components/AdminSidebar'
-import { AdminNavbar } from '#/components/AdminNavbar'
+import { AdminSidebar } from '#/components/common/AdminSidebar'
+import { AdminNavbar } from '#/components/common/AdminNavbar'
 
 // Get current session
 const getSession = createServerFn({ method: 'GET' }).handler(async () => {

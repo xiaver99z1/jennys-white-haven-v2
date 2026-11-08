@@ -56,7 +56,6 @@ export function EditUserProfileModal({
   if (!isOpen || !user) return null
 
   const validatePassword = (pwd: string) => {
-    if (!pwd) return null
     if (pwd.length < 8 || pwd.length > 16) {
       return 'Password must be between 8 and 16 characters long.'
     }
@@ -226,7 +225,6 @@ export function EditUserProfileModal({
           </div>
         </form>
 
-        {/* Confirmation Modal Overlay */}
         {showConfirm && (
           <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 text-center z-30">
             <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xl mb-3 font-bold">

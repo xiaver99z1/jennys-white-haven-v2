@@ -144,51 +144,52 @@ export function AdminDataTable<T>({
           </div>
 
           <div className="space-y-2.5">
-            {columns.map((col) => {
-              if (!col.filterable) return null
-              const stringKey = String(col.key)
-              return (
-                <div key={stringKey}>
-                  <label className="block text-[11px] font-medium text-stone-500 mb-1">
-                    {col.header}
-                  </label>
-                  {col.filterType === 'select' ? (
-                    <select
-                      value={searchValues[stringKey] || 'ALL'}
-                      onChange={(e) =>
-                        onSearchChange(stringKey, e.target.value)
-                      }
-                      className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none text-stone-700 cursor-pointer"
-                    >
-                      {col.filterOptions?.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : col.filterType === 'date' ? (
-                    <input
-                      type="date"
-                      value={searchValues[stringKey] || ''}
-                      onChange={(e) =>
-                        onSearchChange(stringKey, e.target.value)
-                      }
-                      className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none text-stone-700 cursor-pointer"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={searchValues[stringKey] || ''}
-                      onChange={(e) =>
-                        onSearchChange(stringKey, e.target.value)
-                      }
-                      placeholder={`Search ${col.header.toLowerCase()}...`}
-                      className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none text-stone-800"
-                    />
-                  )}
-                </div>
-              )
-            })}
+            {columns
+              .filter((col) => col.filterable)
+              .map((col) => {
+                const stringKey = String(col.key)
+                return (
+                  <div key={stringKey}>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">
+                      {col.header}
+                    </label>
+                    {col.filterType === 'select' ? (
+                      <select
+                        value={searchValues[stringKey] || 'ALL'}
+                        onChange={(e) =>
+                          onSearchChange(stringKey, e.target.value)
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none text-stone-700 cursor-pointer"
+                      >
+                        {col.filterOptions?.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : col.filterType === 'date' ? (
+                      <input
+                        type="date"
+                        value={searchValues[stringKey] || ''}
+                        onChange={(e) =>
+                          onSearchChange(stringKey, e.target.value)
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none text-stone-700 cursor-pointer"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={searchValues[stringKey] || ''}
+                        onChange={(e) =>
+                          onSearchChange(stringKey, e.target.value)
+                        }
+                        placeholder={`Search ${col.header.toLowerCase()}...`}
+                        className="w-full px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none text-stone-800"
+                      />
+                    )}
+                  </div>
+                )
+              })}
 
             {/* Mobile Sorting */}
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-100">
