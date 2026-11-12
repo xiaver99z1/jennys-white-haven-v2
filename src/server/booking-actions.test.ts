@@ -634,6 +634,36 @@ describe('booking-actions', () => {
         restoreBookingHandler({ data: { id: 'missing' } }),
       ).rejects.toThrow('Booking not found.')
 
+      // Restore: archived room
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        id: 'b-1',
+        roomId: 'room-1',
+        status: 'CONFIRMED',
+        checkIn: new Date('2026-11-12'),
+        checkOut: new Date('2026-11-14'),
+        bookingReference: 'JWH-20261112-B001',
+        room: { ...mockRoom, deletedAt: new Date() },
+        guest: mockGuest,
+      } as any)
+      await expect(
+        restoreBookingHandler({ data: { id: 'b-1' } }),
+      ).rejects.toThrow('Selected room is not available.')
+
+      // Restore: archived guest
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        id: 'b-1',
+        roomId: 'room-1',
+        status: 'CONFIRMED',
+        checkIn: new Date('2026-11-12'),
+        checkOut: new Date('2026-11-14'),
+        bookingReference: 'JWH-20261112-B001',
+        room: mockRoom,
+        guest: { ...mockGuest, deletedAt: new Date() },
+      } as any)
+      await expect(
+        restoreBookingHandler({ data: { id: 'b-1' } }),
+      ).rejects.toThrow('Selected guest was not found.')
+
       // Restore: overlap found
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
         id: 'b-1',

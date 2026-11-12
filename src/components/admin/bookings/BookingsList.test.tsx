@@ -334,8 +334,14 @@ describe('BookingsList', () => {
     })
     unmount2()
 
-    vi.mocked(restoreBooking).mockResolvedValueOnce({ success: true })
-    const { rerender } = render(
+    let resolveRestore!: (val: { success: boolean }) => void
+    vi.mocked(restoreBooking).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRestore = resolve
+        }) as any,
+    )
+    render(
       <BookingsList
         initialBookings={mockBookings}
         rooms={mockRooms}
@@ -348,52 +354,10 @@ describe('BookingsList', () => {
     )
     await user.click(screen.getByRole('button', { name: /restore booking/i }))
     await user.click(screen.getByRole('button', { name: /confirm action/i }))
+    expect(screen.getByText('Restoring...')).toBeInTheDocument()
+    resolveRestore({ success: true })
     await waitFor(() => {
       expect(mockRouter.invalidate).toHaveBeenCalled()
     })
-
-    // Clear restoringId lock
-    rerender(
-      <BookingsList
-        initialBookings={mockBookings.map((b) =>
-          b.id === 'b-3' ? { ...b, deletedAt: null } : b,
-        )}
-        rooms={mockRooms}
-        guests={mockGuests}
-        router={mockRouter}
-      />,
-    )
-
-    // Trigger and clear savingId and deletingId locks
-    await user.click(
-      screen.getByRole('button', { name: /view active bookings/i }),
-    )
-    const editBtns = screen.getAllByRole('button', { name: /edit booking/i })
-    await user.click(editBtns[0])
-    await user.click(screen.getByRole('button', { name: /trigger save lock/i }))
-    rerender(
-      <BookingsList
-        initialBookings={[...mockBookings]}
-        rooms={mockRooms}
-        guests={mockGuests}
-        router={mockRouter}
-      />,
-    )
-
-    await user.click(editBtns[0])
-    await user.click(
-      screen.getByRole('button', { name: /trigger delete lock/i }),
-    )
-    rerender(
-      <BookingsList
-        initialBookings={mockBookings.map((b) =>
-          b.id === 'b-1' ? { ...b, deletedAt: '2026-11-12T00:00:00.000Z' } : b,
-        )}
-        rooms={mockRooms}
-        guests={mockGuests}
-        router={mockRouter}
-      />,
-    )
-    expect(screen.getByText('Bookings Management')).toBeInTheDocument()
   })
 })

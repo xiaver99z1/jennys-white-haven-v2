@@ -92,8 +92,10 @@ export function AddBookingModal({
     const diff = Math.round(
       (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
     )
-    return diff > 0 ? diff : 1
+    return diff > 0 ? diff : 0
   }, [formData.checkIn, formData.checkOut])
+
+  const isValidStay = nights > 0
 
   const calculatedTotal = useMemo(() => {
     const rate = selectedRoom ? Number(selectedRoom.pricePerNight) : 0
@@ -309,10 +311,13 @@ export function AddBookingModal({
                   Stay Summary
                 </span>
                 <p className="text-xs text-stone-600 mt-0.5">
-                  {nights} night(s) × ₱
-                  {selectedRoom
-                    ? Number(selectedRoom.pricePerNight).toLocaleString()
-                    : '0'}
+                  {isValidStay
+                    ? `${nights} night(s) × ₱${
+                        selectedRoom
+                          ? Number(selectedRoom.pricePerNight).toLocaleString()
+                          : '0'
+                      }`
+                    : 'Check-out date must be after check-in date'}
                 </p>
               </div>
               <div className="text-right">
@@ -416,7 +421,7 @@ export function AddBookingModal({
                   id="add-booking-amount-paid"
                   type="number"
                   min={0}
-                  step="50"
+                  step="0.01"
                   value={formData.amountPaid}
                   onChange={(e) =>
                     setFormData({
@@ -461,7 +466,7 @@ export function AddBookingModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isValidStay}
               className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 text-xs"
             >
               {loading ? 'Creating...' : 'Create Booking'}

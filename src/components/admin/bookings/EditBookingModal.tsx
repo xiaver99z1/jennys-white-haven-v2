@@ -434,7 +434,7 @@ export function EditBookingModal({
                     id="edit-booking-total"
                     type="number"
                     min={0}
-                    step="50"
+                    step="0.01"
                     required
                     value={formData.totalAmount}
                     onChange={(e) =>
@@ -458,7 +458,7 @@ export function EditBookingModal({
                     id="edit-booking-paid"
                     type="number"
                     min={0}
-                    step="50"
+                    step="0.01"
                     required
                     value={formData.amountPaid}
                     onChange={(e) =>

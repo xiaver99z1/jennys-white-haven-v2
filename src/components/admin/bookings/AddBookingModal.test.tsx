@@ -89,11 +89,16 @@ describe('AddBookingModal', () => {
     fireEvent.change(screen.getByLabelText(/check-in date/i), {
       target: { value: '2026-12-01' },
     })
-    // Same date first to cover diff <= 0 fallback to 1 night
+    // Same date first to cover diff <= 0 invalid stay message & disabled button
     fireEvent.change(screen.getByLabelText(/check-out date/i), {
       target: { value: '2026-12-01' },
     })
-    expect(screen.getByText('₱6,500')).toBeInTheDocument()
+    expect(
+      screen.getByText('Check-out date must be after check-in date'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /create booking/i }),
+    ).toBeDisabled()
 
     // 3 nights -> 3 * 6500 = 19,500
     fireEvent.change(screen.getByLabelText(/check-out date/i), {

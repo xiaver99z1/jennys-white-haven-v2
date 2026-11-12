@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { AddBookingModal } from '#/components/admin/bookings/AddBookingModal'
 import type {
   BookingRoomOption,
@@ -71,12 +71,6 @@ export function BookingsList({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  useEffect(() => {
-    setRestoringId(null)
-    setSavingId(null)
-    setDeletingId(null)
-  }, [initialBookings])
-
   const filteredBookings = initialBookings.filter((booking) => {
     const isDeleted = Boolean(booking.deletedAt)
     if (showDeleted ? !isDeleted : isDeleted) return false
@@ -108,13 +102,13 @@ export function BookingsList({
       if (res.success) {
         await router.invalidate()
       } else {
-        setRestoringId(null)
         setActionError('Failed to restore booking.')
       }
     } catch (err: any) {
       console.error('Failed to restore booking:', err)
-      setRestoringId(null)
       setActionError(err.message || 'Failed to restore booking.')
+    } finally {
+      setRestoringId(null)
     }
   }
 
@@ -402,8 +396,13 @@ export function BookingsList({
         onDeleteStart={(id) => setDeletingId(id)}
         onDeleteError={() => setDeletingId(null)}
         onSuccess={async () => {
-          await router.invalidate()
-          setEditingBooking(null)
+          try {
+            await router.invalidate()
+          } finally {
+            setSavingId(null)
+            setDeletingId(null)
+            setEditingBooking(null)
+          }
         }}
       />
 

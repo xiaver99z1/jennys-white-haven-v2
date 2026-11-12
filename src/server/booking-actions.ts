@@ -216,6 +216,7 @@ export async function createBookingHandler({
         totalAmount: computedTotal,
       }
     },
+    { isolationLevel: 'Serializable' },
   )
 
   const session = await authSession()
@@ -405,7 +406,7 @@ export async function updateBookingHandler({
       nextPaymentMethod: resolvedPaymentMethod,
       nextSpecialRequests: resolvedSpecialRequests,
     }
-  })
+  }, { isolationLevel: 'Serializable' })
 
   const changes: string[] = []
   if (data.roomId !== existingBooking.roomId) {
@@ -559,6 +560,12 @@ export async function restoreBookingHandler({
     if (!target) {
       throw new Error('Booking not found.')
     }
+    if (target.room.deletedAt) {
+      throw new Error('Selected room is not available.')
+    }
+    if (target.guest.deletedAt) {
+      throw new Error('Selected guest was not found.')
+    }
 
     if (target.status !== 'CANCELLED' && target.status !== 'CHECKED_OUT') {
       const overlapping = await tx.booking.findFirst({
@@ -592,7 +599,7 @@ export async function restoreBookingHandler({
     }
 
     return target
-  })
+  }, { isolationLevel: 'Serializable' })
 
   const session = await authSession()
   await logActivity({
