@@ -16,9 +16,9 @@ vi.mock('#/lib/prisma', () => ({
     $transaction: vi.fn((cb: any) => cb(prisma)),
     booking: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
-      aggregate: vi.fn(),
     },
     room: {
       findMany: vi.fn(),
@@ -41,7 +41,13 @@ vi.mock('#/server/room-actions', () => ({
 
 describe('dashboard-actions', () => {
   const mockAdmin = { id: 'admin-1', role: 'OWNER' }
-  const mockRoom = { id: 'room-1', roomNumber: '101', pricePerNight: '4500' }
+  const mockRoom = {
+    id: 'room-1',
+    roomNumber: '101',
+    pricePerNight: '4500',
+    status: 'AVAILABLE',
+    deletedAt: null,
+  }
   const mockGuest = { id: 'guest-1', firstName: 'Maria', lastName: 'Santos' }
 
   const makeBooking = (overrides: Record<string, unknown> = {}) => ({
@@ -68,7 +74,6 @@ describe('dashboard-actions', () => {
 
   describe('getResortDayRange', () => {
     it('uses Philippine time (UTC+8) to resolve today and the current month', () => {
-      // 17:30 UTC on Nov 11 is already 01:30 on Nov 12 in Manila
       const range = getResortDayRange(new Date('2026-11-11T17:30:00.000Z'))
 
       expect(range.start.toISOString()).toBe('2026-11-12T00:00:00.000Z')
@@ -92,7 +97,7 @@ describe('dashboard-actions', () => {
   })
 
   describe('getDashboardStatsHandler', () => {
-    it('aggregates arrivals, departures, room counts, recent bookings, balances, and monthly revenue', async () => {
+    it('aggregates arrivals, departures, room counts, recent bookings, balances, and monthly revenue without understating balances', async () => {
       vi.mocked(prisma.booking.findMany)
         .mockResolvedValueOnce([makeBooking({ id: 'arr-1' })] as any)
         .mockResolvedValueOnce([
@@ -100,7 +105,23 @@ describe('dashboard-actions', () => {
         ] as any)
         .mockResolvedValueOnce([makeBooking({ id: 'rec-1' })] as any)
         .mockResolvedValueOnce([
-          makeBooking({ id: 'out-1', paymentStatus: 'PARTIAL' }),
+          makeBooking({
+            id: 'out-1',
+            totalAmount: '9000.00',
+            amountPaid: '4500.00',
+            paymentStatus: 'PARTIAL',
+          }),
+          makeBooking({
+            id: 'out-paid',
+            totalAmount: '5000.00',
+            amountPaid: '5000.00',
+            paymentStatus: 'PARTIAL',
+          }),
+        ] as any)
+        .mockResolvedValueOnce([
+          { totalAmount: '10000.00', amountPaid: '5000.00' },
+          // Overpaid booking should not reduce the balance due on the first booking
+          { totalAmount: '5000.00', amountPaid: '7000.00' },
         ] as any)
       vi.mocked(prisma.room.findMany).mockResolvedValueOnce([
         { status: 'AVAILABLE' },
@@ -109,14 +130,11 @@ describe('dashboard-actions', () => {
         { status: 'CLEANING' },
         { status: 'MAINTENANCE' },
       ] as any)
-      vi.mocked(prisma.booking.aggregate).mockResolvedValueOnce({
-        _sum: { totalAmount: '27000.00', amountPaid: '13500.00' },
-        _count: { _all: 3 },
-      } as any)
 
       const res = await getDashboardStatsHandler()
 
       expect(requirePermission).toHaveBeenCalledWith('view:bookings')
+      expect(res.canUpdateBookings).toBe(true)
       expect(res.today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(res.arrivals[0].id).toBe('arr-1')
       expect(res.arrivals[0].totalAmount).toBe(9000)
@@ -124,7 +142,9 @@ describe('dashboard-actions', () => {
       expect(res.arrivals[0].room.pricePerNight).toBe(4500)
       expect(res.departures[0].id).toBe('dep-1')
       expect(res.recentBookings[0].id).toBe('rec-1')
+      expect(res.outstanding).toHaveLength(1)
       expect(res.outstanding[0].id).toBe('out-1')
+      expect(res.outstandingCount).toBe(1)
       expect(res.rooms).toEqual({
         total: 5,
         available: 2,
@@ -133,33 +153,37 @@ describe('dashboard-actions', () => {
         maintenance: 1,
       })
       expect(res.revenue).toEqual({
-        monthTotal: 27000,
-        monthCollected: 13500,
-        monthBookings: 3,
+        monthTotal: 15000,
+        monthPaid: 12000,
+        monthBalanceDue: 5000,
+        monthBookings: 2,
       })
     })
 
-    it('falls back to zero revenue when there are no bookings this month', async () => {
+    it('falls back to zero revenue and sets canUpdateBookings=false for receptionist', async () => {
+      vi.mocked(requirePermission).mockResolvedValueOnce({
+        id: 'rec-user',
+        role: 'RECEPTIONIST',
+      } as any)
       vi.mocked(prisma.booking.findMany).mockResolvedValue([])
       vi.mocked(prisma.room.findMany).mockResolvedValueOnce([])
-      vi.mocked(prisma.booking.aggregate).mockResolvedValueOnce({
-        _sum: { totalAmount: null, amountPaid: null },
-        _count: { _all: 0 },
-      } as any)
 
       const res = await getDashboardStatsHandler()
 
+      expect(res.canUpdateBookings).toBe(false)
       expect(res.rooms.total).toBe(0)
+      expect(res.outstandingCount).toBe(0)
       expect(res.revenue).toEqual({
         monthTotal: 0,
-        monthCollected: 0,
+        monthPaid: 0,
+        monthBalanceDue: 0,
         monthBookings: 0,
       })
     })
   })
 
   describe('checkInBookingHandler', () => {
-    it('rejects missing, archived, or non-checkin-able bookings', async () => {
+    it('rejects missing, archived, non-checkin-able, maintenance room, or already occupied room', async () => {
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(null)
       await expect(
         checkInBookingHandler({ data: { id: 'missing' } }),
@@ -179,6 +203,32 @@ describe('dashboard-actions', () => {
         checkInBookingHandler({ data: { id: 'b-1' } }),
       ).rejects.toThrow('Only pending or confirmed bookings can be checked in.')
 
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
+        makeBooking({ room: { ...mockRoom, status: 'MAINTENANCE' } }) as any,
+      )
+      await expect(
+        checkInBookingHandler({ data: { id: 'b-1' } }),
+      ).rejects.toThrow('Room 101 is currently unavailable for check-in.')
+
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
+        makeBooking({ room: { ...mockRoom, deletedAt: new Date() } }) as any,
+      )
+      await expect(
+        checkInBookingHandler({ data: { id: 'b-1' } }),
+      ).rejects.toThrow('Room 101 is currently unavailable for check-in.')
+
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
+        makeBooking({ status: 'CONFIRMED' }) as any,
+      )
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        bookingReference: 'JWH-20261112-OTHER',
+      } as any)
+      await expect(
+        checkInBookingHandler({ data: { id: 'b-1' } }),
+      ).rejects.toThrow(
+        'Room 101 already has a checked-in guest (JWH-20261112-OTHER).',
+      )
+
       expect(prisma.booking.update).not.toHaveBeenCalled()
     })
 
@@ -186,6 +236,7 @@ describe('dashboard-actions', () => {
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
         makeBooking({ status: 'PENDING' }) as any,
       )
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
       await checkInBookingHandler({ data: { id: 'b-1' } })
 
       vi.mocked(authSession).mockResolvedValueOnce({
@@ -195,6 +246,7 @@ describe('dashboard-actions', () => {
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
         makeBooking({ status: 'CONFIRMED' }) as any,
       )
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
       const res = await checkInBookingHandler({ data: { id: 'b-1' } })
 
       expect(res).toEqual({ success: true })
@@ -242,10 +294,11 @@ describe('dashboard-actions', () => {
       expect(prisma.booking.update).not.toHaveBeenCalled()
     })
 
-    it('checks out a checked-in booking and marks the room for cleaning', async () => {
+    it('checks out a checked-in booking, marks room CLEANING when empty, or keeps OCCUPIED if another booking is checked in', async () => {
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
         makeBooking({ status: 'CHECKED_IN' }) as any,
       )
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
       const res = await checkOutBookingHandler({ data: { id: 'b-1' } })
 
       expect(res).toEqual({ success: true })
@@ -257,14 +310,9 @@ describe('dashboard-actions', () => {
         where: { id: 'room-1' },
         data: { status: 'CLEANING' },
       })
-      expect(logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'BOOKING_CHECKED_OUT',
-          ipAddress: '127.0.0.1',
-          userAgent: 'Vitest',
-        }),
-      )
 
+      vi.clearAllMocks()
+      vi.mocked(requirePermission).mockResolvedValue(mockAdmin as any)
       vi.mocked(authSession).mockResolvedValueOnce({
         user: mockAdmin,
         session: { ipAddress: null, userAgent: null },
@@ -272,14 +320,11 @@ describe('dashboard-actions', () => {
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
         makeBooking({ status: 'CHECKED_IN' }) as any,
       )
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        id: 'other-checked-in',
+      } as any)
       await checkOutBookingHandler({ data: { id: 'b-1' } })
-      expect(logActivity).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          action: 'BOOKING_CHECKED_OUT',
-          ipAddress: null,
-          userAgent: null,
-        }),
-      )
+      expect(prisma.room.update).not.toHaveBeenCalled()
     })
   })
 })

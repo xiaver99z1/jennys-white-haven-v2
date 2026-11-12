@@ -31,6 +31,7 @@ export interface DashboardBooking {
 
 export interface DashboardStats {
   today: string
+  canUpdateBookings: boolean
   arrivals: DashboardBooking[]
   departures: DashboardBooking[]
   rooms: {
@@ -42,9 +43,11 @@ export interface DashboardStats {
   }
   recentBookings: DashboardBooking[]
   outstanding: DashboardBooking[]
+  outstandingCount: number
   revenue: {
     monthTotal: number
-    monthCollected: number
+    monthPaid: number
+    monthBalanceDue: number
     monthBookings: number
   }
 }
@@ -83,13 +86,9 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const { rooms, revenue } = stats
+  const { rooms, revenue, canUpdateBookings } = stats
   const occupancyRate =
     rooms.total > 0 ? Math.round((rooms.occupied / rooms.total) * 100) : 0
-  const monthOutstanding = Math.max(
-    revenue.monthTotal - revenue.monthCollected,
-    0,
-  )
 
   const handleConfirmAction = async () => {
     const { type, booking } = pendingAction!
@@ -176,16 +175,16 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
           accent="bg-amber-50 text-amber-900 border-amber-200"
         />
         <StatCard
-          title="Collected (This Month)"
-          value={formatPeso(revenue.monthCollected)}
-          hint="Payments received"
+          title="Paid (This Month's Stays)"
+          value={formatPeso(revenue.monthPaid)}
+          hint="Paid on bookings checking in this month"
           icon={<Wallet className="w-5 h-5" />}
           accent="bg-emerald-50 text-emerald-700 border-emerald-200"
         />
         <StatCard
           title="Balance Due (This Month)"
-          value={formatPeso(monthOutstanding)}
-          hint="Still to be collected"
+          value={formatPeso(revenue.monthBalanceDue)}
+          hint="Still to be collected on this month's stays"
           icon={<AlertCircle className="w-5 h-5" />}
           accent="bg-rose-50 text-rose-700 border-rose-200"
         />
@@ -199,7 +198,8 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
           ) : (
             stats.arrivals.map((booking) => {
               const canCheckIn =
-                booking.status === 'PENDING' || booking.status === 'CONFIRMED'
+                canUpdateBookings &&
+                (booking.status === 'PENDING' || booking.status === 'CONFIRMED')
               return (
                 <BookingRow key={booking.id} booking={booking}>
                   {canCheckIn ? (
@@ -227,7 +227,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
           ) : (
             stats.departures.map((booking) => (
               <BookingRow key={booking.id} booking={booking}>
-                {booking.status === 'CHECKED_IN' ? (
+                {canUpdateBookings && booking.status === 'CHECKED_IN' ? (
                   <ActionButton
                     label="Check Out"
                     isProcessing={processingId === booking.id}
@@ -278,7 +278,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
           </Panel>
         </div>
 
-        <Panel title="Balances Due" count={stats.outstanding.length}>
+        <Panel title="Balances Due" count={stats.outstandingCount}>
           {stats.outstanding.length === 0 ? (
             <EmptyState text="All bookings are fully paid." />
           ) : (

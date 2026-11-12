@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
+import { hasPermission } from '#/lib/permissions'
 import { requirePermission } from '#/server/room-actions'
 
 // Camotes Island, Cebu runs on Philippine Standard Time (UTC+8, no DST).
@@ -49,61 +50,66 @@ type RoomCountKey = 'available' | 'occupied' | 'cleaning' | 'maintenance'
 
 // --- 1. DASHBOARD STATS ---
 export async function getDashboardStatsHandler() {
-  await requirePermission('view:bookings')
+  const user = await requirePermission('view:bookings')
+  const canUpdateBookings = hasPermission(user, 'update:bookings')
 
   const { start, end, monthStart, monthEnd } = getResortDayRange()
   const include = { room: true, guest: true } as const
 
-  const [arrivals, departures, rooms, recentBookings, outstanding, monthAgg] =
-    await Promise.all([
-      prisma.booking.findMany({
-        where: {
-          deletedAt: null,
-          checkIn: { gte: start, lt: end },
-          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-        },
-        include,
-        orderBy: { checkIn: 'asc' },
-      }),
-      prisma.booking.findMany({
-        where: {
-          deletedAt: null,
-          checkOut: { gte: start, lt: end },
-          status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
-        },
-        include,
-        orderBy: { checkOut: 'asc' },
-      }),
-      prisma.room.findMany({
-        where: { deletedAt: null },
-        select: { status: true },
-      }),
-      prisma.booking.findMany({
-        where: { deletedAt: null },
-        include,
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-      }),
-      prisma.booking.findMany({
-        where: {
-          deletedAt: null,
-          status: { not: 'CANCELLED' },
-          paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
-        },
-        include,
-        orderBy: { checkIn: 'asc' },
-        take: 5,
-      }),
-      prisma.booking.aggregate({
-        where: {
-          deletedAt: null,
-          status: { not: 'CANCELLED' },
-          checkIn: { gte: monthStart, lt: monthEnd },
-        },
-        _sum: { totalAmount: true, amountPaid: true },
-        _count: { _all: true },
-      }),
-    ])
+  const [
+    arrivals,
+    departures,
+    rooms,
+    recentBookings,
+    outstandingCandidates,
+    monthBookings,
+  ] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        deletedAt: null,
+        checkIn: { gte: start, lt: end },
+        status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+      },
+      include,
+      orderBy: { checkIn: 'asc' },
+    }),
+    prisma.booking.findMany({
+      where: {
+        deletedAt: null,
+        checkOut: { gte: start, lt: end },
+        status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+      },
+      include,
+      orderBy: { checkOut: 'asc' },
+    }),
+    prisma.room.findMany({
+      where: { deletedAt: null },
+      select: { status: true },
+    }),
+    prisma.booking.findMany({
+      where: { deletedAt: null },
+      include,
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.booking.findMany({
+      where: {
+        deletedAt: null,
+        status: { not: 'CANCELLED' },
+        paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
+      },
+      include,
+      orderBy: { checkIn: 'asc' },
+    }),
+    prisma.booking.findMany({
+      where: {
+        deletedAt: null,
+        status: { not: 'CANCELLED' },
+        checkIn: { gte: monthStart, lt: monthEnd },
+      },
+      select: { totalAmount: true, amountPaid: true },
+    }),
+  ])
 
   const roomCounts: Record<RoomCountKey, number> & { total: number } = {
     total: rooms.length,
@@ -116,17 +122,35 @@ export async function getDashboardStatsHandler() {
     roomCounts[room.status.toLowerCase() as RoomCountKey] += 1
   }
 
+  const unpaidBalances = outstandingCandidates.filter(
+    (b) => Number(b.totalAmount) > Number(b.amountPaid),
+  )
+
+  let monthTotal = 0
+  let monthPaid = 0
+  let monthBalanceDue = 0
+  for (const b of monthBookings) {
+    const total = Number(b.totalAmount)
+    const paid = Number(b.amountPaid)
+    monthTotal += total
+    monthPaid += paid
+    monthBalanceDue += Math.max(total - paid, 0)
+  }
+
   return {
     today: start.toISOString().slice(0, 10),
+    canUpdateBookings,
     arrivals: arrivals.map(serializeBooking),
     departures: departures.map(serializeBooking),
     rooms: roomCounts,
     recentBookings: recentBookings.map(serializeBooking),
-    outstanding: outstanding.map(serializeBooking),
+    outstanding: unpaidBalances.slice(0, 5).map(serializeBooking),
+    outstandingCount: unpaidBalances.length,
     revenue: {
-      monthTotal: Number(monthAgg._sum.totalAmount ?? 0),
-      monthCollected: Number(monthAgg._sum.amountPaid ?? 0),
-      monthBookings: monthAgg._count._all,
+      monthTotal,
+      monthPaid,
+      monthBalanceDue,
+      monthBookings: monthBookings.length,
     },
   }
 }
@@ -147,29 +171,51 @@ export async function checkInBookingHandler({
 }) {
   const admin = await requirePermission('update:bookings')
 
-  const booking = await prisma.$transaction(async (tx) => {
-    const target = await tx.booking.findUnique({
-      where: { id: data.id },
-      include: { room: true, guest: true },
-    })
-    if (!target || target.deletedAt) {
-      throw new Error('Booking not found.')
-    }
-    if (target.status !== 'PENDING' && target.status !== 'CONFIRMED') {
-      throw new Error('Only pending or confirmed bookings can be checked in.')
-    }
+  const booking = await prisma.$transaction(
+    async (tx) => {
+      const target = await tx.booking.findUnique({
+        where: { id: data.id },
+        include: { room: true, guest: true },
+      })
+      if (!target || target.deletedAt) {
+        throw new Error('Booking not found.')
+      }
+      if (target.status !== 'PENDING' && target.status !== 'CONFIRMED') {
+        throw new Error('Only pending or confirmed bookings can be checked in.')
+      }
+      if (target.room.deletedAt || target.room.status === 'MAINTENANCE') {
+        throw new Error(
+          `Room ${target.room.roomNumber} is currently unavailable for check-in.`,
+        )
+      }
 
-    await tx.booking.update({
-      where: { id: data.id },
-      data: { status: 'CHECKED_IN' },
-    })
-    await tx.room.update({
-      where: { id: target.roomId },
-      data: { status: 'OCCUPIED' },
-    })
+      const activeCheckIn = await tx.booking.findFirst({
+        where: {
+          id: { not: data.id },
+          roomId: target.roomId,
+          deletedAt: null,
+          status: 'CHECKED_IN',
+        },
+      })
+      if (activeCheckIn) {
+        throw new Error(
+          `Room ${target.room.roomNumber} already has a checked-in guest (${activeCheckIn.bookingReference}).`,
+        )
+      }
 
-    return target
-  })
+      await tx.booking.update({
+        where: { id: data.id },
+        data: { status: 'CHECKED_IN' },
+      })
+      await tx.room.update({
+        where: { id: target.roomId },
+        data: { status: 'OCCUPIED' },
+      })
+
+      return target
+    },
+    { isolationLevel: 'Serializable' },
+  )
 
   const session = await authSession()
   await logActivity({
@@ -195,29 +241,43 @@ export async function checkOutBookingHandler({
 }) {
   const admin = await requirePermission('update:bookings')
 
-  const booking = await prisma.$transaction(async (tx) => {
-    const target = await tx.booking.findUnique({
-      where: { id: data.id },
-      include: { room: true, guest: true },
-    })
-    if (!target || target.deletedAt) {
-      throw new Error('Booking not found.')
-    }
-    if (target.status !== 'CHECKED_IN') {
-      throw new Error('Only checked-in bookings can be checked out.')
-    }
+  const booking = await prisma.$transaction(
+    async (tx) => {
+      const target = await tx.booking.findUnique({
+        where: { id: data.id },
+        include: { room: true, guest: true },
+      })
+      if (!target || target.deletedAt) {
+        throw new Error('Booking not found.')
+      }
+      if (target.status !== 'CHECKED_IN') {
+        throw new Error('Only checked-in bookings can be checked out.')
+      }
 
-    await tx.booking.update({
-      where: { id: data.id },
-      data: { status: 'CHECKED_OUT' },
-    })
-    await tx.room.update({
-      where: { id: target.roomId },
-      data: { status: 'CLEANING' },
-    })
+      await tx.booking.update({
+        where: { id: data.id },
+        data: { status: 'CHECKED_OUT' },
+      })
 
-    return target
-  })
+      const otherCheckedIn = await tx.booking.findFirst({
+        where: {
+          id: { not: data.id },
+          roomId: target.roomId,
+          deletedAt: null,
+          status: 'CHECKED_IN',
+        },
+      })
+      if (!otherCheckedIn) {
+        await tx.room.update({
+          where: { id: target.roomId },
+          data: { status: 'CLEANING' },
+        })
+      }
+
+      return target
+    },
+    { isolationLevel: 'Serializable' },
+  )
 
   const session = await authSession()
   await logActivity({

@@ -30,6 +30,7 @@ const makeBooking = (
 
 const fullStats: DashboardStats = {
   today: '2026-11-12',
+  canUpdateBookings: true,
   arrivals: [
     makeBooking({ id: 'arr-pending', status: 'PENDING' }),
     makeBooking({
@@ -76,17 +77,30 @@ const fullStats: DashboardStats = {
       paymentStatus: 'MYSTERY_PAYMENT',
     }),
   ],
-  revenue: { monthTotal: 50000, monthCollected: 32000, monthBookings: 6 },
+  outstandingCount: 2,
+  revenue: {
+    monthTotal: 50000,
+    monthPaid: 32000,
+    monthBalanceDue: 18000,
+    monthBookings: 6,
+  },
 }
 
 const emptyStats: DashboardStats = {
   today: '2026-11-12',
+  canUpdateBookings: false,
   arrivals: [],
   departures: [],
   rooms: { total: 0, available: 0, occupied: 0, cleaning: 0, maintenance: 0 },
   recentBookings: [],
   outstanding: [],
-  revenue: { monthTotal: 1000, monthCollected: 1500, monthBookings: 1 },
+  outstandingCount: 0,
+  revenue: {
+    monthTotal: 1000,
+    monthPaid: 1500,
+    monthBalanceDue: 0,
+    monthBookings: 1,
+  },
 }
 
 describe('AdminDashboard', () => {
@@ -136,6 +150,18 @@ describe('AdminDashboard', () => {
 
     await user.click(screen.getByRole('button', { name: /view all/i }))
     expect(mockRouter.navigate).toHaveBeenCalledWith({ to: '/admin/bookings' })
+  })
+
+  it('hides check-in and check-out controls when canUpdateBookings is false', () => {
+    render(
+      <AdminDashboard
+        stats={{ ...fullStats, canUpdateBookings: false }}
+        router={mockRouter}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Check In' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Check Out' })).toBeNull()
   })
 
   it('renders empty states and zero occupancy when there are no rooms or bookings', () => {
