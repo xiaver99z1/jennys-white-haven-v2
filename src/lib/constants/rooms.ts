@@ -15,6 +15,17 @@ export type GuestIdType =
   | 'Voter ID'
   | 'Other'
 
+export type BookingStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'CHECKED_IN'
+  | 'CHECKED_OUT'
+  | 'CANCELLED'
+
+export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'REFUNDED'
+
+export type PaymentMethod = 'CASH' | 'GCASH' | 'BANK_TRANSFER' | 'CARD'
+
 // ==========================================
 // 2. CONSTANTS & PRESETS
 // ==========================================
@@ -64,6 +75,75 @@ export const GUEST_ID_TYPES: readonly GuestIdType[] = [
 ] as const
 
 export const DEFAULT_NATIONALITY = 'Filipino'
+
+export const BOOKING_STATUSES: readonly {
+  label: string
+  value: BookingStatus
+  colorClass: string
+}[] = [
+  {
+    label: 'Pending',
+    value: 'PENDING',
+    colorClass: 'bg-amber-100 text-amber-800 border-amber-200',
+  },
+  {
+    label: 'Confirmed',
+    value: 'CONFIRMED',
+    colorClass: 'bg-sky-100 text-sky-800 border-sky-200',
+  },
+  {
+    label: 'Checked In',
+    value: 'CHECKED_IN',
+    colorClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  },
+  {
+    label: 'Checked Out',
+    value: 'CHECKED_OUT',
+    colorClass: 'bg-stone-100 text-stone-700 border-stone-200',
+  },
+  {
+    label: 'Cancelled',
+    value: 'CANCELLED',
+    colorClass: 'bg-rose-100 text-rose-800 border-rose-200',
+  },
+] as const
+
+export const PAYMENT_STATUSES: readonly {
+  label: string
+  value: PaymentStatus
+  colorClass: string
+}[] = [
+  {
+    label: 'Unpaid',
+    value: 'UNPAID',
+    colorClass: 'bg-rose-50 text-rose-700 border-rose-200',
+  },
+  {
+    label: 'Partial',
+    value: 'PARTIAL',
+    colorClass: 'bg-amber-50 text-amber-800 border-amber-200',
+  },
+  {
+    label: 'Paid',
+    value: 'PAID',
+    colorClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  },
+  {
+    label: 'Refunded',
+    value: 'REFUNDED',
+    colorClass: 'bg-stone-100 text-stone-600 border-stone-200',
+  },
+] as const
+
+export const PAYMENT_METHODS: readonly {
+  label: string
+  value: PaymentMethod
+}[] = [
+  { label: 'Cash', value: 'CASH' },
+  { label: 'GCash', value: 'GCASH' },
+  { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
+  { label: 'Credit / Debit Card', value: 'CARD' },
+] as const
 
 export const RESORT_AMENITY_PRESETS: readonly string[] = [
   'Queen Bed',

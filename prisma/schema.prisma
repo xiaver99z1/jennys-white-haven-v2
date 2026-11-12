@@ -125,6 +125,8 @@ model Room {
   // Soft Delete Field
   deletedAt     DateTime?  // NULL = active room, Timestamp = deleted/archived
 
+  bookings      Booking[]
+
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -148,6 +150,8 @@ model Guest {
   // Soft Delete Field
   deletedAt       DateTime? // NULL = active guest, Timestamp = deleted/archived
 
+  bookings        Booking[]
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -155,4 +159,54 @@ model Guest {
   @@index([phone])
   @@index([deletedAt])
   @@map("guest")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+model Booking {
+  id               String        @id @default(cuid())
+  bookingReference String        @unique
+  roomId           String
+  room             Room          @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  guestId          String
+  guest            Guest         @relation(fields: [guestId], references: [id], onDelete: Restrict)
+
+  checkIn          DateTime
+  checkOut         DateTime
+  nights           Int           @default(1)
+  guestsCount      Int           @default(2)
+
+  totalAmount      Decimal       @db.Decimal(10, 2)
+  amountPaid       Decimal       @default(0) @db.Decimal(10, 2)
+  paymentStatus    PaymentStatus @default(UNPAID)
+  paymentMethod    String?
+
+  status           BookingStatus @default(PENDING)
+  specialRequests  String?
+
+  deletedAt        DateTime?
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([roomId])
+  @@index([guestId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([checkIn, checkOut])
+  @@index([deletedAt])
+  @@map("booking")
 }
