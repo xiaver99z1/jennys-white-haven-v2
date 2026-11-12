@@ -27,7 +27,9 @@ vi.mock('#/components/admin/bookings/EditBookingModal', () => ({
     onClose,
     onSuccess,
     onSaveStart,
+    onSaveError,
     onDeleteStart,
+    onDeleteError,
   }: any) => {
     if (!isOpen || !booking) return null
     return (
@@ -37,9 +39,11 @@ vi.mock('#/components/admin/bookings/EditBookingModal', () => ({
         <button onClick={() => onSaveStart(booking.id)}>
           Trigger Save Lock
         </button>
+        <button onClick={onSaveError}>Trigger Save Error</button>
         <button onClick={() => onDeleteStart(booking.id)}>
           Trigger Delete Lock
         </button>
+        <button onClick={onDeleteError}>Trigger Delete Error</button>
         <button onClick={onSuccess}>Success Edit</button>
       </div>
     )
@@ -257,13 +261,23 @@ describe('BookingsList', () => {
     await user.click(editBtns[0])
     await user.click(screen.getByRole('button', { name: /trigger save lock/i }))
     await user.click(
+      screen.getByRole('button', { name: /trigger save error/i }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: /trigger delete lock/i }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: /trigger delete error/i }),
+    )
+    await user.click(screen.getByRole('button', { name: /trigger save lock/i }))
+    await user.click(
       screen.getByRole('button', { name: /trigger delete lock/i }),
     )
     await user.click(screen.getByRole('button', { name: /success edit/i }))
     expect(mockRouter.invalidate).toHaveBeenCalledTimes(2)
   })
 
-  it('handles restore booking flow (cancel, success=false, error, success=true) and clears locks on initialBookings update', async () => {
+  it('handles restore booking flow (cancel, success=false, error with/without message, success=true) and clears locks on initialBookings update', async () => {
     vi.mocked(restoreBooking).mockResolvedValueOnce({ success: false })
     const user = userEvent.setup()
     const { unmount } = render(
@@ -286,6 +300,9 @@ describe('BookingsList', () => {
     await user.click(screen.getByRole('button', { name: /confirm action/i }))
     await waitFor(() => {
       expect(restoreBooking).toHaveBeenCalledWith({ data: { id: 'b-3' } })
+      expect(
+        screen.getByText('Failed to restore booking.'),
+      ).toBeInTheDocument()
     })
     unmount()
 
@@ -304,10 +321,16 @@ describe('BookingsList', () => {
     await user.click(screen.getByRole('button', { name: /restore booking/i }))
     await user.click(screen.getByRole('button', { name: /confirm action/i }))
     await waitFor(() => {
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to restore booking:',
-        expect.any(Error),
-      )
+      expect(screen.getByText('Restore fail')).toBeInTheDocument()
+    })
+
+    vi.mocked(restoreBooking).mockRejectedValueOnce({})
+    await user.click(screen.getByRole('button', { name: /restore booking/i }))
+    await user.click(screen.getByRole('button', { name: /confirm action/i }))
+    await waitFor(() => {
+      expect(
+        screen.getByText('Failed to restore booking.'),
+      ).toBeInTheDocument()
     })
     unmount2()
 

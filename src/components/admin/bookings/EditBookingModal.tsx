@@ -54,7 +54,9 @@ interface EditBookingModalProps {
   onClose: () => void
   onSuccess: () => Promise<void> | void
   onSaveStart: (bookingId: string) => void
+  onSaveError?: () => void
   onDeleteStart: (bookingId: string) => void
+  onDeleteError?: () => void
   booking: BookingItem | null
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
@@ -84,7 +86,9 @@ export function EditBookingModal({
   onClose,
   onSuccess,
   onSaveStart,
+  onSaveError,
   onDeleteStart,
+  onDeleteError,
   booking,
   rooms,
   guests,
@@ -137,10 +141,8 @@ export function EditBookingModal({
   const handleSaveConfirm = async () => {
     setLoading(true)
     setError(null)
-
-    onSaveStart(booking.id)
     setShowSaveConfirm(false)
-    onClose()
+    onSaveStart(booking.id)
 
     try {
       await updateBooking({
@@ -160,9 +162,11 @@ export function EditBookingModal({
         },
       })
       await onSuccess()
+      onClose()
     } catch (err: any) {
       console.error('Failed to update booking:', err)
       setError(err.message || 'Failed to update booking.')
+      onSaveError?.()
     } finally {
       setLoading(false)
     }
@@ -171,17 +175,17 @@ export function EditBookingModal({
   const handleDeleteConfirm = async () => {
     setDeleting(true)
     setError(null)
-
-    onDeleteStart(booking.id)
     setShowDeleteConfirm(false)
-    onClose()
+    onDeleteStart(booking.id)
 
     try {
       await deleteBooking({ data: { id: booking.id } })
       await onSuccess()
+      onClose()
     } catch (err: any) {
       console.error('Failed to delete booking:', err)
       setError(err.message || 'Failed to delete booking.')
+      onDeleteError?.()
     } finally {
       setDeleting(false)
     }

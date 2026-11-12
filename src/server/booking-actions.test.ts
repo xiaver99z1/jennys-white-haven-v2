@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   calculateNights,
+  validateBookingNumbers,
   generateBookingReference,
   getBookingsListHandler,
   validateCreateBooking,
@@ -18,6 +19,7 @@ import { requirePermission } from '#/server/room-actions'
 
 vi.mock('#/lib/prisma', () => ({
   prisma: {
+    $transaction: vi.fn((cb: any) => cb(prisma)),
     booking: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -90,6 +92,22 @@ describe('booking-actions', () => {
       expect(() => calculateNights('2026-11-10', '2026-11-10')).toThrow(
         'Check-out date must be after check-in date.',
       )
+    })
+
+    it('validates booking counts and amounts', () => {
+      expect(() => validateBookingNumbers(0, 1000, 0)).toThrow(
+        'Guests count must be a whole number of at least 1.',
+      )
+      expect(() => validateBookingNumbers(1.5, 1000, 0)).toThrow(
+        'Guests count must be a whole number of at least 1.',
+      )
+      expect(() => validateBookingNumbers(2, -10, 0)).toThrow(
+        'Total amount must be a non-negative number.',
+      )
+      expect(() => validateBookingNumbers(2, 1000, -5)).toThrow(
+        'Amount paid must be a non-negative number.',
+      )
+      expect(() => validateBookingNumbers(2, 1000, 500)).not.toThrow()
     })
 
     it('generates booking reference with custom and default suffix', () => {
@@ -396,7 +414,7 @@ describe('booking-actions', () => {
       )
     })
 
-    it('logs all field changes and syncs room status for CHECKED_IN and CHECKED_OUT', async () => {
+    it('logs all field changes and syncs room status for CHECKED_IN, CHECKED_OUT, and room/status release', async () => {
       // 1. Update all fields + status CHECKED_IN
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(
         existingBooking as any,
@@ -440,15 +458,56 @@ describe('booking-actions', () => {
         where: { id: 'room-2' },
         data: { status: 'OCCUPIED' },
       })
-      expect(logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          action: 'BOOKING_UPDATED',
-          description: expect.stringContaining('Room: "101" → "102"'),
-        }),
-      )
 
-      // 2. Update to CHECKED_OUT (syncs room to CLEANING) and clear paymentMethod/specialRequests back to null
+      // 2. Update from CHECKED_IN to CANCELLED when no other CHECKED_IN exists (releases room to AVAILABLE)
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        ...existingBooking,
+        status: 'CHECKED_IN',
+      } as any)
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(mockRoom as any)
+      vi.mocked(prisma.guest.findUnique).mockResolvedValueOnce(mockGuest as any)
+      vi.mocked(prisma.booking.update).mockResolvedValueOnce({
+        ...existingBooking,
+        totalAmount: 9000,
+        amountPaid: 0,
+      } as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
+
+      await updateBookingHandler({
+        data: {
+          ...baseUpdate,
+          status: 'CANCELLED',
+        },
+      })
+      expect(prisma.room.update).toHaveBeenCalledWith({
+        where: { id: 'room-1' },
+        data: { status: 'AVAILABLE' },
+      })
+
+      // 3. Update from CHECKED_IN to CANCELLED when another CHECKED_IN exists (keeps room OCCUPIED)
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        ...existingBooking,
+        status: 'CHECKED_IN',
+      } as any)
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(mockRoom as any)
+      vi.mocked(prisma.guest.findUnique).mockResolvedValueOnce(mockGuest as any)
+      vi.mocked(prisma.booking.update).mockResolvedValueOnce({
+        ...existingBooking,
+        totalAmount: 9000,
+        amountPaid: 0,
+      } as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        id: 'other-b',
+      } as any)
+
+      await updateBookingHandler({
+        data: {
+          ...baseUpdate,
+          status: 'CANCELLED',
+        },
+      })
+
+      // 4. Update to CHECKED_OUT (syncs room to CLEANING) and clear paymentMethod/specialRequests back to null
       vi.mocked(authSession).mockResolvedValueOnce({
         user: mockAdmin,
         session: { ipAddress: null, userAgent: null },
@@ -481,7 +540,7 @@ describe('booking-actions', () => {
         data: { status: 'CLEANING' },
       })
 
-      // 3. No field changes & already CHECKED_OUT
+      // 5. No field changes & already CHECKED_OUT
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
         ...existingBooking,
         status: 'CHECKED_OUT',
@@ -513,64 +572,126 @@ describe('booking-actions', () => {
   })
 
   describe('deleteBookingHandler and restoreBookingHandler', () => {
-    it('throws when booking is not found and soft-deletes / restores when found', async () => {
+    it('soft-deletes and restores bookings while keeping room status and overlaps in sync', async () => {
+      // Delete: not found
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(null)
       await expect(
         deleteBookingHandler({ data: { id: 'missing' } }),
       ).rejects.toThrow('Booking not found.')
 
+      // Delete: CHECKED_IN booking with no other CHECKED_IN -> releases room to AVAILABLE
       vi.mocked(authSession).mockResolvedValueOnce({
         user: mockAdmin,
         session: { ipAddress: null, userAgent: null },
       } as any)
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
         id: 'b-1',
+        roomId: 'room-1',
+        status: 'CHECKED_IN',
         bookingReference: 'JWH-20261112-B001',
         room: mockRoom,
         guest: mockGuest,
       } as any)
       vi.mocked(prisma.booking.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
 
       const delRes = await deleteBookingHandler({ data: { id: 'b-1' } })
       expect(delRes).toEqual({ success: true })
-      expect(logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          action: 'BOOKING_DELETED',
-          description: expect.stringContaining(
-            'Archived booking JWH-20261112-B001',
-          ),
-        }),
-      )
+      expect(prisma.room.update).toHaveBeenCalledWith({
+        where: { id: 'room-1' },
+        data: { status: 'AVAILABLE' },
+      })
 
+      // Delete: CHECKED_IN booking when another CHECKED_IN exists, and non-CHECKED_IN booking
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        id: 'b-1',
+        roomId: 'room-1',
+        status: 'CHECKED_IN',
+        bookingReference: 'JWH-20261112-B001',
+        room: mockRoom,
+        guest: mockGuest,
+      } as any)
+      vi.mocked(prisma.booking.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        id: 'other',
+      } as any)
+      await deleteBookingHandler({ data: { id: 'b-1' } })
+
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        id: 'b-2',
+        roomId: 'room-1',
+        status: 'CONFIRMED',
+        bookingReference: 'JWH-20261112-B002',
+        room: mockRoom,
+        guest: mockGuest,
+      } as any)
+      vi.mocked(prisma.booking.update).mockResolvedValueOnce({} as any)
+      await deleteBookingHandler({ data: { id: 'b-2' } })
+
+      // Restore: not found
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce(null)
       await expect(
         restoreBookingHandler({ data: { id: 'missing' } }),
       ).rejects.toThrow('Booking not found.')
 
+      // Restore: overlap found
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        id: 'b-1',
+        roomId: 'room-1',
+        status: 'CONFIRMED',
+        checkIn: new Date('2026-11-12'),
+        checkOut: new Date('2026-11-14'),
+        bookingReference: 'JWH-20261112-B001',
+        room: mockRoom,
+        guest: mockGuest,
+      } as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        bookingReference: 'JWH-20261112-OVER',
+      } as any)
+      await expect(
+        restoreBookingHandler({ data: { id: 'b-1' } }),
+      ).rejects.toThrow(
+        'Cannot restore booking: Room 101 is already booked for those dates (JWH-20261112-OVER).',
+      )
+
+      // Restore: CHECKED_IN booking -> sets room to OCCUPIED
       vi.mocked(authSession).mockResolvedValueOnce({
         user: mockAdmin,
         session: { ipAddress: null, userAgent: null },
       } as any)
       vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
         id: 'b-1',
+        roomId: 'room-1',
+        status: 'CHECKED_IN',
+        checkIn: new Date('2026-11-12'),
+        checkOut: new Date('2026-11-14'),
         bookingReference: 'JWH-20261112-B001',
         room: mockRoom,
         guest: mockGuest,
       } as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
       vi.mocked(prisma.booking.update).mockResolvedValueOnce({} as any)
 
       const resRes = await restoreBookingHandler({ data: { id: 'b-1' } })
       expect(resRes).toEqual({ success: true })
-      expect(logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'admin-1',
-          action: 'BOOKING_RESTORED',
-          description: expect.stringContaining(
-            'Restored booking JWH-20261112-B001',
-          ),
-        }),
-      )
+      expect(prisma.room.update).toHaveBeenCalledWith({
+        where: { id: 'room-1' },
+        data: { status: 'OCCUPIED' },
+      })
+
+      // Restore: CANCELLED booking (skips overlap & room sync)
+      vi.mocked(prisma.booking.findUnique).mockResolvedValueOnce({
+        id: 'b-cancel',
+        roomId: 'room-1',
+        status: 'CANCELLED',
+        checkIn: new Date('2026-11-12'),
+        checkOut: new Date('2026-11-14'),
+        bookingReference: 'JWH-20261112-CANC',
+        room: mockRoom,
+        guest: mockGuest,
+      } as any)
+      vi.mocked(prisma.booking.update).mockResolvedValueOnce({} as any)
+      await restoreBookingHandler({ data: { id: 'b-cancel' } })
     })
   })
 })

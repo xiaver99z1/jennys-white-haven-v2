@@ -69,6 +69,7 @@ export function BookingsList({
   const [restoringId, setRestoringId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     setRestoringId(null)
@@ -100,15 +101,20 @@ export function BookingsList({
 
     setRestoringBookingTarget(null)
     setRestoringId(targetId)
+    setActionError(null)
 
     try {
       const res = await restoreBooking({ data: { id: targetId } })
       if (res.success) {
         await router.invalidate()
+      } else {
+        setRestoringId(null)
+        setActionError('Failed to restore booking.')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to restore booking:', err)
       setRestoringId(null)
+      setActionError(err.message || 'Failed to restore booking.')
     }
   }
 
@@ -131,6 +137,12 @@ export function BookingsList({
           <Plus className="w-4 h-4" /> New Booking
         </button>
       </div>
+
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+          {actionError}
+        </div>
+      )}
 
       {/* Filters & Search Bar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200 shadow-2xs">
@@ -386,7 +398,9 @@ export function BookingsList({
         guests={guests}
         onClose={() => setEditingBooking(null)}
         onSaveStart={(id) => setSavingId(id)}
+        onSaveError={() => setSavingId(null)}
         onDeleteStart={(id) => setDeletingId(id)}
+        onDeleteError={() => setDeletingId(null)}
         onSuccess={async () => {
           await router.invalidate()
           setEditingBooking(null)

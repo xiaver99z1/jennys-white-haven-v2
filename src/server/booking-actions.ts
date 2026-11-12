@@ -26,6 +26,22 @@ export function calculateNights(
   return nights
 }
 
+export function validateBookingNumbers(
+  guestsCount: number,
+  totalAmount: number,
+  amountPaid: number,
+) {
+  if (!Number.isInteger(guestsCount) || guestsCount < 1) {
+    throw new Error('Guests count must be a whole number of at least 1.')
+  }
+  if (!Number.isFinite(totalAmount) || totalAmount < 0) {
+    throw new Error('Total amount must be a non-negative number.')
+  }
+  if (!Number.isFinite(amountPaid) || amountPaid < 0) {
+    throw new Error('Amount paid must be a non-negative number.')
+  }
+}
+
 export function generateBookingReference(
   now: Date = new Date(),
   suffix?: string,
@@ -112,79 +128,95 @@ export async function createBookingHandler({
   const nights = calculateNights(data.checkIn, data.checkOut)
   const checkInDate = new Date(data.checkIn)
   const checkOutDate = new Date(data.checkOut)
+  const guestsCount = Number(data.guestsCount)
 
-  const room = await prisma.room.findUnique({
-    where: { id: data.roomId },
-  })
-  if (!room || room.deletedAt) {
-    throw new Error('Selected room is not available.')
-  }
+  const { booking, room, guest, totalAmount } = await prisma.$transaction(
+    async (tx) => {
+      const targetRoom = await tx.room.findUnique({
+        where: { id: data.roomId },
+      })
+      if (!targetRoom || targetRoom.deletedAt) {
+        throw new Error('Selected room is not available.')
+      }
 
-  const guest = await prisma.guest.findUnique({
-    where: { id: data.guestId },
-  })
-  if (!guest || guest.deletedAt) {
-    throw new Error('Selected guest was not found.')
-  }
+      const targetGuest = await tx.guest.findUnique({
+        where: { id: data.guestId },
+      })
+      if (!targetGuest || targetGuest.deletedAt) {
+        throw new Error('Selected guest was not found.')
+      }
 
-  if (data.guestsCount > room.capacity) {
-    throw new Error(
-      `Room ${room.roomNumber} has a maximum capacity of ${room.capacity} guests.`,
-    )
-  }
+      const computedTotal =
+        data.totalAmount !== undefined
+          ? Number(data.totalAmount)
+          : nights * Number(targetRoom.pricePerNight)
+      const amountPaid =
+        data.amountPaid !== undefined ? Number(data.amountPaid) : 0
 
-  const status: BookingStatus = data.status || 'PENDING'
-  if (status !== 'CANCELLED' && status !== 'CHECKED_OUT') {
-    const overlapping = await prisma.booking.findFirst({
-      where: {
-        roomId: data.roomId,
-        deletedAt: null,
-        status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-        checkIn: { lt: checkOutDate },
-        checkOut: { gt: checkInDate },
-      },
-    })
+      validateBookingNumbers(guestsCount, computedTotal, amountPaid)
 
-    if (overlapping) {
-      throw new Error(
-        `Room ${room.roomNumber} is already booked for the selected dates (${overlapping.bookingReference}).`,
-      )
-    }
-  }
+      if (guestsCount > targetRoom.capacity) {
+        throw new Error(
+          `Room ${targetRoom.roomNumber} has a maximum capacity of ${targetRoom.capacity} guests.`,
+        )
+      }
 
-  const totalAmount =
-    data.totalAmount !== undefined
-      ? Number(data.totalAmount)
-      : nights * Number(room.pricePerNight)
-  const amountPaid = data.amountPaid !== undefined ? Number(data.amountPaid) : 0
-  const paymentStatus: PaymentStatus = data.paymentStatus || 'UNPAID'
-  const paymentMethod = data.paymentMethod?.trim() || null
-  const specialRequests = data.specialRequests?.trim() || null
+      const status: BookingStatus = data.status || 'PENDING'
+      if (status !== 'CANCELLED' && status !== 'CHECKED_OUT') {
+        const overlapping = await tx.booking.findFirst({
+          where: {
+            roomId: data.roomId,
+            deletedAt: null,
+            status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+            checkIn: { lt: checkOutDate },
+            checkOut: { gt: checkInDate },
+          },
+        })
 
-  const booking = await prisma.booking.create({
-    data: {
-      bookingReference: generateBookingReference(),
-      roomId: data.roomId,
-      guestId: data.guestId,
-      checkIn: checkInDate,
-      checkOut: checkOutDate,
-      nights,
-      guestsCount: data.guestsCount,
-      totalAmount,
-      amountPaid,
-      paymentStatus,
-      paymentMethod,
-      status,
-      specialRequests,
+        if (overlapping) {
+          throw new Error(
+            `Room ${targetRoom.roomNumber} is already booked for the selected dates (${overlapping.bookingReference}).`,
+          )
+        }
+      }
+
+      const paymentStatus: PaymentStatus = data.paymentStatus || 'UNPAID'
+      const paymentMethod = data.paymentMethod?.trim() || null
+      const specialRequests = data.specialRequests?.trim() || null
+
+      const createdBooking = await tx.booking.create({
+        data: {
+          bookingReference: generateBookingReference(),
+          roomId: data.roomId,
+          guestId: data.guestId,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          nights,
+          guestsCount,
+          totalAmount: computedTotal,
+          amountPaid,
+          paymentStatus,
+          paymentMethod,
+          status,
+          specialRequests,
+        },
+      })
+
+      if (status === 'CHECKED_IN') {
+        await tx.room.update({
+          where: { id: targetRoom.id },
+          data: { status: 'OCCUPIED' },
+        })
+      }
+
+      return {
+        booking: createdBooking,
+        room: targetRoom,
+        guest: targetGuest,
+        totalAmount: computedTotal,
+      }
     },
-  })
-
-  if (status === 'CHECKED_IN') {
-    await prisma.room.update({
-      where: { id: room.id },
-      data: { status: 'OCCUPIED' },
-    })
-  }
+  )
 
   const session = await authSession()
   await logActivity({
@@ -236,99 +268,144 @@ export async function updateBookingHandler({
 }) {
   const admin = await requirePermission('update:bookings')
 
-  const existingBooking = await prisma.booking.findUnique({
-    where: { id: data.id },
-    include: { room: true, guest: true },
-  })
-
-  if (!existingBooking) {
-    throw new Error('Booking not found.')
-  }
-
   const nights = calculateNights(data.checkIn, data.checkOut)
   const checkInDate = new Date(data.checkIn)
   const checkOutDate = new Date(data.checkOut)
+  const guestsCount = Number(data.guestsCount)
+  const totalAmount = Number(data.totalAmount)
+  const amountPaid = Number(data.amountPaid)
 
-  const room = await prisma.room.findUnique({
-    where: { id: data.roomId },
-  })
-  if (!room || room.deletedAt) {
-    throw new Error('Selected room is not available.')
-  }
+  validateBookingNumbers(guestsCount, totalAmount, amountPaid)
 
-  const guest = await prisma.guest.findUnique({
-    where: { id: data.guestId },
-  })
-  if (!guest || guest.deletedAt) {
-    throw new Error('Selected guest was not found.')
-  }
+  const {
+    existingBooking,
+    updatedBooking,
+    room,
+    guest,
+    nextPaymentMethod,
+    nextSpecialRequests,
+  } = await prisma.$transaction(async (tx) => {
+    const existing = await tx.booking.findUnique({
+      where: { id: data.id },
+      include: { room: true, guest: true },
+    })
 
-  if (data.guestsCount > room.capacity) {
-    throw new Error(
-      `Room ${room.roomNumber} has a maximum capacity of ${room.capacity} guests.`,
-    )
-  }
+    if (!existing) {
+      throw new Error('Booking not found.')
+    }
 
-  if (data.status !== 'CANCELLED' && data.status !== 'CHECKED_OUT') {
-    const overlapping = await prisma.booking.findFirst({
-      where: {
-        id: { not: data.id },
+    const targetRoom = await tx.room.findUnique({
+      where: { id: data.roomId },
+    })
+    if (!targetRoom || targetRoom.deletedAt) {
+      throw new Error('Selected room is not available.')
+    }
+
+    const targetGuest = await tx.guest.findUnique({
+      where: { id: data.guestId },
+    })
+    if (!targetGuest || targetGuest.deletedAt) {
+      throw new Error('Selected guest was not found.')
+    }
+
+    if (guestsCount > targetRoom.capacity) {
+      throw new Error(
+        `Room ${targetRoom.roomNumber} has a maximum capacity of ${targetRoom.capacity} guests.`,
+      )
+    }
+
+    if (data.status !== 'CANCELLED' && data.status !== 'CHECKED_OUT') {
+      const overlapping = await tx.booking.findFirst({
+        where: {
+          id: { not: data.id },
+          roomId: data.roomId,
+          deletedAt: null,
+          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: checkOutDate },
+          checkOut: { gt: checkInDate },
+        },
+      })
+
+      if (overlapping) {
+        throw new Error(
+          `Room ${targetRoom.roomNumber} is already booked for the selected dates (${overlapping.bookingReference}).`,
+        )
+      }
+    }
+
+    const resolvedPaymentMethod =
+      data.paymentMethod !== undefined
+        ? data.paymentMethod.trim() || null
+        : existing.paymentMethod
+    const resolvedSpecialRequests =
+      data.specialRequests !== undefined
+        ? data.specialRequests.trim() || null
+        : existing.specialRequests
+
+    const updated = await tx.booking.update({
+      where: { id: data.id },
+      data: {
         roomId: data.roomId,
-        deletedAt: null,
-        status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-        checkIn: { lt: checkOutDate },
-        checkOut: { gt: checkInDate },
+        guestId: data.guestId,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        nights,
+        guestsCount,
+        totalAmount,
+        amountPaid,
+        paymentStatus: data.paymentStatus,
+        paymentMethod: resolvedPaymentMethod,
+        status: data.status,
+        specialRequests: resolvedSpecialRequests,
       },
     })
 
-    if (overlapping) {
-      throw new Error(
-        `Room ${room.roomNumber} is already booked for the selected dates (${overlapping.bookingReference}).`,
-      )
+    // If booking was previously CHECKED_IN and moved rooms or left CHECKED_IN without checking out, release old room if no other active CHECKED_IN exists
+    if (
+      existing.status === 'CHECKED_IN' &&
+      (existing.roomId !== data.roomId ||
+        (data.status !== 'CHECKED_IN' && data.status !== 'CHECKED_OUT'))
+    ) {
+      const otherCheckedIn = await tx.booking.findFirst({
+        where: {
+          id: { not: data.id },
+          roomId: existing.roomId,
+          deletedAt: null,
+          status: 'CHECKED_IN',
+        },
+      })
+      if (!otherCheckedIn) {
+        await tx.room.update({
+          where: { id: existing.roomId },
+          data: { status: 'AVAILABLE' },
+        })
+      }
     }
-  }
 
-  const nextPaymentMethod =
-    data.paymentMethod !== undefined
-      ? data.paymentMethod.trim() || null
-      : existingBooking.paymentMethod
-  const nextSpecialRequests =
-    data.specialRequests !== undefined
-      ? data.specialRequests.trim() || null
-      : existingBooking.specialRequests
+    if (data.status === 'CHECKED_IN') {
+      await tx.room.update({
+        where: { id: targetRoom.id },
+        data: { status: 'OCCUPIED' },
+      })
+    } else if (
+      data.status === 'CHECKED_OUT' &&
+      existing.status !== 'CHECKED_OUT'
+    ) {
+      await tx.room.update({
+        where: { id: targetRoom.id },
+        data: { status: 'CLEANING' },
+      })
+    }
 
-  const updatedBooking = await prisma.booking.update({
-    where: { id: data.id },
-    data: {
-      roomId: data.roomId,
-      guestId: data.guestId,
-      checkIn: checkInDate,
-      checkOut: checkOutDate,
-      nights,
-      guestsCount: data.guestsCount,
-      totalAmount: data.totalAmount,
-      amountPaid: data.amountPaid,
-      paymentStatus: data.paymentStatus,
-      paymentMethod: nextPaymentMethod,
-      status: data.status,
-      specialRequests: nextSpecialRequests,
-    },
+    return {
+      existingBooking: existing,
+      updatedBooking: updated,
+      room: targetRoom,
+      guest: targetGuest,
+      nextPaymentMethod: resolvedPaymentMethod,
+      nextSpecialRequests: resolvedSpecialRequests,
+    }
   })
-
-  if (data.status === 'CHECKED_IN') {
-    await prisma.room.update({
-      where: { id: room.id },
-      data: { status: 'OCCUPIED' },
-    })
-  } else if (
-    data.status === 'CHECKED_OUT' &&
-    existingBooking.status !== 'CHECKED_OUT'
-  ) {
-    await prisma.room.update({
-      where: { id: room.id },
-      data: { status: 'CLEANING' },
-    })
-  }
 
   const changes: string[] = []
   if (data.roomId !== existingBooking.roomId) {
@@ -349,21 +426,21 @@ export async function updateBookingHandler({
       `Payment Status: ${existingBooking.paymentStatus} → ${data.paymentStatus}`,
     )
   }
-  if (Number(data.amountPaid) !== Number(existingBooking.amountPaid)) {
+  if (amountPaid !== Number(existingBooking.amountPaid)) {
     changes.push(
-      `Amount Paid: ₱${Number(existingBooking.amountPaid)} → ₱${Number(data.amountPaid)}`,
+      `Amount Paid: ₱${Number(existingBooking.amountPaid)} → ₱${amountPaid}`,
     )
   }
-  if (Number(data.totalAmount) !== Number(existingBooking.totalAmount)) {
+  if (totalAmount !== Number(existingBooking.totalAmount)) {
     changes.push(
-      `Total: ₱${Number(existingBooking.totalAmount)} → ₱${Number(data.totalAmount)}`,
+      `Total: ₱${Number(existingBooking.totalAmount)} → ₱${totalAmount}`,
     )
   }
   if (nights !== existingBooking.nights) {
     changes.push(`Nights: ${existingBooking.nights} → ${nights}`)
   }
-  if (data.guestsCount !== existingBooking.guestsCount) {
-    changes.push(`Guests: ${existingBooking.guestsCount} → ${data.guestsCount}`)
+  if (guestsCount !== existingBooking.guestsCount) {
+    changes.push(`Guests: ${existingBooking.guestsCount} → ${guestsCount}`)
   }
   if (nextPaymentMethod !== existingBooking.paymentMethod) {
     changes.push(
@@ -416,17 +493,38 @@ export async function deleteBookingHandler({
 }) {
   const admin = await requirePermission('delete:bookings')
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: data.id },
-    include: { room: true, guest: true },
-  })
-  if (!booking) {
-    throw new Error('Booking not found.')
-  }
+  const booking = await prisma.$transaction(async (tx) => {
+    const target = await tx.booking.findUnique({
+      where: { id: data.id },
+      include: { room: true, guest: true },
+    })
+    if (!target) {
+      throw new Error('Booking not found.')
+    }
 
-  await prisma.booking.update({
-    where: { id: data.id },
-    data: { deletedAt: new Date() },
+    await tx.booking.update({
+      where: { id: data.id },
+      data: { deletedAt: new Date() },
+    })
+
+    if (target.status === 'CHECKED_IN') {
+      const otherCheckedIn = await tx.booking.findFirst({
+        where: {
+          id: { not: data.id },
+          roomId: target.roomId,
+          deletedAt: null,
+          status: 'CHECKED_IN',
+        },
+      })
+      if (!otherCheckedIn) {
+        await tx.room.update({
+          where: { id: target.roomId },
+          data: { status: 'AVAILABLE' },
+        })
+      }
+    }
+
+    return target
   })
 
   const session = await authSession()
@@ -453,17 +551,47 @@ export async function restoreBookingHandler({
 }) {
   const admin = await requirePermission('delete:bookings')
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: data.id },
-    include: { room: true, guest: true },
-  })
-  if (!booking) {
-    throw new Error('Booking not found.')
-  }
+  const booking = await prisma.$transaction(async (tx) => {
+    const target = await tx.booking.findUnique({
+      where: { id: data.id },
+      include: { room: true, guest: true },
+    })
+    if (!target) {
+      throw new Error('Booking not found.')
+    }
 
-  await prisma.booking.update({
-    where: { id: data.id },
-    data: { deletedAt: null },
+    if (target.status !== 'CANCELLED' && target.status !== 'CHECKED_OUT') {
+      const overlapping = await tx.booking.findFirst({
+        where: {
+          id: { not: data.id },
+          roomId: target.roomId,
+          deletedAt: null,
+          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: target.checkOut },
+          checkOut: { gt: target.checkIn },
+        },
+      })
+
+      if (overlapping) {
+        throw new Error(
+          `Cannot restore booking: Room ${target.room.roomNumber} is already booked for those dates (${overlapping.bookingReference}).`,
+        )
+      }
+    }
+
+    await tx.booking.update({
+      where: { id: data.id },
+      data: { deletedAt: null },
+    })
+
+    if (target.status === 'CHECKED_IN') {
+      await tx.room.update({
+        where: { id: target.roomId },
+        data: { status: 'OCCUPIED' },
+      })
+    }
+
+    return target
   })
 
   const session = await authSession()
