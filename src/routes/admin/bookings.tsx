@@ -1,14 +1,29 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { getBookingsList } from '#/server/booking-actions'
+import { BookingsList } from '#/components/admin/bookings/BookingsList'
 
 export const Route = createFileRoute('/admin/bookings')({
   head: () => ({
-    meta: [{ title: "Bookings | Jenny's White Haven" }],
+    meta: [{ title: "Bookings Management | Jenny's White Haven" }],
     links: [{ rel: 'icon', href: '/logo.png' }],
   }),
-  component: () => (
-    <div>
-      <h1 className="text-2xl font-semibold text-stone-800">Bookings</h1>
-      <p className="text-stone-500 mt-2">Coming soon...</p>
-    </div>
-  ),
+  loader: async () => {
+    const data = await getBookingsList()
+    return data
+  },
+  component: BookingsPage,
 })
+
+function BookingsPage() {
+  const { bookings, rooms, guests } = Route.useLoaderData()
+  const router = useRouter()
+
+  return (
+    <BookingsList
+      initialBookings={bookings}
+      rooms={rooms}
+      guests={guests}
+      router={router}
+    />
+  )
+}
