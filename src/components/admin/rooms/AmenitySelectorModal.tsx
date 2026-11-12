@@ -21,7 +21,7 @@ export function AmenitySelectorModal({
   // 👈 2. Add this useEffect to sync selected amenities whenever the modal opens
   useEffect(() => {
     if (isOpen) {
-      setTempSelected(selectedAmenities || [])
+      setTempSelected(selectedAmenities)
       setSearchQuery('')
     }
   }, [isOpen, selectedAmenities])

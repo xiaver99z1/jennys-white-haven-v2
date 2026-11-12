@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getUserSessions, revokeSession } from '#/server/session-actions'
 import { parseUserAgent } from '#/lib/parse-user-agent'
-import { Laptop, History, ShieldAlert, CheckCircle2 } from 'lucide-react'
+import { Laptop, History } from 'lucide-react'
 
 interface SessionItem {
   id: string

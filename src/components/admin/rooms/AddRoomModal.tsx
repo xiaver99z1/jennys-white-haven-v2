@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
-import { ROOM_TYPES, type RoomType } from '#/lib/constants/rooms'
+import { ROOM_TYPES } from '#/lib/constants/rooms'
+import type { RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
 
 interface AddRoomModalProps {
@@ -117,6 +118,14 @@ export function AddRoomModal({
     }
   }
 
+  const handleSaveAmenities = (newAmenities: string[]) => {
+    setFormData((prev) => ({ ...prev, amenities: newAmenities }))
+  }
+
+  const handlePreview = (url: string) => {
+    setSelectedImagePreview(url)
+  }
+
   return (
     <>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
@@ -191,11 +200,11 @@ export function AddRoomModal({
                         src={imgUrl}
                         alt={`Room photo ${index + 1}`}
                         className="w-full h-full object-cover cursor-pointer transition group-hover:scale-105"
-                        onClick={() => setSelectedImagePreview(imgUrl)}
+                        onClick={() => handlePreview(imgUrl)}
                       />
                       <button
                         type="button"
-                        onClick={() => setSelectedImagePreview(imgUrl)}
+                        onClick={() => handlePreview(imgUrl)}
                         className="absolute bottom-1 left-1 p-1 bg-stone-900/60 hover:bg-stone-900 text-white rounded-md transition opacity-0 group-hover:opacity-100 cursor-pointer"
                       >
                         <Maximize2 className="w-3 h-3" />
@@ -220,7 +229,8 @@ export function AddRoomModal({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Room 1 or Villa A"
+                    data-testid="room-number-input"
+                    placeholder="e.g. 101"
                     value={formData.roomNumber}
                     onChange={(e) =>
                       setFormData({ ...formData, roomNumber: e.target.value })
@@ -258,6 +268,7 @@ export function AddRoomModal({
                 <input
                   type="text"
                   required
+                  data-testid="room-name-input"
                   placeholder="e.g. Deluxe Ocean View Suite"
                   value={formData.name}
                   onChange={(e) =>
@@ -388,9 +399,7 @@ export function AddRoomModal({
         isOpen={isAmenityModalOpen}
         onClose={() => setIsAmenityModalOpen(false)}
         selectedAmenities={formData.amenities}
-        onSave={(newAmenities) =>
-          setFormData((prev) => ({ ...prev, amenities: newAmenities }))
-        }
+        onSave={handleSaveAmenities}
       />
 
       {/* Lightbox Preview Modal */}

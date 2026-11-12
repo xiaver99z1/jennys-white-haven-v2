@@ -9,14 +9,10 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react'
-import {
-  ROOM_TYPES,
-  ROOM_STATUSES,
-  type RoomStatus,
-  type RoomType,
-} from '#/lib/constants/rooms'
-import { AmenitySelectorModal } from './AmenitySelectorModal'
-import { ConfirmModal } from './ConfirmModal'
+import { ROOM_TYPES, ROOM_STATUSES } from '#/lib/constants/rooms'
+import type { RoomStatus, RoomType } from '#/lib/constants/rooms'
+import { AmenitySelectorModal } from '#/components/admin/rooms/AmenitySelectorModal'
+import { ConfirmModal } from '#/components/common/ConfirmModal'
 
 interface EditRoomModalProps {
   isOpen: boolean
@@ -38,6 +34,19 @@ interface EditRoomModalProps {
   } | null
 }
 
+// 🛡️ Helper to safely normalize incoming room data and prevent null/undefined runtime bugs
+const getInitialFormData = (room: EditRoomModalProps['room']) => ({
+  roomNumber: room?.roomNumber ?? '',
+  name: room?.name ?? '',
+  type: (room?.type ?? 'Standard') as RoomType,
+  description: room?.description ?? '',
+  capacity: room?.capacity ?? 2,
+  pricePerNight: room?.pricePerNight ? Number(room.pricePerNight) : 0,
+  status: (room?.status ?? 'AVAILABLE') as RoomStatus,
+  amenities: room?.amenities ?? [],
+  images: room?.images ?? [],
+})
+
 export function EditRoomModal({
   isOpen,
   onClose,
@@ -53,35 +62,13 @@ export function EditRoomModal({
     string | null
   >(null)
   const [isAmenityModalOpen, setIsAmenityModalOpen] = useState(false)
-
-  // Control custom delete confirmation popup
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  const [formData, setFormData] = useState({
-    roomNumber: '',
-    name: '',
-    type: 'Standard' as RoomType,
-    description: '',
-    capacity: 2,
-    pricePerNight: 2500,
-    status: 'AVAILABLE' as RoomStatus,
-    amenities: [] as string[],
-    images: [] as string[],
-  })
+  const [formData, setFormData] = useState(() => getInitialFormData(room))
 
   useEffect(() => {
     if (room) {
-      setFormData({
-        roomNumber: room.roomNumber || '',
-        name: room.name || '',
-        type: (room.type as RoomType) || 'Standard',
-        description: room.description || '',
-        capacity: room.capacity || 2,
-        pricePerNight: room.pricePerNight ? Number(room.pricePerNight) : 0,
-        status: (room.status as RoomStatus) || 'AVAILABLE',
-        amenities: room.amenities || [],
-        images: room.images || [],
-      })
+      setFormData(getInitialFormData(room))
       setError(null)
       setShowDeleteConfirm(false)
     }
@@ -91,32 +78,26 @@ export function EditRoomModal({
   const hasChanges = useMemo(() => {
     if (!room) return false
 
-    const initialPrice = room.pricePerNight ? Number(room.pricePerNight) : 0
-    const initialCapacity = room.capacity || 2
-    const initialDesc = room.description || ''
-    const initialStatus = room.status || 'AVAILABLE'
-    const initialType = room.type || 'Standard'
-    const initialName = room.name || ''
-    const initialRoomNumber = room.roomNumber || ''
+    const initial = getInitialFormData(room)
 
-    if (formData.roomNumber !== initialRoomNumber) return true
-    if (formData.name !== initialName) return true
-    if (formData.type !== initialType) return true
-    if (formData.description !== initialDesc) return true
-    if (formData.capacity !== initialCapacity) return true
-    if (formData.pricePerNight !== initialPrice) return true
-    if (formData.status !== initialStatus) return true
+    if (formData.roomNumber !== initial.roomNumber) return true
+    if (formData.name !== initial.name) return true
+    if (formData.type !== initial.type) return true
+    if (formData.description !== initial.description) return true
+    if (formData.capacity !== initial.capacity) return true
+    if (formData.pricePerNight !== initial.pricePerNight) return true
+    if (formData.status !== initial.status) return true
 
     // Compare amenities array
     const currentAmenities = [...formData.amenities].sort()
-    const initialAmenities = [...(room.amenities || [])].sort()
+    const initialAmenities = [...initial.amenities].sort()
     if (currentAmenities.length !== initialAmenities.length) return true
     if (currentAmenities.some((val, idx) => val !== initialAmenities[idx]))
       return true
 
     // Compare images array
     const currentImages = formData.images
-    const initialImages = room.images || []
+    const initialImages = initial.images
     if (currentImages.length !== initialImages.length) return true
     if (currentImages.some((val, idx) => val !== initialImages[idx]))
       return true
@@ -161,7 +142,7 @@ export function EditRoomModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!room || !hasChanges) return
+    if (!hasChanges) return
 
     setLoading(true)
     setError(null)
@@ -180,7 +161,7 @@ export function EditRoomModal({
           description: formData.description || undefined,
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
-          status: formData.status as any,
+          status: formData.status,
           amenities: formData.amenities,
           images: formData.images,
         },
@@ -195,8 +176,6 @@ export function EditRoomModal({
   }
 
   const handleDeleteConfirm = async () => {
-    if (!room) return
-
     setDeleting(true)
     setError(null)
 
@@ -498,7 +477,7 @@ export function EditRoomModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || deleting || !hasChanges} // 🔒 Disabled if no changes were made
+                  disabled={loading || deleting || !hasChanges}
                   className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   {loading ? 'Saving...' : 'Save Changes'}
