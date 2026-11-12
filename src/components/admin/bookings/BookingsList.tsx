@@ -113,14 +113,14 @@ export function BookingsList({
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-stone-900 tracking-tight">
             Bookings Management
           </h1>
-          <p className="text-sm text-stone-500 mt-0.5">
+          <p className="text-xs text-stone-500 mt-0.5">
             Manage staycation reservations, check-ins, check-outs, and payments
           </p>
         </div>

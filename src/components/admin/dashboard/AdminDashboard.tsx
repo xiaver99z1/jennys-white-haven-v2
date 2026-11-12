@@ -1,0 +1,475 @@
+import { useState } from 'react'
+import {
+  LogIn,
+  LogOut,
+  BedDouble,
+  DoorOpen,
+  Wallet,
+  CircleDollarSign,
+  AlertCircle,
+  Loader2,
+  ArrowRight,
+} from 'lucide-react'
+import { checkInBooking, checkOutBooking } from '#/server/dashboard-actions'
+import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { BOOKING_STATUSES, PAYMENT_STATUSES } from '#/lib/constants/rooms'
+
+export interface DashboardBooking {
+  id: string
+  bookingReference: string
+  checkIn: Date | string
+  checkOut: Date | string
+  nights: number
+  guestsCount: number
+  totalAmount: number
+  amountPaid: number
+  paymentStatus: string
+  status: string
+  room: { roomNumber: string; name: string }
+  guest: { firstName: string; lastName: string; phone: string }
+}
+
+export interface DashboardStats {
+  today: string
+  arrivals: DashboardBooking[]
+  departures: DashboardBooking[]
+  rooms: {
+    total: number
+    available: number
+    occupied: number
+    cleaning: number
+    maintenance: number
+  }
+  recentBookings: DashboardBooking[]
+  outstanding: DashboardBooking[]
+  revenue: {
+    monthTotal: number
+    monthCollected: number
+    monthBookings: number
+  }
+}
+
+interface AdminDashboardProps {
+  stats: DashboardStats
+  router: any
+}
+
+type QuickAction = { type: 'checkin' | 'checkout'; booking: DashboardBooking }
+
+const DEFAULT_BADGE = 'bg-stone-100 text-stone-700 border-stone-200'
+
+const getBookingStatusMeta = (value: string) => {
+  const found = BOOKING_STATUSES.find((s) => s.value === value)
+  return found
+    ? { label: found.label, colorClass: found.colorClass }
+    : { label: value, colorClass: DEFAULT_BADGE }
+}
+
+const getPaymentStatusMeta = (value: string) => {
+  const found = PAYMENT_STATUSES.find((p) => p.value === value)
+  return found
+    ? { label: found.label, colorClass: found.colorClass }
+    : { label: value, colorClass: DEFAULT_BADGE }
+}
+
+const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`
+const formatDate = (value: Date | string) =>
+  new Date(value).toISOString().slice(0, 10)
+const guestName = (b: DashboardBooking) =>
+  `${b.guest.firstName} ${b.guest.lastName}`
+
+export function AdminDashboard({ stats, router }: AdminDashboardProps) {
+  const [pendingAction, setPendingAction] = useState<QuickAction | null>(null)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const { rooms, revenue } = stats
+  const occupancyRate =
+    rooms.total > 0 ? Math.round((rooms.occupied / rooms.total) * 100) : 0
+  const monthOutstanding = Math.max(
+    revenue.monthTotal - revenue.monthCollected,
+    0,
+  )
+
+  const handleConfirmAction = async () => {
+    const { type, booking } = pendingAction!
+    setPendingAction(null)
+    setProcessingId(booking.id)
+    setActionError(null)
+
+    try {
+      const action = type === 'checkin' ? checkInBooking : checkOutBooking
+      await action({ data: { id: booking.id } })
+      await router.invalidate()
+    } catch (err: any) {
+      setActionError(err.message || 'Action failed. Please try again.')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const isCheckOut = pendingAction?.type === 'checkout'
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900 tracking-tight">
+            Dashboard
+          </h1>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Welcome back to Jenny&apos;s White Haven Admin
+          </p>
+        </div>
+        <span className="text-xs font-semibold text-stone-500 bg-stone-100 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+          Today · {stats.today}
+        </span>
+      </div>
+
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {actionError}
+        </div>
+      )}
+
+      {/* Today & Rooms KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Today's Arrivals"
+          value={String(stats.arrivals.length)}
+          hint="Expected check-ins"
+          icon={<LogIn className="w-5 h-5" />}
+          accent="bg-sky-50 text-sky-700 border-sky-200"
+        />
+        <StatCard
+          title="Today's Departures"
+          value={String(stats.departures.length)}
+          hint="Expected check-outs"
+          icon={<LogOut className="w-5 h-5" />}
+          accent="bg-amber-50 text-amber-800 border-amber-200"
+        />
+        <StatCard
+          title="Occupied Rooms"
+          value={`${rooms.occupied} / ${rooms.total}`}
+          hint={`${occupancyRate}% occupancy`}
+          icon={<BedDouble className="w-5 h-5" />}
+          accent="bg-emerald-50 text-emerald-700 border-emerald-200"
+        />
+        <StatCard
+          title="Available Rooms"
+          value={String(rooms.available)}
+          hint={`${rooms.cleaning} cleaning · ${rooms.maintenance} maintenance`}
+          icon={<DoorOpen className="w-5 h-5" />}
+          accent="bg-stone-50 text-stone-700 border-stone-200"
+        />
+      </div>
+
+      {/* Revenue KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          title="Booked Revenue (This Month)"
+          value={formatPeso(revenue.monthTotal)}
+          hint={`${revenue.monthBookings} booking(s) checking in this month`}
+          icon={<CircleDollarSign className="w-5 h-5" />}
+          accent="bg-amber-50 text-amber-900 border-amber-200"
+        />
+        <StatCard
+          title="Collected (This Month)"
+          value={formatPeso(revenue.monthCollected)}
+          hint="Payments received"
+          icon={<Wallet className="w-5 h-5" />}
+          accent="bg-emerald-50 text-emerald-700 border-emerald-200"
+        />
+        <StatCard
+          title="Balance Due (This Month)"
+          value={formatPeso(monthOutstanding)}
+          hint="Still to be collected"
+          icon={<AlertCircle className="w-5 h-5" />}
+          accent="bg-rose-50 text-rose-700 border-rose-200"
+        />
+      </div>
+
+      {/* Today's Arrivals & Departures */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Panel title="Today's Arrivals" count={stats.arrivals.length}>
+          {stats.arrivals.length === 0 ? (
+            <EmptyState text="No arrivals scheduled for today." />
+          ) : (
+            stats.arrivals.map((booking) => {
+              const canCheckIn =
+                booking.status === 'PENDING' || booking.status === 'CONFIRMED'
+              return (
+                <BookingRow key={booking.id} booking={booking}>
+                  {canCheckIn ? (
+                    <ActionButton
+                      label="Check In"
+                      isProcessing={processingId === booking.id}
+                      disabled={processingId !== null}
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() =>
+                        setPendingAction({ type: 'checkin', booking })
+                      }
+                    />
+                  ) : (
+                    <StatusBadge {...getBookingStatusMeta(booking.status)} />
+                  )}
+                </BookingRow>
+              )
+            })
+          )}
+        </Panel>
+
+        <Panel title="Today's Departures" count={stats.departures.length}>
+          {stats.departures.length === 0 ? (
+            <EmptyState text="No departures scheduled for today." />
+          ) : (
+            stats.departures.map((booking) => (
+              <BookingRow key={booking.id} booking={booking}>
+                {booking.status === 'CHECKED_IN' ? (
+                  <ActionButton
+                    label="Check Out"
+                    isProcessing={processingId === booking.id}
+                    disabled={processingId !== null}
+                    className="bg-amber-700 hover:bg-amber-800"
+                    onClick={() =>
+                      setPendingAction({ type: 'checkout', booking })
+                    }
+                  />
+                ) : (
+                  <StatusBadge {...getBookingStatusMeta(booking.status)} />
+                )}
+              </BookingRow>
+            ))
+          )}
+        </Panel>
+      </div>
+
+      {/* Recent Bookings & Outstanding Balances */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <Panel
+            title="Recent Bookings"
+            action={
+              <button
+                type="button"
+                onClick={() => router.navigate({ to: '/admin/bookings' })}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900 flex items-center gap-1 cursor-pointer"
+              >
+                View all <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            }
+          >
+            {stats.recentBookings.length === 0 ? (
+              <EmptyState text="No bookings yet. They will appear here once guests start booking." />
+            ) : (
+              stats.recentBookings.map((booking) => (
+                <BookingRow key={booking.id} booking={booking} showDates>
+                  <div className="text-right space-y-1">
+                    <div className="text-xs font-bold text-stone-900">
+                      {formatPeso(booking.totalAmount)}
+                    </div>
+                    <StatusBadge {...getBookingStatusMeta(booking.status)} />
+                  </div>
+                </BookingRow>
+              ))
+            )}
+          </Panel>
+        </div>
+
+        <Panel title="Balances Due" count={stats.outstanding.length}>
+          {stats.outstanding.length === 0 ? (
+            <EmptyState text="All bookings are fully paid." />
+          ) : (
+            stats.outstanding.map((booking) => (
+              <div
+                key={booking.id}
+                className="flex items-center justify-between gap-3 py-3"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-stone-800 truncate">
+                    {guestName(booking)}
+                  </div>
+                  <div className="text-[11px] text-stone-500">
+                    {booking.bookingReference} · Room {booking.room.roomNumber}
+                  </div>
+                </div>
+                <div className="text-right space-y-1 shrink-0">
+                  <div className="text-xs font-bold text-rose-700">
+                    {formatPeso(
+                      Math.max(booking.totalAmount - booking.amountPaid, 0),
+                    )}
+                  </div>
+                  <StatusBadge
+                    {...getPaymentStatusMeta(booking.paymentStatus)}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </Panel>
+      </div>
+
+      <ConfirmModal
+        isOpen={pendingAction !== null}
+        variant={isCheckOut ? 'amber' : 'success'}
+        title={isCheckOut ? 'Check Out Guest?' : 'Check In Guest?'}
+        description={
+          pendingAction
+            ? isCheckOut
+              ? `Check out ${guestName(pendingAction.booking)} from Room ${pendingAction.booking.room.roomNumber}? The room will be marked for cleaning.`
+              : `Check in ${guestName(pendingAction.booking)} to Room ${pendingAction.booking.room.roomNumber}? The room will be marked as occupied.`
+            : ''
+        }
+        confirmText={isCheckOut ? 'Yes, Check Out' : 'Yes, Check In'}
+        cancelText="Cancel"
+        onConfirm={handleConfirmAction}
+        onClose={() => setPendingAction(null)}
+      />
+    </div>
+  )
+}
+
+function StatCard({
+  title,
+  value,
+  hint,
+  icon,
+  accent,
+}: {
+  title: string
+  value: string
+  hint: string
+  icon: React.ReactNode
+  accent: string
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-2xs flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-stone-500">{title}</p>
+        <p className="text-2xl font-bold text-stone-900 mt-1 truncate">
+          {value}
+        </p>
+        <p className="text-[11px] text-stone-400 mt-1">{hint}</p>
+      </div>
+      <div
+        className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${accent}`}
+      >
+        {icon}
+      </div>
+    </div>
+  )
+}
+
+function Panel({
+  title,
+  count,
+  action,
+  children,
+}: {
+  title: string
+  count?: number
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <section className="bg-white rounded-2xl border border-stone-200 shadow-2xs h-full">
+      <header className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+        <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+          {title}
+          {count !== undefined && (
+            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[10px] font-bold">
+              {count}
+            </span>
+          )}
+        </h2>
+        {action}
+      </header>
+      <div className="px-5 divide-y divide-stone-100">{children}</div>
+    </section>
+  )
+}
+
+function BookingRow({
+  booking,
+  showDates = false,
+  children,
+}: {
+  booking: DashboardBooking
+  showDates?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-3">
+      <div className="min-w-0">
+        <div className="text-xs font-semibold text-stone-800 truncate">
+          {guestName(booking)}
+        </div>
+        <div className="text-[11px] text-stone-500">
+          {booking.bookingReference} · Room {booking.room.roomNumber} ·{' '}
+          {booking.guestsCount} guest(s)
+        </div>
+        {showDates && (
+          <div className="text-[11px] text-stone-400">
+            {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)} ·{' '}
+            {booking.nights} night(s)
+          </div>
+        )}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  )
+}
+
+function StatusBadge({
+  label,
+  colorClass,
+}: {
+  label: string
+  colorClass: string
+}) {
+  return (
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${colorClass}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ActionButton({
+  label,
+  isProcessing,
+  disabled,
+  className,
+  onClick,
+}: {
+  label: string
+  isProcessing: boolean
+  disabled: boolean
+  className: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-white font-semibold rounded-xl text-xs transition shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+    >
+      {isProcessing ? (
+        <>
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Processing...
+        </>
+      ) : (
+        label
+      )}
+    </button>
+  )
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <p className="py-6 text-center text-xs text-stone-500">{text}</p>
+}
