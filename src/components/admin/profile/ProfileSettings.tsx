@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { authClient } from '#/lib/auth-client'
 import { logProfileActivity } from '#/server/profile-actions'
+import { ConfirmModal } from '#/components/common/ConfirmModal'
 
 export function ProfileSettings() {
   const [session, setSession] = useState<any>(null)
@@ -20,6 +21,9 @@ export function ProfileSettings() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [avatarLoading, setAvatarLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<
+    'avatar' | 'profile' | 'password' | null
+  >(null)
   const [message, setMessage] = useState<{
     type: 'success' | 'error'
     text: string
@@ -82,6 +86,7 @@ export function ProfileSettings() {
 
   // Save Avatar Only
   const handleSaveAvatar = async () => {
+    setConfirmAction(null)
     setAvatarLoading(true)
     setMessage(null)
 
@@ -119,8 +124,14 @@ export function ProfileSettings() {
   }
 
   // Save Personal Info Only
-  const handleSavePersonalInfo = async (e: React.FormEvent) => {
+  const handlePreSavePersonalInfo = (e: React.FormEvent) => {
     e.preventDefault()
+    setMessage(null)
+    setConfirmAction('profile')
+  }
+
+  const handleSavePersonalInfo = async () => {
+    setConfirmAction(null)
     setProfileLoading(true)
     setMessage(null)
 
@@ -158,7 +169,7 @@ export function ProfileSettings() {
   }
 
   // Save New Password Only
-  const handleSavePassword = async (e: React.FormEvent) => {
+  const handlePreSavePassword = (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
 
@@ -175,6 +186,11 @@ export function ProfileSettings() {
       return
     }
 
+    setConfirmAction('password')
+  }
+
+  const handleSavePassword = async () => {
+    setConfirmAction(null)
     setPasswordLoading(true)
 
     try {
@@ -298,7 +314,7 @@ export function ProfileSettings() {
             </button>
             <button
               type="button"
-              onClick={handleSaveAvatar}
+              onClick={() => setConfirmAction('avatar')}
               disabled={avatarLoading}
               className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-medium rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
             >
@@ -310,7 +326,7 @@ export function ProfileSettings() {
 
       {/* Personal Information Form */}
       <form
-        onSubmit={handleSavePersonalInfo}
+        onSubmit={handlePreSavePersonalInfo}
         className="bg-white p-6 rounded-2xl shadow-xs border border-stone-200 space-y-4"
       >
         <div>
@@ -379,7 +395,7 @@ export function ProfileSettings() {
 
       {/* Security & Password Update Form */}
       <form
-        onSubmit={handleSavePassword}
+        onSubmit={handlePreSavePassword}
         className="bg-white p-6 rounded-2xl shadow-xs border border-stone-200 space-y-4"
       >
         <div>
@@ -463,6 +479,36 @@ export function ProfileSettings() {
           </div>
         )}
       </form>
+
+      <ConfirmModal
+        isOpen={confirmAction !== null}
+        variant="amber"
+        title={
+          confirmAction === 'avatar'
+            ? 'Update Profile Picture?'
+            : confirmAction === 'profile'
+              ? 'Update Personal Information?'
+              : 'Update Account Password?'
+        }
+        description={
+          confirmAction === 'avatar'
+            ? 'Are you sure you want to save your new profile avatar?'
+            : confirmAction === 'profile'
+              ? `Are you sure you want to update your display name to "${name}"?`
+              : 'Are you sure you want to change your password? This will revoke all other active sessions.'
+        }
+        confirmText="Yes, Save Changes"
+        cancelText="Cancel"
+        isLoading={avatarLoading || profileLoading || passwordLoading}
+        onConfirm={
+          confirmAction === 'avatar'
+            ? handleSaveAvatar
+            : confirmAction === 'profile'
+              ? handleSavePersonalInfo
+              : handleSavePassword
+        }
+        onClose={() => setConfirmAction(null)}
+      />
     </div>
   )
 }

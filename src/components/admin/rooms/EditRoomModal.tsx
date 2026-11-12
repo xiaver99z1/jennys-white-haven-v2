@@ -62,6 +62,7 @@ export function EditRoomModal({
     string | null
   >(null)
   const [isAmenityModalOpen, setIsAmenityModalOpen] = useState(false)
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const [formData, setFormData] = useState(() => getInitialFormData(room))
@@ -70,6 +71,7 @@ export function EditRoomModal({
     if (room) {
       setFormData(getInitialFormData(room))
       setError(null)
+      setShowSaveConfirm(false)
       setShowDeleteConfirm(false)
     }
   }, [room])
@@ -140,15 +142,19 @@ export function EditRoomModal({
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!hasChanges) return
+    setShowSaveConfirm(true)
+  }
 
+  const handleSaveConfirm = async () => {
     setLoading(true)
     setError(null)
 
     // 🔒 Lock table row & close edit modal immediately
     onSaveStart(room.id)
+    setShowSaveConfirm(false)
     onClose()
 
     try {
@@ -487,6 +493,19 @@ export function EditRoomModal({
           </form>
         </div>
       </div>
+
+      {/* Reusable Confirm Modal for Saving Edits */}
+      <ConfirmModal
+        isOpen={showSaveConfirm}
+        variant="amber"
+        title={`Update Room ${room.roomNumber}?`}
+        description={`Are you sure you want to save changes to "${formData.name}"?`}
+        confirmText="Yes, Save Changes"
+        cancelText="Cancel"
+        isLoading={loading}
+        onConfirm={handleSaveConfirm}
+        onClose={() => setShowSaveConfirm(false)}
+      />
 
       {/* Reusable Confirm Modal for Deletion */}
       <ConfirmModal

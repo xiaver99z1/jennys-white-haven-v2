@@ -26,11 +26,11 @@ vi.mock('#/components/admin/rooms/AmenitySelectorModal', () => ({
 }))
 
 vi.mock('#/components/common/ConfirmModal', () => ({
-  ConfirmModal: ({ isOpen, onConfirm, onClose }: any) =>
+  ConfirmModal: ({ isOpen, confirmText, onConfirm, onClose }: any) =>
     isOpen ? (
       <div data-testid="confirm-modal">
-        <button onClick={onConfirm}>Yes, Delete</button>
-        <button onClick={onClose}>Cancel Delete</button>
+        <button onClick={onConfirm}>{confirmText}</button>
+        <button onClick={onClose}>Cancel Modal</button>
       </div>
     ) : null,
 }))
@@ -283,7 +283,7 @@ describe('EditRoomModal', () => {
     expect(screen.queryByAltText('Fullscreen Preview')).not.toBeInTheDocument()
   })
 
-  it('submits updated room data successfully', async () => {
+  it('opens ConfirmModal on save, cancels save, and submits updated room data successfully', async () => {
     vi.mocked(updateRoom).mockResolvedValueOnce({ success: true } as any)
 
     render(<EditRoomModal {...defaultProps} />)
@@ -294,7 +294,15 @@ describe('EditRoomModal', () => {
       { target: { value: '' } },
     )
 
+    // Open save confirmation modal and cancel first
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    expect(screen.getByTestId('confirm-modal')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Modal' }))
+    expect(screen.queryByTestId('confirm-modal')).not.toBeInTheDocument()
+
+    // Re-open save confirmation modal and confirm
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
 
     await waitFor(() => {
       expect(mockOnSaveStart).toHaveBeenCalledWith('room-1')
@@ -318,6 +326,7 @@ describe('EditRoomModal', () => {
       target: { value: 'Updated Suite' },
     })
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
 
     await waitFor(() => {
       expect(screen.getByText('Update failed')).toBeInTheDocument()
@@ -333,6 +342,7 @@ describe('EditRoomModal', () => {
       target: { value: 'Updated Suite' },
     })
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
 
     await waitFor(() => {
       expect(screen.getByText('Failed to update room.')).toBeInTheDocument()
@@ -348,8 +358,8 @@ describe('EditRoomModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /delete room/i }))
     expect(screen.getByTestId('confirm-modal')).toBeInTheDocument()
 
-    // Cancel deletion (covers line 505)
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel Delete' }))
+    // Cancel deletion
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Modal' }))
     expect(screen.queryByTestId('confirm-modal')).not.toBeInTheDocument()
 
     // Re-open and confirm deletion

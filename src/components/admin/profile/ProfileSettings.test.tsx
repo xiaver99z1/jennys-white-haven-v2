@@ -135,12 +135,21 @@ describe('ProfileSettings', () => {
       screen.queryByRole('button', { name: 'Save Avatar' }),
     ).not.toBeInTheDocument()
 
-    // 4. Re-upload & Save Avatar -> API Error with custom message & fallback message
+    // 4. Re-upload & Save Avatar -> Cancel confirmation modal first, then API Error with custom message & fallback message
     fireEvent.change(fileInput, { target: { files: [validFile] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
+    expect(screen.getByText('Update Profile Picture?')).toBeInTheDocument()
+    const cancelBtns = screen.getAllByRole('button', { name: 'Cancel' })
+    fireEvent.click(cancelBtns[cancelBtns.length - 1])
+    expect(
+      screen.queryByText('Update Profile Picture?'),
+    ).not.toBeInTheDocument()
+
     vi.mocked(authClient.updateUser).mockResolvedValueOnce({
       error: { message: 'Avatar upload failed' },
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Avatar upload failed')).toBeInTheDocument()
     })
@@ -149,6 +158,7 @@ describe('ProfileSettings', () => {
       error: { message: '' },
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Failed to update avatar')).toBeInTheDocument()
     })
@@ -158,6 +168,7 @@ describe('ProfileSettings', () => {
       new Error('Network error'),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(
         screen.getByText('An unexpected error occurred.'),
@@ -169,6 +180,7 @@ describe('ProfileSettings', () => {
       error: null,
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(
         screen.getByText('Profile picture updated successfully!'),
@@ -201,6 +213,7 @@ describe('ProfileSettings', () => {
       error: { message: 'Name update error' },
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Name update error')).toBeInTheDocument()
     })
@@ -209,6 +222,7 @@ describe('ProfileSettings', () => {
       error: { message: '' },
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Failed to update profile')).toBeInTheDocument()
     })
@@ -216,6 +230,7 @@ describe('ProfileSettings', () => {
     // 3. Catch block on unexpected rejection
     vi.mocked(authClient.updateUser).mockRejectedValueOnce(new Error('Crash'))
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(
         screen.getByText('An unexpected error occurred.'),
@@ -227,6 +242,7 @@ describe('ProfileSettings', () => {
       error: null,
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(
         screen.getByText('Personal information updated successfully!'),
@@ -276,6 +292,7 @@ describe('ProfileSettings', () => {
       error: { message: 'Incorrect current password' },
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Update Password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Incorrect current password')).toBeInTheDocument()
     })
@@ -284,6 +301,7 @@ describe('ProfileSettings', () => {
       error: { message: '' },
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Update Password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Failed to update password.')).toBeInTheDocument()
     })
@@ -293,6 +311,7 @@ describe('ProfileSettings', () => {
       new Error('Crash'),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Update Password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(
         screen.getByText(
@@ -306,6 +325,7 @@ describe('ProfileSettings', () => {
       error: null,
     } as any)
     fireEvent.click(screen.getByRole('button', { name: 'Update Password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(
         screen.getByText(

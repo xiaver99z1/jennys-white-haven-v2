@@ -135,20 +135,24 @@ model Room {
 }
 
 model Guest {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   firstName       String
   lastName        String
-  email           String?  @unique
+  email           String?   @unique
   phone           String
-  idType          String?  // e.g., "Passport", "Driver's License", "National ID"
+  idType          String?   // e.g., "Passport", "Driver's License", "National ID"
   idNumber        String?
-  nationality     String?  @default("Filipino")
-  specialNotes    String?  // Allergies, special requests, VIP notes
+  nationality     String?   @default("Filipino")
+  specialNotes    String?   // Allergies, special requests, VIP notes
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Soft Delete Field
+  deletedAt       DateTime? // NULL = active guest, Timestamp = deleted/archived
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([lastName, firstName])
   @@index([phone])
+  @@index([deletedAt])
   @@map("guest")
 }
