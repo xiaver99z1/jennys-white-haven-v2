@@ -1,4 +1,3 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -48,8 +47,8 @@ describe('ResendVerificationModal', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('renders modal details, user email, and daily usage banner', () => {
-    render(<ResendVerificationModal {...defaultProps} />)
+  it('renders modal details, user email, and daily usage banner, and handles null lastActivationEmailSentAt or zero count', () => {
+    const { rerender } = render(<ResendVerificationModal {...defaultProps} />)
 
     expect(
       screen.getByRole('heading', { name: /resend verification email/i }),
@@ -60,6 +59,30 @@ describe('ResendVerificationModal', () => {
       screen.getByRole('button', { name: /send email/i }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+
+    rerender(
+      <ResendVerificationModal
+        {...defaultProps}
+        user={{
+          ...mockUser,
+          activationEmailCount: 0,
+          lastActivationEmailSentAt: new Date().toISOString(),
+        }}
+      />,
+    )
+    expect(screen.queryByText(/daily usage:/i)).not.toBeInTheDocument()
+
+    rerender(
+      <ResendVerificationModal
+        {...defaultProps}
+        user={{
+          ...mockUser,
+          activationEmailCount: 2,
+          lastActivationEmailSentAt: null,
+        }}
+      />,
+    )
+    expect(screen.queryByText(/daily usage:/i)).not.toBeInTheDocument()
   })
 
   it('disables send button and displays max limit warning when daily limit is reached', () => {

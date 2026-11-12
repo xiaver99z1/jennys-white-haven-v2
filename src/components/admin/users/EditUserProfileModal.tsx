@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { updateAdminUser, type ResortRole } from '#/server/admin-actions'
+import { updateAdminUser } from '#/server/admin-actions'
+import type { ResortRole } from '#/server/admin-actions'
 
 interface EditUserModalProps {
   isOpen: boolean
@@ -33,7 +34,7 @@ export function EditUserProfileModal({
   // Initial values for dirty check
   const initialName = user?.name || ''
   const initialRole =
-    (user?.role?.toUpperCase() as ResortRole) || 'RECEPTIONIST'
+    (user?.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole
 
   // Check if any changes were made
   const hasChanges =
@@ -45,7 +46,7 @@ export function EditUserProfileModal({
   useEffect(() => {
     if (user) {
       setName(user.name || '')
-      setRole((user.role?.toUpperCase() as ResortRole) || 'RECEPTIONIST')
+      setRole((user.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole)
       setPassword('')
       setConfirmPassword('')
       setMessage(null)

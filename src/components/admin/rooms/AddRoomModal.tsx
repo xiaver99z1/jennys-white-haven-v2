@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
-import { ROOM_TYPES, type RoomType } from '#/lib/constants/rooms'
+import { ROOM_TYPES } from '#/lib/constants/rooms'
+import type { RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
 
 interface AddRoomModalProps {

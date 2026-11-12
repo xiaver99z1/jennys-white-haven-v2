@@ -6,7 +6,7 @@ export function validateUploadAvatar(formData: FormData) {
 }
 
 export async function uploadAvatarHandler({ data }: { data: FormData }) {
-  const file = data.get('file') as File
+  const file = data.get('file') as File | null
   const oldImageUrl = data.get('oldImageUrl') as string | null
 
   if (!file) {

@@ -1,7 +1,6 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { UserSessionsModal } from './UserSessionsModal'
 import { getUserSessions, revokeSession } from '#/server/session-actions'
 
@@ -24,6 +23,14 @@ describe('UserSessionsModal', () => {
       createdAt: new Date('2026-10-01T10:00:00Z'),
       expiresAt: new Date('2026-11-01T10:00:00Z'),
     },
+    {
+      id: 'session-null-meta',
+      token: 'token-def',
+      ipAddress: null,
+      userAgent: null,
+      createdAt: new Date('2026-10-01T11:00:00Z'),
+      expiresAt: new Date('2026-11-01T11:00:00Z'),
+    },
   ]
 
   const mockSessionHistory = [
@@ -34,6 +41,14 @@ describe('UserSessionsModal', () => {
       userAgent: 'Mozilla/5.0 Mac',
       createdAt: new Date('2026-09-01T10:00:00Z'),
       expiresAt: new Date('2026-09-05T10:00:00Z'),
+    },
+    {
+      id: 'session-hist-null',
+      token: 'token-uvw',
+      ipAddress: null,
+      userAgent: null,
+      createdAt: new Date('2026-09-02T10:00:00Z'),
+      expiresAt: new Date('2026-09-06T10:00:00Z'),
     },
   ]
 
@@ -48,11 +63,18 @@ describe('UserSessionsModal', () => {
     vi.clearAllMocks()
   })
 
-  it('renders nothing when isOpen is false', () => {
-    const { container } = render(
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders nothing when isOpen is false and does not fetch when userId is empty', () => {
+    const { container, rerender } = render(
       <UserSessionsModal {...defaultProps} isOpen={false} />,
     )
     expect(container).toBeEmptyDOMElement()
+
+    rerender(<UserSessionsModal {...defaultProps} isOpen={true} userId="" />)
+    expect(getUserSessions).not.toHaveBeenCalled()
   })
 
   it('fetches and displays active sessions and switches between tabs successfully', async () => {
@@ -77,7 +99,7 @@ describe('UserSessionsModal', () => {
     await user.click(historyTabBtn)
 
     expect(screen.getByText('192.168.1.8')).toBeInTheDocument()
-    expect(screen.getByText('Expired / Revoked')).toBeInTheDocument()
+    expect(screen.getAllByText('Expired / Revoked')[0]).toBeInTheDocument()
 
     // Switch back to Active tab (covers setActiveTab('active') click handler)
     const activeTabBtn = screen.getByRole('button', { name: /active/i })
@@ -90,35 +112,56 @@ describe('UserSessionsModal', () => {
     })
   })
 
-  it('displays empty state when no active sessions or history exist', async () => {
+  it('displays empty state when no active sessions or history exist or when res.success is false', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getUserSessions).mockResolvedValueOnce({
+      success: false,
+      activeSessions: [],
+      sessionHistory: [],
+    })
+
+    const { unmount } = render(<UserSessionsModal {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('No active sessions found.')).toBeInTheDocument()
+    })
+    unmount()
+
     vi.mocked(getUserSessions).mockResolvedValueOnce({
       success: true,
       activeSessions: [],
       sessionHistory: [],
-    } as any)
+    })
 
     render(<UserSessionsModal {...defaultProps} />)
 
     await waitFor(() => {
       expect(screen.getByText('No active sessions found.')).toBeInTheDocument()
     })
+
+    await user.click(screen.getByRole('button', { name: /history/i }))
+    expect(
+      screen.getByText('No past session history found.'),
+    ).toBeInTheDocument()
   })
 
-  it('revokes an active session successfully and refreshes list', async () => {
+  it('revokes an active session successfully and refreshes list, and handles res.success === false on revoke', async () => {
     const user = userEvent.setup()
     vi.mocked(getUserSessions)
       .mockResolvedValueOnce({
         success: true,
-        activeSessions: mockActiveSessions,
+        activeSessions: [mockActiveSessions[0]],
         sessionHistory: [],
       } as any)
       .mockResolvedValueOnce({
         success: true,
         activeSessions: [],
         sessionHistory: [],
-      } as any)
+      })
 
-    vi.mocked(revokeSession).mockResolvedValueOnce({ success: true } as any)
+    vi.mocked(revokeSession)
+      .mockResolvedValueOnce({ success: false } as any)
+      .mockResolvedValueOnce({ success: true } as any)
 
     render(<UserSessionsModal {...defaultProps} />)
 
@@ -132,6 +175,9 @@ describe('UserSessionsModal', () => {
     expect(revokeSession).toHaveBeenCalledWith({
       data: { token: 'token-abc' },
     })
+    expect(getUserSessions).toHaveBeenCalledTimes(1)
+
+    await user.click(revokeBtn)
 
     await waitFor(() => {
       expect(screen.getByText('No active sessions found.')).toBeInTheDocument()
@@ -152,8 +198,6 @@ describe('UserSessionsModal', () => {
         expect.any(Error),
       )
     })
-
-    consoleSpy.mockRestore()
   })
 
   it('handles revoke errors gracefully', async () => {
@@ -161,7 +205,7 @@ describe('UserSessionsModal', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(getUserSessions).mockResolvedValueOnce({
       success: true,
-      activeSessions: mockActiveSessions,
+      activeSessions: [mockActiveSessions[0]],
       sessionHistory: [],
     } as any)
     vi.mocked(revokeSession).mockRejectedValueOnce(new Error('Revoke failed'))
@@ -180,8 +224,6 @@ describe('UserSessionsModal', () => {
         expect.any(Error),
       )
     })
-
-    consoleSpy.mockRestore()
   })
 
   it('triggers onClose when Close button is clicked', async () => {
@@ -190,7 +232,7 @@ describe('UserSessionsModal', () => {
       success: true,
       activeSessions: [],
       sessionHistory: [],
-    } as any)
+    })
 
     render(<UserSessionsModal {...defaultProps} />)
 

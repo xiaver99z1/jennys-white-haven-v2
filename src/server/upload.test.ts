@@ -16,6 +16,7 @@ describe('upload-actions handlers and validators', () => {
 
   afterEach(() => {
     process.env.NODE_ENV = originalNodeEnv
+    vi.restoreAllMocks()
   })
 
   describe('uploadAvatar', () => {
@@ -46,6 +47,41 @@ describe('upload-actions handlers and validators', () => {
       expect(put).not.toHaveBeenCalled()
     })
 
+    it('falls back to image/webp in development environment when file.type is empty', async () => {
+      process.env.NODE_ENV = 'development'
+      const formData = new FormData()
+      const mockFile = new File(['dummy content'], 'avatar.bin', {
+        type: '',
+      })
+      formData.append('file', mockFile)
+
+      const result = await uploadAvatarHandler({ data: formData })
+
+      expect(result).toMatch(/^data:image\/webp;base64,/)
+      expect(put).not.toHaveBeenCalled()
+    })
+
+    it('handles production environment without deleting when oldImageUrl is absent or not vercel-storage', async () => {
+      process.env.NODE_ENV = 'production'
+      const formData = new FormData()
+      const mockFile = new File(['dummy content'], 'avatar.png', {
+        type: 'image/png',
+      })
+      formData.append('file', mockFile)
+      formData.append('oldImageUrl', 'https://example.com/local-avatar.png')
+
+      vi.mocked(put).mockResolvedValueOnce({
+        url: 'https://abc.public.blob.vercel-storage.com/avatars/new.png',
+      } as any)
+
+      const result = await uploadAvatarHandler({ data: formData })
+
+      expect(del).not.toHaveBeenCalled()
+      expect(result).toBe(
+        'https://abc.public.blob.vercel-storage.com/avatars/new.png',
+      )
+    })
+
     it('handles production environment by uploading to Vercel Blob and deleting old image', async () => {
       process.env.NODE_ENV = 'production'
       const formData = new FormData()
@@ -61,7 +97,7 @@ describe('upload-actions handlers and validators', () => {
       vi.mocked(put).mockResolvedValueOnce({
         url: 'https://abc.public.blob.vercel-storage.com/avatars/new.png',
       } as any)
-      vi.mocked(del).mockResolvedValueOnce(undefined as any)
+      vi.mocked(del).mockResolvedValueOnce(undefined)
 
       const result = await uploadAvatarHandler({ data: formData })
 
@@ -108,8 +144,7 @@ describe('upload-actions handlers and validators', () => {
       expect(result).toBe(
         'https://abc.public.blob.vercel-storage.com/avatars/new.png',
       )
-
-      consoleWarnSpy.mockRestore()
     })
   })
 })
+

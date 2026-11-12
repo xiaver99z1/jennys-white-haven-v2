@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { prisma } from '#/lib/prisma'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
@@ -38,16 +38,16 @@ export async function createAdminUserHandler({
 
     const tempPassword = `Password!123`
 
-    const newUser = await auth.api.createUser({
+    const newUser = (await auth.api.createUser({
       body: {
         email: data.email,
         password: tempPassword,
         name: data.name,
         role: normalizedRole as any,
       },
-    })
+    })) as Partial<Awaited<ReturnType<typeof auth.api.createUser>>>
 
-    if (!newUser || !newUser.user) {
+    if (!newUser.user) {
       throw new Error('Failed to create user in authentication system.')
     }
 
@@ -68,8 +68,8 @@ export async function createAdminUserHandler({
       userId: session.user.id,
       action: 'USER_CREATED',
       description: `Created new staff member: ${data.name} (${data.email}) with role ${data.role}`,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return {
@@ -184,8 +184,8 @@ export async function updateAdminUserHandler({
         userId: session.user.id,
         action: 'USER_UPDATED',
         description,
-        ipAddress: session?.session?.ipAddress ?? null,
-        userAgent: session?.session?.userAgent ?? null,
+        ipAddress: session.session.ipAddress ?? null,
+        userAgent: session.session.userAgent ?? null,
       })
     }
 
@@ -244,8 +244,8 @@ export async function blockAdminUserHandler({
       userId: session.user.id,
       action: 'USER_BLOCKED',
       description: `${adminIdentifier} blocked user ${targetIdentifier}`,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return { success: true, user: updatedUser }
@@ -295,8 +295,8 @@ export async function unblockAdminUserHandler({
       userId: session.user.id,
       action: 'USER_UNBLOCKED',
       description: `${adminIdentifier} unblocked user ${targetIdentifier}`,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return { success: true, user: updatedUser }
@@ -359,8 +359,8 @@ export async function resendVerificationEmailHandler({
       userId: session.user.id,
       action: 'RESEND_VERIFICATION',
       description: `Resent email verification link to ${user.name} (${user.email})`,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return {

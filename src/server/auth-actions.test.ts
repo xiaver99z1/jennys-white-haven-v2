@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   validateVerifyActivationToken,
   verifyActivationTokenHandler,
@@ -30,6 +30,10 @@ vi.mock('#/lib/auth-helpers', () => ({
 describe('auth-actions handlers and validators', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('verifyActivationToken', () => {
@@ -95,7 +99,31 @@ describe('auth-actions handlers and validators', () => {
       )
     })
 
-    it('falls back to x-real-ip or 127.0.0.1 and Unknown User-Agent when headers are missing', async () => {
+    it('uses x-real-ip when x-forwarded-for is absent', async () => {
+      const mockUser = { id: 'user-1', email: 'user@resort.com' }
+      vi.mocked(prisma.user.findFirst).mockResolvedValueOnce(mockUser as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      const mockHeaders = new Map([['x-real-ip', '10.0.0.5']])
+      vi.mocked(getServerHeaders).mockReturnValueOnce({
+        get: (key: string) => mockHeaders.get(key) || null,
+      } as any)
+
+      vi.mocked(logActivity).mockResolvedValueOnce({} as any)
+
+      await verifyActivationTokenHandler({
+        data: { token: 'valid-token' },
+      })
+
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ipAddress: '10.0.0.5',
+          userAgent: 'Unknown User-Agent',
+        }),
+      )
+    })
+
+    it('falls back to 127.0.0.1 and Unknown User-Agent when headers are missing', async () => {
       const mockUser = { id: 'user-1', email: 'user@resort.com' }
       vi.mocked(prisma.user.findFirst).mockResolvedValueOnce(mockUser as any)
       vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
@@ -120,7 +148,28 @@ describe('auth-actions handlers and validators', () => {
   })
 
   describe('logUserLogin', () => {
-    it('successfully logs user login', async () => {
+    it('successfully logs user login and falls back to null when session ipAddress and userAgent are missing', async () => {
+      const mockSession = {
+        user: { id: 'user-1', email: 'user@resort.com' },
+        session: { ipAddress: null, userAgent: null },
+      }
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(logActivity).mockResolvedValueOnce({} as any)
+
+      const result = await logUserLoginHandler()
+
+      expect(result).toEqual({ success: true })
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGIN_SUCCESS',
+          userId: 'user-1',
+          ipAddress: null,
+          userAgent: null,
+        }),
+      )
+    })
+
+    it('successfully logs user login with ipAddress and userAgent', async () => {
       const mockSession = {
         user: { id: 'user-1', email: 'user@resort.com' },
         session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
@@ -135,12 +184,14 @@ describe('auth-actions handlers and validators', () => {
         expect.objectContaining({
           action: 'LOGIN_SUCCESS',
           userId: 'user-1',
+          ipAddress: '127.0.0.1',
+          userAgent: 'Vitest',
         }),
       )
     })
 
     it('returns success: false if no active session or user is found', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'error').mockImplementation(() => {})
       vi.mocked(authSession).mockResolvedValueOnce(null as any)
 
       const result = await logUserLoginHandler()
@@ -149,7 +200,6 @@ describe('auth-actions handlers and validators', () => {
         success: false,
         error: 'No active session found.',
       })
-      consoleSpy.mockRestore()
     })
 
     it('handles errors gracefully and returns success: false', async () => {
@@ -160,12 +210,32 @@ describe('auth-actions handlers and validators', () => {
 
       expect(result).toEqual({ success: false, error: 'Session error' })
       expect(consoleSpy).toHaveBeenCalled()
-      consoleSpy.mockRestore()
     })
   })
 
   describe('logUserLogout', () => {
-    it('successfully logs user logout', async () => {
+    it('successfully logs user logout and handles null ipAddress and userAgent', async () => {
+      const mockSession = {
+        user: { id: 'user-1', email: 'user@resort.com' },
+        session: { ipAddress: null, userAgent: null },
+      }
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(logActivity).mockResolvedValueOnce({} as any)
+
+      const result = await logUserLogoutHandler()
+
+      expect(result).toEqual({ success: true })
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'LOGOUT',
+          userId: 'user-1',
+          ipAddress: null,
+          userAgent: null,
+        }),
+      )
+    })
+
+    it('successfully logs user logout with ipAddress and userAgent', async () => {
       const mockSession = {
         user: { id: 'user-1', email: 'user@resort.com' },
         session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
@@ -180,6 +250,8 @@ describe('auth-actions handlers and validators', () => {
         expect.objectContaining({
           action: 'LOGOUT',
           userId: 'user-1',
+          ipAddress: '127.0.0.1',
+          userAgent: 'Vitest',
         }),
       )
     })
@@ -194,7 +266,7 @@ describe('auth-actions handlers and validators', () => {
 
       expect(result).toEqual({ success: false, error: 'Logout log failed' })
       expect(consoleSpy).toHaveBeenCalled()
-      consoleSpy.mockRestore()
     })
   })
 })
+

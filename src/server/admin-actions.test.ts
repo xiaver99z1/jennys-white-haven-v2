@@ -115,7 +115,7 @@ describe('admin-actions handlers and validators', () => {
     const validData = {
       name: 'New Staff',
       email: 'staff@resort.com',
-      role: 'STAFF' as const,
+      role: 'RECEPTIONIST' as const,
     }
 
     it('successfully creates an admin user, generates activation token, and logs activity', async () => {
@@ -125,7 +125,7 @@ describe('admin-actions handlers and validators', () => {
       } as any)
       vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
 
-      const result = await createAdminUserHandler({ data: validData } as any)
+      const result = await createAdminUserHandler({ data: validData })
 
       expect(result.success).toBe(true)
       expect(auth.api.createUser).toHaveBeenCalled()
@@ -148,23 +148,52 @@ describe('admin-actions handlers and validators', () => {
       )
     })
 
+    it('handles null ipAddress and userAgent when logging activity', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
+      vi.mocked(auth.api.createUser).mockResolvedValueOnce({
+        user: { id: 'new-user-1', email: validData.email },
+      } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      await createAdminUserHandler({ data: validData })
+
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ipAddress: null,
+          userAgent: null,
+        }),
+      )
+    })
+
     it('throws error if email is already registered', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'existing',
       } as any)
 
-      await expect(
-        createAdminUserHandler({ data: validData } as any),
-      ).rejects.toThrow('This email address is already registered.')
+      await expect(createAdminUserHandler({ data: validData })).rejects.toThrow(
+        'This email address is already registered.',
+      )
     })
 
     it('throws error if auth.api.createUser returns an invalid user object', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
       vi.mocked(auth.api.createUser).mockResolvedValueOnce({} as any)
 
-      await expect(
-        createAdminUserHandler({ data: validData } as any),
-      ).rejects.toThrow('Failed to create user in authentication system.')
+      await expect(createAdminUserHandler({ data: validData })).rejects.toThrow(
+        'Failed to create user in authentication system.',
+      )
+    })
+
+    it('throws fallback error message when caught error has no message', async () => {
+      vi.mocked(prisma.user.findUnique).mockRejectedValueOnce(new Error(''))
+
+      await expect(createAdminUserHandler({ data: validData })).rejects.toThrow(
+        'Failed to process request.',
+      )
     })
   })
 
@@ -179,7 +208,7 @@ describe('admin-actions handlers and validators', () => {
         id: 'user-1',
         name: 'Old Name',
         email: 'staff@resort.com',
-        role: 'STAFF',
+        role: 'RECEPTIONIST',
       }
 
       vi.mocked(prisma.user.findUnique)
@@ -192,16 +221,16 @@ describe('admin-actions handlers and validators', () => {
       } as any)
       vi.mocked(prisma.account.updateMany).mockResolvedValueOnce({
         count: 1,
-      } as any)
+      })
 
       const result = await updateAdminUserHandler({
         data: {
           userId: 'user-1',
           name: 'New Name',
           password: 'newpassword123',
-          role: 'MANAGER' as any,
+          role: 'MANAGER',
         },
-      } as any)
+      })
 
       expect(result.success).toBe(true)
       expect(hashPassword).toHaveBeenCalledWith('newpassword123')
@@ -214,6 +243,98 @@ describe('admin-actions handlers and validators', () => {
       )
     })
 
+    it('formats a single change, falls back to name or defaults when emails/roles are missing, and handles null session metadata', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce({
+          id: 'admin-1',
+          email: '',
+          name: 'AdminByName',
+        } as any)
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          email: '',
+          name: 'TargetByName',
+          role: null,
+        } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({
+        id: 'user-1',
+        name: 'TargetByName',
+        role: 'manager',
+      } as any)
+
+      await updateAdminUserHandler({
+        data: {
+          userId: 'user-1',
+          name: 'TargetByName',
+          role: 'MANAGER',
+        },
+      })
+
+      expect(logActivity).toHaveBeenCalledWith({
+        userId: 'admin-1',
+        action: 'USER_UPDATED',
+        description:
+          'AdminByName updated TargetByName role from "none" to "MANAGER"',
+        ipAddress: null,
+        userAgent: null,
+      })
+    })
+
+    it('falls back to "Admin" and "user" when both email and name are empty, and skips logActivity when no changes occur', async () => {
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          email: '',
+          name: '',
+          role: 'manager',
+        } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      await updateAdminUserHandler({
+        data: {
+          userId: 'user-1',
+          name: 'Updated Name',
+          role: 'MANAGER',
+        },
+      })
+
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Admin updated user name from "" to "Updated Name"',
+        }),
+      )
+
+      vi.clearAllMocks()
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: mockAdminUser,
+        session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
+      } as any)
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(mockAdminUser as any)
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          email: 'staff@resort.com',
+          name: 'Same Name',
+          role: 'manager',
+        } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      await updateAdminUserHandler({
+        data: {
+          userId: 'user-1',
+          name: 'Same Name',
+          role: 'MANAGER',
+        },
+      })
+
+      expect(logActivity).not.toHaveBeenCalled()
+    })
+
     it('throws error if target user not found', async () => {
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(mockAdminUser as any)
@@ -221,9 +342,19 @@ describe('admin-actions handlers and validators', () => {
 
       await expect(
         updateAdminUserHandler({
-          data: { userId: 'missing', name: 'Test', role: 'STAFF' as any },
-        } as any),
+          data: { userId: 'missing', name: 'Test', role: 'RECEPTIONIST' },
+        }),
       ).rejects.toThrow('Target user not found.')
+    })
+
+    it('throws fallback error message when update fails with empty error message', async () => {
+      vi.mocked(prisma.user.findUnique).mockRejectedValueOnce(new Error(''))
+
+      await expect(
+        updateAdminUserHandler({
+          data: { userId: 'user-1', name: 'Test', role: 'RECEPTIONIST' },
+        }),
+      ).rejects.toThrow('Failed to update staff profile.')
     })
   })
 
@@ -240,11 +371,11 @@ describe('admin-actions handlers and validators', () => {
       vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
       vi.mocked(prisma.session.deleteMany).mockResolvedValueOnce({
         count: 1,
-      } as any)
+      })
 
       const result = await blockAdminUserHandler({
         data: { userId: 'user-1' },
-      } as any)
+      })
 
       expect(result.success).toBe(true)
       expect(prisma.session.deleteMany).toHaveBeenCalledWith({
@@ -255,17 +386,66 @@ describe('admin-actions handlers and validators', () => {
       )
     })
 
-    it('throws error if user to block is not found', async () => {
+    it('handles identifier fallbacks and null session metadata when blocking a user', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce({
+          id: 'admin-1',
+          email: '',
+          name: 'AdminName',
+        } as any)
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          email: '',
+          name: 'TargetName',
+        } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.session.deleteMany).mockResolvedValueOnce({ count: 0 })
+
+      await blockAdminUserHandler({ data: { userId: 'user-1' } })
+
+      expect(logActivity).toHaveBeenCalledWith({
+        userId: 'admin-1',
+        action: 'USER_BLOCKED',
+        description: 'AdminName blocked user TargetName',
+        ipAddress: null,
+        userAgent: null,
+      })
+
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'user-1', email: '', name: '' } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.session.deleteMany).mockResolvedValueOnce({ count: 0 })
+
+      await blockAdminUserHandler({ data: { userId: 'user-1' } })
+
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Admin blocked user user',
+        }),
+      )
+    })
+
+    it('throws error if user to block is not found or fails with empty error message', async () => {
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(mockAdminUser as any)
         .mockResolvedValueOnce(null)
 
       await expect(
-        blockAdminUserHandler({ data: { userId: 'missing' } } as any),
+        blockAdminUserHandler({ data: { userId: 'missing' } }),
       ).rejects.toThrow('User not found.')
+
+      vi.mocked(prisma.user.findUnique).mockRejectedValueOnce(new Error(''))
+      await expect(
+        blockAdminUserHandler({ data: { userId: 'user-1' } }),
+      ).rejects.toThrow('Failed to block user.')
     })
 
-    it('successfully unblocks an admin user', async () => {
+    it('successfully unblocks an admin user and handles identifier fallbacks and null session metadata', async () => {
       const targetUser = {
         id: 'user-1',
         email: 'user@resort.com',
@@ -278,22 +458,67 @@ describe('admin-actions handlers and validators', () => {
 
       const result = await unblockAdminUserHandler({
         data: { userId: 'user-1' },
-      } as any)
+      })
 
       expect(result.success).toBe(true)
       expect(logActivity).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'USER_UNBLOCKED' }),
       )
+
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce({
+          id: 'admin-1',
+          email: '',
+          name: 'AdminName',
+        } as any)
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          email: '',
+          name: 'TargetName',
+        } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      await unblockAdminUserHandler({ data: { userId: 'user-1' } })
+
+      expect(logActivity).toHaveBeenCalledWith({
+        userId: 'admin-1',
+        action: 'USER_UNBLOCKED',
+        description: 'AdminName unblocked user TargetName',
+        ipAddress: null,
+        userAgent: null,
+      })
+
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'user-1', email: '', name: '' } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      await unblockAdminUserHandler({ data: { userId: 'user-1' } })
+
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Admin unblocked user user',
+        }),
+      )
     })
 
-    it('throws error if user to unblock is not found', async () => {
+    it('throws error if user to unblock is not found or fails with empty error message', async () => {
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(mockAdminUser as any)
         .mockResolvedValueOnce(null)
 
       await expect(
-        unblockAdminUserHandler({ data: { userId: 'missing' } } as any),
+        unblockAdminUserHandler({ data: { userId: 'missing' } }),
       ).rejects.toThrow('User not found.')
+
+      vi.mocked(prisma.user.findUnique).mockRejectedValueOnce(new Error(''))
+      await expect(
+        unblockAdminUserHandler({ data: { userId: 'user-1' } }),
+      ).rejects.toThrow('Failed to unblock user.')
     })
   })
 
@@ -311,7 +536,7 @@ describe('admin-actions handlers and validators', () => {
 
       const result = await resendVerificationEmailHandler({
         data: { userId: 'user-1' },
-      } as any)
+      })
 
       expect(result.success).toBe(true)
       expect(result.count).toBe(2)
@@ -320,12 +545,45 @@ describe('admin-actions handlers and validators', () => {
       )
     })
 
-    it('throws error if user account not found', async () => {
+    it('handles zero activationEmailCount and null session metadata', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'user-1',
+        email: 'user@resort.com',
+        name: 'User',
+        emailVerified: false,
+        activationEmailCount: 0,
+        lastActivationEmailSentAt: null,
+      } as any)
+
+      const result = await resendVerificationEmailHandler({
+        data: { userId: 'user-1' },
+      })
+
+      expect(result.count).toBe(1)
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ipAddress: null,
+          userAgent: null,
+        }),
+      )
+    })
+
+    it('throws error if user account not found or fails with empty error message', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
 
       await expect(
-        resendVerificationEmailHandler({ data: { userId: 'missing' } } as any),
+        resendVerificationEmailHandler({ data: { userId: 'missing' } }),
       ).rejects.toThrow('User account not found.')
+
+      vi.mocked(prisma.user.findUnique).mockRejectedValueOnce(new Error(''))
+
+      await expect(
+        resendVerificationEmailHandler({ data: { userId: 'user-1' } }),
+      ).rejects.toThrow('Failed to resend verification email.')
     })
 
     it('throws error if user account is already verified', async () => {
@@ -335,7 +593,7 @@ describe('admin-actions handlers and validators', () => {
       } as any)
 
       await expect(
-        resendVerificationEmailHandler({ data: { userId: 'user-1' } } as any),
+        resendVerificationEmailHandler({ data: { userId: 'user-1' } }),
       ).rejects.toThrow('This user account is already verified.')
     })
 
@@ -348,7 +606,7 @@ describe('admin-actions handlers and validators', () => {
       } as any)
 
       await expect(
-        resendVerificationEmailHandler({ data: { userId: 'user-1' } } as any),
+        resendVerificationEmailHandler({ data: { userId: 'user-1' } }),
       ).rejects.toThrow(
         'Maximum limit reached. You can only resend up to 3 verification emails per day for this user.',
       )
@@ -367,10 +625,11 @@ describe('admin-actions handlers and validators', () => {
 
       const result = await resendVerificationEmailHandler({
         data: { userId: 'user-1' },
-      } as any)
+      })
 
       expect(result.success).toBe(true)
       expect(result.count).toBe(1) // Hits the `else { currentCount = 1 }` branch!
     })
   })
 })
+

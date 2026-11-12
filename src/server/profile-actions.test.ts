@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   validateProfileActivity,
   logProfileActivityHandler,
@@ -22,6 +22,10 @@ describe('profile-actions handlers and validators', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('logProfileActivity', () => {
@@ -54,6 +58,30 @@ describe('profile-actions handlers and validators', () => {
       })
     })
 
+    it('falls back to null when session ipAddress and userAgent are missing', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: { id: 'user-1', email: 'user@resort.com' },
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(logActivity).mockResolvedValueOnce({} as any)
+
+      const result = await logProfileActivityHandler({
+        data: {
+          action: 'PROFILE_UPDATED',
+          description: 'Updated profile name',
+        },
+      })
+
+      expect(result).toEqual({ success: true })
+      expect(logActivity).toHaveBeenCalledWith({
+        userId: 'user-1',
+        action: 'PROFILE_UPDATED',
+        description: 'Updated profile name',
+        ipAddress: null,
+        userAgent: null,
+      })
+    })
+
     it('handles errors gracefully and returns success: false if session or logging fails', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       vi.mocked(authSession).mockRejectedValueOnce(new Error('Unauthorized'))
@@ -67,7 +95,7 @@ describe('profile-actions handlers and validators', () => {
 
       expect(result).toEqual({ success: false, error: 'Unauthorized' })
       expect(consoleSpy).toHaveBeenCalled()
-      consoleSpy.mockRestore()
     })
   })
 })
+

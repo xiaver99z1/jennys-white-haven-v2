@@ -1,4 +1,3 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ProfileSettings } from './ProfileSettings'
@@ -53,7 +52,26 @@ describe('ProfileSettings', () => {
     })
   })
 
-  it('handles session with empty name/image and null session data gracefully', async () => {
+  it('handles session with non-empty name and null image, empty name/image, and null session data gracefully', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'u1',
+          name: 'Jenny',
+          email: 'jenny@resort.com',
+          image: null,
+        },
+      },
+    } as any)
+
+    const { unmount: unmountNamed } = render(<ProfileSettings />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Jenny')).toBeInTheDocument()
+      expect(screen.getByText('J')).toBeInTheDocument()
+    })
+    unmountNamed()
+
     vi.mocked(authClient.getSession).mockResolvedValueOnce({
       data: {
         user: { id: 'u2', name: '', email: 'no-name@resort.com', image: null },

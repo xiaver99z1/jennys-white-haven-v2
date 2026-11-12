@@ -1,8 +1,8 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
-import { AdminDataTable, type Column } from './AdminDataTable'
+import { AdminDataTable } from './AdminDataTable'
+import type { Column } from './AdminDataTable'
 
 type TestItem = {
   id: string
@@ -113,11 +113,11 @@ describe('AdminDataTable', () => {
     await user.selectOptions(mobileSortSelect, 'role')
     expect(defaultProps.onSort).toHaveBeenCalledWith('role')
 
-    const dateInput = document.querySelector('input[type="date"]')
-    if (dateInput) {
-      await user.type(dateInput, '2026-01-01')
-      expect(defaultProps.onSearchChange).toHaveBeenCalled()
-    }
+    const dateInput = document.querySelector(
+      'input[type="date"]',
+    ) as HTMLInputElement
+    await user.type(dateInput, '2026-01-01')
+    expect(defaultProps.onSearchChange).toHaveBeenCalled()
 
     const resetBtn = screen.getByRole('button', { name: /reset all/i })
     await user.click(resetBtn)
@@ -210,9 +210,9 @@ describe('AdminDataTable', () => {
 
     expect(handleSearchChange).toHaveBeenCalledWith('name', 'A')
   })
-  it('toggles and exercises desktop select and date column filters', async () => {
+  it('toggles and exercises desktop select and date column filters and handles empty searchValues map', async () => {
     const user = userEvent.setup()
-    render(<AdminDataTable {...defaultProps} />)
+    render(<AdminDataTable {...defaultProps} searchValues={{}} />)
 
     // 1. Test Desktop Select Filter (Role column)
     const roleFilterBtn = screen.getByTitle('Filter Role')
@@ -222,10 +222,8 @@ describe('AdminDataTable', () => {
     const desktopSelect = document.querySelector(
       'thead select',
     ) as HTMLSelectElement
-    if (desktopSelect) {
-      await user.selectOptions(desktopSelect, 'admin')
-      expect(defaultProps.onSearchChange).toHaveBeenCalledWith('role', 'admin')
-    }
+    await user.selectOptions(desktopSelect, 'admin')
+    expect(defaultProps.onSearchChange).toHaveBeenCalledWith('role', 'admin')
 
     // 2. Test Desktop Date Filter (Created Date column)
     const dateFilterBtn = screen.getByTitle('Filter Created Date')
@@ -234,9 +232,8 @@ describe('AdminDataTable', () => {
     const dateInput = document.querySelector(
       'thead input[type="date"]',
     ) as HTMLInputElement
-    if (dateInput) {
-      await user.type(dateInput, '2026-01-01')
-      expect(defaultProps.onSearchChange).toHaveBeenCalled()
-    }
+    await user.type(dateInput, '2026-01-01')
+    expect(defaultProps.onSearchChange).toHaveBeenCalled()
   })
 })
+

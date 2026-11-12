@@ -63,9 +63,11 @@ export const verifyActivationToken = createServerFn({ method: 'POST' })
 
 export async function logUserLoginHandler() {
   try {
-    const session = await authSession()
+    const session = (await authSession()) as Awaited<
+      ReturnType<typeof authSession>
+    > | null
 
-    if (!session || !session.user) {
+    if (!session) {
       throw new Error('No active session found.')
     }
 
@@ -73,8 +75,8 @@ export async function logUserLoginHandler() {
       userId: session.user.id,
       action: 'LOGIN_SUCCESS',
       description: `Successfully signed in to account (${session.user.email})`,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return { success: true }
@@ -96,8 +98,8 @@ export async function logUserLogoutHandler() {
       userId: session.user.id,
       action: 'LOGOUT',
       description: `Successfully signed out from account (${session.user.email})`,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return { success: true }

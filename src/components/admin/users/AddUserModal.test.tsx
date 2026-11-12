@@ -1,4 +1,3 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -101,6 +100,36 @@ describe('AddUserModal', () => {
     vi.advanceTimersByTime(1500)
 
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('handles successful user creation when onSuccess callback is omitted', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    vi.mocked(createAdminUser).mockResolvedValueOnce({
+      success: true,
+      message:
+        'Resort staff created successfully! Activation link sent to email.',
+      user: {} as any,
+    })
+
+    render(<AddUserModal isOpen={true} onClose={defaultProps.onClose} />)
+
+    await user.type(
+      screen.getByPlaceholderText(/e.g. jap ocifares/i),
+      'Jane Doe',
+    )
+    await user.type(
+      screen.getByPlaceholderText(/staff@jennyswhitehaven.com/i),
+      'jane@jennyswhitehaven.com',
+    )
+    await user.click(screen.getByRole('button', { name: /create user/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Resort staff created successfully! Activation link sent to email.',
+        ),
+      ).toBeInTheDocument()
+    })
   })
 
   it('handles API error and displays error banner', async () => {

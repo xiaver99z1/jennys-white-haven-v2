@@ -1,7 +1,6 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { UserActivityLogsModal } from './UserActivityLogsModal'
 import { getUserActivityLogs } from '#/server/activity-actions'
 
@@ -27,8 +26,8 @@ describe('UserActivityLogsModal', () => {
       id: 'log-2',
       action: 'UPDATE_PROFILE',
       description: 'Updated phone number',
-      ipAddress: '192.168.1.10',
-      userAgent: 'Mozilla/5.0 Mac',
+      ipAddress: null,
+      userAgent: null,
       createdAt: new Date('2026-10-02T12:30:00Z'),
     },
   ]
@@ -44,11 +43,20 @@ describe('UserActivityLogsModal', () => {
     vi.clearAllMocks()
   })
 
-  it('renders nothing when isOpen is false', () => {
-    const { container } = render(
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders nothing when isOpen is false and does not fetch when userId is empty', () => {
+    const { container, rerender } = render(
       <UserActivityLogsModal {...defaultProps} isOpen={false} />,
     )
     expect(container).toBeEmptyDOMElement()
+
+    rerender(
+      <UserActivityLogsModal {...defaultProps} isOpen={true} userId="" />,
+    )
+    expect(getUserActivityLogs).not.toHaveBeenCalled()
   })
 
   it('fetches and displays activity logs successfully', async () => {
@@ -74,11 +82,25 @@ describe('UserActivityLogsModal', () => {
     })
   })
 
-  it('displays empty state when no logs exist', async () => {
+  it('displays empty state when no logs exist or when res.success is false', async () => {
+    vi.mocked(getUserActivityLogs).mockResolvedValueOnce({
+      success: false,
+      logs: [],
+    })
+
+    const { unmount } = render(<UserActivityLogsModal {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('No activity logs recorded for this user yet.'),
+      ).toBeInTheDocument()
+    })
+    unmount()
+
     vi.mocked(getUserActivityLogs).mockResolvedValueOnce({
       success: true,
       logs: [],
-    } as any)
+    })
 
     render(<UserActivityLogsModal {...defaultProps} />)
 
@@ -89,7 +111,7 @@ describe('UserActivityLogsModal', () => {
     })
   })
 
-  it('filters logs based on search query', async () => {
+  it('filters logs based on search query and shows filter empty state when no logs match', async () => {
     const user = userEvent.setup()
     vi.mocked(getUserActivityLogs).mockResolvedValueOnce({
       success: true,
@@ -113,6 +135,13 @@ describe('UserActivityLogsModal', () => {
       screen.queryByText('User signed in successfully'),
     ).not.toBeInTheDocument()
     expect(screen.getByText('Updated phone number')).toBeInTheDocument()
+
+    await user.clear(searchInput)
+    await user.type(searchInput, 'nonexistent-search-term-xyz')
+
+    expect(
+      screen.getByText('No logs match your search filters.'),
+    ).toBeInTheDocument()
   })
 
   it('filters logs by action dropdown selection', async () => {
@@ -241,8 +270,6 @@ describe('UserActivityLogsModal', () => {
         expect.any(Error),
       )
     })
-
-    consoleSpy.mockRestore()
   })
 
   it('triggers onClose when close button is clicked', async () => {

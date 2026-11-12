@@ -15,7 +15,7 @@ const getUsersList = createServerFn({ method: 'GET' }).handler(async () => {
   const { getRequestHeaders } = await import('@tanstack/react-start/server')
   const session = await auth.api.getSession({ headers: getRequestHeaders() })
 
-  if (!session?.user || !hasPermission(session.user as any, 'view:users')) {
+  if (!session?.user || !hasPermission(session.user, 'view:users')) {
     throw new Error('Unauthorized')
   }
 
@@ -41,7 +41,7 @@ export const Route = createFileRoute('/admin/users')({
   beforeLoad: async () => {
     const user = await checkUserAccess()
     if (!user) throw redirect({ to: '/admin/login' })
-    if (!hasPermission(user as any, 'view:users'))
+    if (!hasPermission(user, 'view:users'))
       throw redirect({ to: '/admin' })
   },
   loader: async () => await getUsersList(),

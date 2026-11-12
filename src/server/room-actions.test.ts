@@ -146,6 +146,47 @@ describe('room-actions handlers and validators', () => {
       )
     })
 
+    it('successfully creates a room with empty amenities, undefined images, and null session metadata', async () => {
+      vi.mocked(authSession).mockResolvedValue({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(null)
+      vi.mocked(prisma.room.create).mockResolvedValueOnce({
+        id: 'room-3',
+        roomNumber: '103',
+        name: 'Minimal Room',
+        type: 'STANDARD',
+        capacity: 1,
+        pricePerNight: 2500,
+        description: 'Cozy room',
+        amenities: [],
+        images: [],
+      } as any)
+
+      const result = await createRoomHandler({
+        data: {
+          roomNumber: '103',
+          name: 'Minimal Room',
+          type: 'STANDARD',
+          description: 'Cozy room',
+          capacity: 1,
+          pricePerNight: 2500,
+          amenities: [],
+        },
+      })
+
+      expect(result.success).toBe(true)
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'ROOM_CREATED',
+          ipAddress: null,
+          userAgent: null,
+          description: expect.stringContaining('Amenities (0): None'),
+        }),
+      )
+    })
+
     it('throws error if room number already exists', async () => {
       vi.mocked(prisma.room.findUnique).mockResolvedValueOnce({
         id: 'existing',
@@ -199,7 +240,7 @@ describe('room-actions handlers and validators', () => {
           roomNumber: '102',
           name: 'Updated Name',
           type: 'SUITE',
-          status: 'MAINTENANCE' as any,
+          status: 'MAINTENANCE',
           capacity: 4,
           pricePerNight: 3500,
           description: 'New Description',
@@ -222,7 +263,7 @@ describe('room-actions handlers and validators', () => {
       )
     })
 
-    it('logs "No field changes" when updated values match existing values', async () => {
+    it('handles clearing description to empty string and logs "None" transition', async () => {
       vi.mocked(prisma.room.findUnique).mockResolvedValueOnce({
         ...existingRoomWithDetails,
         description: null,
@@ -241,6 +282,40 @@ describe('room-actions handlers and validators', () => {
       })
 
       expect(result.success).toBe(true)
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: expect.stringContaining('Description: "None" → "None"'),
+        }),
+      )
+    })
+
+    it('logs "No field changes" when no fields are modified and handles null session metadata', async () => {
+      vi.mocked(authSession).mockResolvedValue({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(
+        existingRoomWithDetails as any,
+      )
+      vi.mocked(prisma.room.update).mockResolvedValueOnce(
+        existingRoomWithDetails as any,
+      )
+
+      const result = await updateRoomHandler({
+        data: {
+          id: 'room-1',
+        },
+      })
+
+      expect(result.success).toBe(true)
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'ROOM_UPDATED',
+          description: 'Updated Room 101. No field changes',
+          ipAddress: null,
+          userAgent: null,
+        }),
+      )
     })
 
     it('throws error if room to update is not found', async () => {
@@ -258,7 +333,11 @@ describe('room-actions handlers and validators', () => {
       expect(validateRestoreRoom({ id: 'room-1' })).toEqual({ id: 'room-1' })
     })
 
-    it('successfully soft deletes a room', async () => {
+    it('successfully soft deletes a room and handles null session metadata', async () => {
+      vi.mocked(authSession).mockResolvedValue({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
       vi.mocked(prisma.room.findUnique).mockResolvedValueOnce({
         id: 'room-1',
         roomNumber: '101',
@@ -270,7 +349,11 @@ describe('room-actions handlers and validators', () => {
 
       expect(result.success).toBe(true)
       expect(logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'ROOM_DELETED' }),
+        expect.objectContaining({
+          action: 'ROOM_DELETED',
+          ipAddress: null,
+          userAgent: null,
+        }),
       )
     })
 
@@ -282,7 +365,11 @@ describe('room-actions handlers and validators', () => {
       ).rejects.toThrow('Room not found.')
     })
 
-    it('successfully restores an archived room', async () => {
+    it('successfully restores an archived room and handles null session metadata', async () => {
+      vi.mocked(authSession).mockResolvedValue({
+        user: mockAdminUser,
+        session: { ipAddress: null, userAgent: null },
+      } as any)
       vi.mocked(prisma.room.findUnique).mockResolvedValueOnce({
         id: 'room-1',
         roomNumber: '101',
@@ -301,7 +388,11 @@ describe('room-actions handlers and validators', () => {
 
       expect(result.success).toBe(true)
       expect(logActivity).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'ROOM_RESTORED' }),
+        expect.objectContaining({
+          action: 'ROOM_RESTORED',
+          ipAddress: null,
+          userAgent: null,
+        }),
       )
     })
 

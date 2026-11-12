@@ -1,8 +1,8 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { RoomsList } from '#/components/admin/rooms/RoomsList'
+import { restoreRoom } from '#/server/room-actions'
 
 // Mock server actions
 vi.mock('#/server/room-actions', () => ({
@@ -78,8 +78,6 @@ vi.mock('#/components/common/ConfirmModal', () => ({
     )
   },
 }))
-
-import { restoreRoom } from '#/server/room-actions'
 
 describe('RoomsList', () => {
   const mockRouter = {
@@ -248,9 +246,27 @@ describe('RoomsList', () => {
     })
   })
 
-  it('handles restore room failure gracefully', async () => {
-    vi.mocked(restoreRoom).mockRejectedValueOnce(new Error('Restore failed'))
+  it('handles restore room failure gracefully and handles res.success === false', async () => {
+    vi.mocked(restoreRoom).mockResolvedValueOnce({ success: false } as any)
     const user = userEvent.setup()
+    const { unmount } = render(
+      <RoomsList initialRooms={mockRooms} router={mockRouter} />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: /view archived rooms/i }),
+    )
+    await user.click(screen.getByRole('button', { name: /restore room/i }))
+    await user.click(screen.getByRole('button', { name: /confirm action/i }))
+
+    await waitFor(() => {
+      expect(restoreRoom).toHaveBeenCalledTimes(1)
+      expect(mockRouter.invalidate).not.toHaveBeenCalled()
+    })
+    unmount()
+
+    vi.clearAllMocks()
+    vi.mocked(restoreRoom).mockRejectedValueOnce(new Error('Restore failed'))
     render(<RoomsList initialRooms={mockRooms} router={mockRouter} />)
 
     await user.click(

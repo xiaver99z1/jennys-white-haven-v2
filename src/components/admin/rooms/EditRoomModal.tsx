@@ -9,12 +9,8 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react'
-import {
-  ROOM_TYPES,
-  ROOM_STATUSES,
-  type RoomStatus,
-  type RoomType,
-} from '#/lib/constants/rooms'
+import { ROOM_TYPES, ROOM_STATUSES } from '#/lib/constants/rooms'
+import type { RoomStatus, RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from '#/components/admin/rooms/AmenitySelectorModal'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
 
@@ -42,11 +38,11 @@ interface EditRoomModalProps {
 const getInitialFormData = (room: EditRoomModalProps['room']) => ({
   roomNumber: room?.roomNumber ?? '',
   name: room?.name ?? '',
-  type: (room?.type as RoomType) ?? 'Standard',
+  type: (room?.type ?? 'Standard') as RoomType,
   description: room?.description ?? '',
   capacity: room?.capacity ?? 2,
   pricePerNight: room?.pricePerNight ? Number(room.pricePerNight) : 0,
-  status: (room?.status as RoomStatus) ?? 'AVAILABLE',
+  status: (room?.status ?? 'AVAILABLE') as RoomStatus,
   amenities: room?.amenities ?? [],
   images: room?.images ?? [],
 })
@@ -146,7 +142,7 @@ export function EditRoomModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!room || !hasChanges) return
+    if (!hasChanges) return
 
     setLoading(true)
     setError(null)
@@ -165,7 +161,7 @@ export function EditRoomModal({
           description: formData.description || undefined,
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
-          status: formData.status as any,
+          status: formData.status,
           amenities: formData.amenities,
           images: formData.images,
         },

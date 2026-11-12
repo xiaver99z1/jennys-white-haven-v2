@@ -18,7 +18,7 @@ export const authSession = createServerOnlyFn(
     const headers = getRequestHeaders()
     const session = await auth.api.getSession({ headers })
 
-    if (!session || !session.user) {
+    if (!session) {
       throw new Error(errorMessage)
     }
 

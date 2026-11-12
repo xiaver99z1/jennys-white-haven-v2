@@ -1,4 +1,3 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
@@ -73,8 +72,8 @@ describe('AdminNavbar', () => {
     expect(avatarImg).toHaveAttribute('src', mockUserWithImage.image)
   })
 
-  it('renders initial fallback avatar and no role badge when image and role are missing', () => {
-    render(
+  it('renders initial fallback avatar and no role badge when image and role are missing or user is null', () => {
+    const { rerender } = render(
       <AdminNavbar
         {...defaultProps}
         user={mockUserWithoutImage}
@@ -85,6 +84,27 @@ describe('AdminNavbar', () => {
     expect(screen.getByText('A')).toBeInTheDocument()
     expect(screen.getByText('admin@example.com')).toBeInTheDocument()
     expect(screen.queryByText('owner')).not.toBeInTheDocument()
+
+    rerender(
+      <AdminNavbar
+        {...defaultProps}
+        user={{
+          name: '',
+          email: '',
+          image: 'https://via.placeholder.com/150',
+          role: null,
+        }}
+        profileMenuOpen={true}
+      />,
+    )
+    expect(screen.getByAltText('Admin')).toBeInTheDocument()
+    expect(screen.getByText('admin@example.com')).toBeInTheDocument()
+
+    rerender(
+      <AdminNavbar {...defaultProps} user={null} profileMenuOpen={true} />,
+    )
+    expect(screen.getByText('A')).toBeInTheDocument()
+    expect(screen.getByText('admin@example.com')).toBeInTheDocument()
   })
 
   it('toggles profile popover menu when profile avatar is clicked', async () => {

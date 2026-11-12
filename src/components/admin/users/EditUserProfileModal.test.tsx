@@ -1,4 +1,3 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -63,11 +62,11 @@ describe('EditUserProfileModal', () => {
     expect(saveBtn).toBeDisabled()
   })
 
-  it('renders receptionist role default when user role is missing/null', () => {
+  it('renders receptionist role default and empty name fallback when user role/name is missing', () => {
     render(
       <EditUserProfileModal
         {...defaultProps}
-        user={{ id: 'user-2', name: 'Bob', role: null }}
+        user={{ id: 'user-2', name: '', role: null }}
       />,
     )
 
@@ -87,7 +86,7 @@ describe('EditUserProfileModal', () => {
     expect(saveBtn).not.toBeDisabled()
   })
 
-  it('shows password length validation error when password is too short', async () => {
+  it('shows password length validation error when password is too short or too long', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<EditUserProfileModal {...defaultProps} />)
 
@@ -98,6 +97,16 @@ describe('EditUserProfileModal', () => {
     await user.type(confirmInput, 'Short1!')
 
     const saveBtn = screen.getByRole('button', { name: /save changes/i })
+    await user.click(saveBtn)
+
+    expect(
+      screen.getByText('Password must be between 8 and 16 characters long.'),
+    ).toBeInTheDocument()
+
+    await user.clear(pwdInput)
+    await user.clear(confirmInput)
+    await user.type(pwdInput, 'WayTooLongPassword123!')
+    await user.type(confirmInput, 'WayTooLongPassword123!')
     await user.click(saveBtn)
 
     expect(
@@ -248,6 +257,33 @@ describe('EditUserProfileModal', () => {
 
     vi.advanceTimersByTime(1200)
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('executes successful profile update with a valid new password', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    vi.mocked(updateAdminUser).mockResolvedValueOnce({
+      success: true,
+      message: 'Profile updated successfully!',
+    } as any)
+
+    render(<EditUserProfileModal {...defaultProps} />)
+
+    const pwdInput = screen.getByPlaceholderText(/8-16 chars/i)
+    const confirmInput = screen.getByPlaceholderText(/re-enter new password/i)
+
+    await user.type(pwdInput, 'ValidPass1!')
+    await user.type(confirmInput, 'ValidPass1!')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    await user.click(screen.getByRole('button', { name: /yes, save changes/i }))
+
+    expect(updateAdminUser).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-123',
+        name: 'Alice Johnson',
+        password: 'ValidPass1!',
+        role: 'MANAGER',
+      },
+    })
   })
 
   it('handles profile update failure from API', async () => {

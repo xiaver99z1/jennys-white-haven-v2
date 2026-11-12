@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { createAdminUser, type ResortRole } from '#/server/admin-actions'
+import { createAdminUser } from '#/server/admin-actions'
+import type { ResortRole } from '#/server/admin-actions'
 
 interface AddUserModalProps {
   isOpen: boolean

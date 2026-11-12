@@ -77,8 +77,11 @@ describe('EditRoomModal', () => {
 
   it('returns null when isOpen is false or room is null, and handles fallback room properties', () => {
     const { container, rerender } = render(
-      <EditRoomModal {...defaultProps} isOpen={false} />,
+      <EditRoomModal {...defaultProps} isOpen={false} room={null} />,
     )
+    expect(container.firstChild).toBeNull()
+
+    rerender(<EditRoomModal {...defaultProps} isOpen={false} />)
     expect(container.firstChild).toBeNull()
 
     rerender(<EditRoomModal {...defaultProps} isOpen={true} room={null} />)
@@ -337,7 +340,7 @@ describe('EditRoomModal', () => {
   })
 
   it('opens ConfirmModal, cancels deletion, and confirms deletion successfully', async () => {
-    vi.mocked(deleteRoom).mockResolvedValueOnce({ success: true } as any)
+    vi.mocked(deleteRoom).mockResolvedValueOnce({ success: true })
 
     render(<EditRoomModal {...defaultProps} />)
 

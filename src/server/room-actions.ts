@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { hasPermission } from '#/lib/permissions'
 import { logActivity } from '#/lib/logger'
-import { RoomStatus } from '@prisma/client'
+import type { RoomStatus } from '@prisma/client'
 import { authSession } from '#/lib/auth-helpers'
 
 // Helper for server-side authorization with strict permission typing
@@ -11,7 +11,7 @@ export async function requirePermission(
 ) {
   const session = await authSession()
 
-  if (!session?.user || !hasPermission(session.user as any, permission)) {
+  if (!hasPermission(session.user, permission)) {
     throw new Error('Unauthorized: Insufficient permissions.')
   }
   return session.user
@@ -116,8 +116,8 @@ export async function createRoomHandler({
     userId: admin.id,
     action: 'ROOM_CREATED',
     description: logDetails,
-    ipAddress: session?.session?.ipAddress ?? null,
-    userAgent: session?.session?.userAgent ?? null,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
   })
 
   return {
@@ -268,8 +268,8 @@ export async function updateRoomHandler({
     userId: admin.id,
     action: 'ROOM_UPDATED',
     description: logDetails,
-    ipAddress: session?.session?.ipAddress ?? null,
-    userAgent: session?.session?.userAgent ?? null,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
   })
 
   return {
@@ -306,8 +306,8 @@ export async function deleteRoomHandler({ data }: { data: { id: string } }) {
     userId: admin.id,
     action: 'ROOM_DELETED',
     description: `Soft deleted (archived) Room ${room.roomNumber} (${room.name})`,
-    ipAddress: session?.session?.ipAddress ?? null,
-    userAgent: session?.session?.userAgent ?? null,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
   })
 
   return { success: true }
@@ -338,8 +338,8 @@ export async function restoreRoomHandler({ data }: { data: { id: string } }) {
     userId: admin.id,
     action: 'ROOM_RESTORED',
     description: `Restored archived Room ${restoredRoom.roomNumber} (${restoredRoom.name})`,
-    ipAddress: session?.session?.ipAddress ?? null,
-    userAgent: session?.session?.userAgent ?? null,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
   })
 
   return {

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { AdminDataTable, type Column } from '#/components/common/AdminDataTable'
+import { AdminDataTable } from '#/components/common/AdminDataTable'
+import type { Column } from '#/components/common/AdminDataTable'
 import { AddUserModal } from '#/components/admin/users/AddUserModal'
 import { EditUserProfileModal } from '#/components/admin/users/EditUserProfileModal'
 import { UserActionsDropdown } from '#/components/admin/users/UserActionsDropdown'
@@ -372,7 +373,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
         isOpen={Boolean(editingUser)}
         onClose={() => setEditingUser(null)}
         onSuccess={() => router.invalidate()}
-        user={editingUser as any}
+        user={editingUser}
       />
       <ResendVerificationModal
         isOpen={Boolean(resendTargetUser)}
@@ -380,7 +381,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
         onSuccess={() => {
           router.invalidate()
         }}
-        user={resendTargetUser as any}
+        user={resendTargetUser}
       />
     </>
   )

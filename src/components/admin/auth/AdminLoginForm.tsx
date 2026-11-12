@@ -16,21 +16,21 @@ export function AdminLoginForm() {
     setLoading(true)
 
     try {
-      const { error } = await authClient.signIn.email({
+      const { error: signInError } = await authClient.signIn.email({
         email: email.trim(),
         password,
       })
 
-      if (error) {
+      if (signInError) {
         if (
-          error.code === 'EMAIL_NOT_VERIFIED' ||
-          error.message?.toLowerCase().includes('verify')
+          signInError.code === 'EMAIL_NOT_VERIFIED' ||
+          signInError.message?.toLowerCase().includes('verify')
         ) {
           setError(
             'Please check your email and activate your account before logging in.',
           )
         } else {
-          setError(error.message || 'Invalid email or password')
+          setError(signInError.message || 'Invalid email or password')
         }
         return
       }

@@ -27,8 +27,8 @@ export async function logProfileActivityHandler({
       userId: session.user.id,
       action: data.action,
       description: data.description,
-      ipAddress: session?.session?.ipAddress ?? null,
-      userAgent: session?.session?.userAgent ?? null,
+      ipAddress: session.session.ipAddress ?? null,
+      userAgent: session.session.userAgent ?? null,
     })
 
     return { success: true }

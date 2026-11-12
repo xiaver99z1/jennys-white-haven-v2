@@ -1,9 +1,16 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AddRoomModal } from './AddRoomModal'
 import { createRoom } from '#/server/room-actions'
+
+class MockFileReader {
+  onloadend: (() => void) | null = null
+  result = 'data:image/png;base64,validroomimage'
+  readAsDataURL() {
+    if (this.onloadend) this.onloadend()
+  }
+}
 
 vi.mock('#/server/room-actions', () => ({
   createRoom: vi.fn(),
@@ -90,9 +97,7 @@ describe('AddRoomModal', () => {
     await user.type(descriptionInput, 'Panoramic beachfront view.')
 
     const selects = screen.getAllByRole('combobox')
-    if (selects[0]) {
-      await user.selectOptions(selects[0], 'Suite')
-    }
+    await user.selectOptions(selects[0], 'Suite')
 
     const numberInputs = screen.getAllByRole('spinbutton')
     fireEvent.change(numberInputs[0], { target: { value: '6' } })
@@ -226,13 +231,6 @@ describe('AddRoomModal', () => {
   })
 
   it('successfully uploads valid image, previews via the Maximize button, closes lightbox via X button, and removes image', async () => {
-    class MockFileReader {
-      onloadend: (() => void) | null = null
-      result = 'data:image/png;base64,validroomimage'
-      readAsDataURL() {
-        if (this.onloadend) this.onloadend()
-      }
-    }
     vi.stubGlobal('FileReader', MockFileReader)
 
     render(<AddRoomModal {...defaultProps} />)
@@ -267,13 +265,6 @@ describe('AddRoomModal', () => {
   })
 
   it('successfully previews via clicking the thumbnail image directly', async () => {
-    class MockFileReader {
-      onloadend: (() => void) | null = null
-      result = 'data:image/png;base64,validroomimage'
-      readAsDataURL() {
-        if (this.onloadend) this.onloadend()
-      }
-    }
     vi.stubGlobal('FileReader', MockFileReader)
 
     render(<AddRoomModal {...defaultProps} />)

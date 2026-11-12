@@ -1,7 +1,6 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { UserActionsDropdown } from './UserActionsDropdown'
 import { blockAdminUser, unblockAdminUser } from '#/server/admin-actions'
 
@@ -59,7 +58,11 @@ describe('UserActionsDropdown', () => {
     vi.clearAllMocks()
   })
 
-  it('toggles dropdown menu and calls onOpen when opened', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('toggles dropdown menu open and closed and calls onOpen only when opened', async () => {
     const user = userEvent.setup()
     render(<UserActionsDropdown {...defaultProps} />)
 
@@ -69,6 +72,10 @@ describe('UserActionsDropdown', () => {
     expect(defaultProps.onOpen).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Edit Profile')).toBeInTheDocument()
     expect(screen.getByText('Resend Email Verification')).toBeInTheDocument()
+
+    await user.click(triggerBtn)
+    expect(defaultProps.onOpen).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Edit Profile')).not.toBeInTheDocument()
   })
 
   it('closes dropdown menu when backdrop is clicked', async () => {
@@ -227,7 +234,6 @@ describe('UserActionsDropdown', () => {
         expect.any(Error),
       )
     })
-
-    consoleSpy.mockRestore()
   })
 })
+

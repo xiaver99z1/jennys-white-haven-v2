@@ -91,15 +91,9 @@ function AdminLayout() {
       }
     }
 
-    window.addEventListener(
-      'user-profile-updated',
-      handleProfileUpdate as EventListener,
-    )
+    window.addEventListener('user-profile-updated', handleProfileUpdate)
     return () => {
-      window.removeEventListener(
-        'user-profile-updated',
-        handleProfileUpdate as EventListener,
-      )
+      window.removeEventListener('user-profile-updated', handleProfileUpdate)
     }
   }, [sessionData])
 

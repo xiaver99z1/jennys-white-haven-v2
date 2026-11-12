@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  getUserActivityLogs,
   fetchUserActivityLogsHandler,
   validateActivityLogsData,
 } from './activity-actions'
@@ -17,6 +16,10 @@ vi.mock('#/lib/prisma', () => ({
 describe('activity-actions server functions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('successfully fetches activity logs via handler', async () => {
@@ -65,7 +68,6 @@ describe('activity-actions server functions', () => {
       'Error fetching activity logs:',
       expect.any(Error),
     )
-
-    consoleSpy.mockRestore()
   })
 })
+

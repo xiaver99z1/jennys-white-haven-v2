@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   validateGetUserSessions,
   getUserSessionsHandler,
@@ -42,6 +42,10 @@ describe('session-actions handlers and validators', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   describe('getUserSessions', () => {
     it('validates input data correctly', () => {
       const input = { userId: 'user-123' }
@@ -72,7 +76,7 @@ describe('session-actions handlers and validators', () => {
     })
 
     it('throws error if fetching sessions fails', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'error').mockImplementation(() => {})
       vi.mocked(prisma.session.findMany).mockRejectedValueOnce(
         new Error('DB Error'),
       )
@@ -80,8 +84,6 @@ describe('session-actions handlers and validators', () => {
       await expect(
         getUserSessionsHandler({ data: { userId: 'user-123' } }),
       ).rejects.toThrow('Failed to fetch user sessions.')
-
-      consoleSpy.mockRestore()
     })
   })
 
@@ -129,15 +131,14 @@ describe('session-actions handlers and validators', () => {
     })
 
     it('throws error if session to revoke is not found', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'error').mockImplementation(() => {})
       vi.mocked(authSession).mockResolvedValueOnce(mockAdminSession as any)
       vi.mocked(prisma.session.findUnique).mockResolvedValueOnce(null)
 
       await expect(
         revokeSessionHandler({ data: { token: 'missing-token' } }),
       ).rejects.toThrow('Failed to revoke session.')
-
-      consoleSpy.mockRestore()
     })
   })
 })
+

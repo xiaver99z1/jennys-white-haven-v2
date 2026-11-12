@@ -1,8 +1,8 @@
-import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { UsersList, type User } from './UsersList'
+import { UsersList } from './UsersList'
+import type { User } from './UsersList'
 
 // Mock sub-modals and dropdowns using absolute path aliases matching UsersList.tsx
 vi.mock('#/components/admin/users/AddUserModal', () => ({
@@ -175,6 +175,13 @@ describe('UsersList', () => {
 
     await user.selectOptions(statusSelect, 'verified')
     expect(screen.getAllByText('Alice Owner')[0]).toBeInTheDocument()
+
+    // Open and clear desktop Role and Status filters to exercise empty filter fallback ('ALL')
+    await user.click(screen.getByTitle('Filter Role'))
+    await user.click(screen.getByTitle('Clear & Close Filter'))
+    await user.click(screen.getByTitle('Filter Status'))
+    await user.click(screen.getByTitle('Clear & Close Filter'))
+    expect(screen.getAllByText('Alice Owner')[0]).toBeInTheDocument()
   })
 
   it('filters users by created date', async () => {
@@ -184,24 +191,50 @@ describe('UsersList', () => {
     const dateInput =
       document.querySelector('input[type="date"]') ||
       screen.getAllByRole('textbox')[1]
-    if (dateInput) {
-      await user.type(dateInput, '2026-01-01')
-    }
+    await user.type(dateInput, '2026-01-01')
 
     expect(screen.getAllByText('Alice Owner')[0]).toBeInTheDocument()
   })
 
-  it('triggers table sorting columns correctly via sort buttons', async () => {
+  it('triggers table sorting columns correctly via sort buttons including equal and empty values', async () => {
     const user = userEvent.setup()
-    render(<UsersList initialUsers={mockUsers} router={mockRouter} />)
+    const usersForSorting: User[] = [
+      ...mockUsers,
+      {
+        id: 'user-4',
+        name: '',
+        email: 'noname1@haven.com',
+        emailVerified: null,
+        image: null,
+        role: null,
+        banned: false,
+        createdAt: '2026-01-01T10:00:00.000Z',
+        updatedAt: '2026-01-01T10:00:00.000Z',
+      },
+      {
+        id: 'user-5',
+        name: '',
+        email: 'noname2@haven.com',
+        emailVerified: null,
+        image: null,
+        role: null,
+        banned: false,
+        createdAt: '2026-01-01T10:00:00.000Z',
+        updatedAt: '2026-01-01T10:00:00.000Z',
+      },
+    ]
+    render(<UsersList initialUsers={usersForSorting} router={mockRouter} />)
 
     const sortButtons = screen.getAllByTitle(/sort by/i)
-    if (sortButtons.length > 0) {
-      await user.click(sortButtons[0])
-      await user.click(sortButtons[0])
-    }
+    await user.click(sortButtons[0])
+    await user.click(sortButtons[0])
+    await user.click(sortButtons[1])
+    await user.click(sortButtons[1])
 
     expect(screen.getAllByText('Alice Owner')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('U')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('None')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Unassigned')[0]).toBeInTheDocument()
   })
 
   it('renders default badge color for unassigned or unknown role', () => {
@@ -296,9 +329,7 @@ describe('UsersList', () => {
 
     const comboboxes = screen.getAllByRole('combobox')
     const pageSizeSelect = comboboxes[comboboxes.length - 1]
-    if (pageSizeSelect) {
-      await user.selectOptions(pageSizeSelect, '5')
-    }
+    await user.selectOptions(pageSizeSelect, '5')
 
     expect(screen.getAllByText('User 0')[0]).toBeInTheDocument()
   })
@@ -315,18 +346,13 @@ describe('UsersList', () => {
     })
 
     // Click the second set of buttons (which correspond to the mobile card view)
-    if (editButtons.length > 1) {
-      await user.click(editButtons[1])
-      expect(screen.getByTestId('mock-edit-user-modal')).toBeInTheDocument()
-      await user.click(
-        screen.getByRole('button', { name: /success edit user/i }),
-      )
-    }
+    await user.click(editButtons[1])
+    expect(screen.getByTestId('mock-edit-user-modal')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /success edit user/i }))
 
-    if (resendButtons.length > 1) {
-      await user.click(resendButtons[1])
-      expect(screen.getByTestId('mock-resend-modal')).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: /success resend/i }))
-    }
+    await user.click(resendButtons[1])
+    expect(screen.getByTestId('mock-resend-modal')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /success resend/i }))
   })
 })
+
