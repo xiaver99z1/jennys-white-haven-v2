@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { updateAdminUser } from '#/server/admin-actions'
 import type { ResortRole } from '#/server/admin-actions'
+import { ConfirmModal } from '#/components/common/ConfirmModal'
 
 interface EditUserModalProps {
   isOpen: boolean
@@ -226,36 +227,17 @@ export function EditUserProfileModal({
           </div>
         </form>
 
-        {showConfirm && (
-          <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 text-center z-30">
-            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xl mb-3 font-bold">
-              ?
-            </div>
-            <h3 className="text-lg font-bold text-stone-900 mb-1">
-              Are you sure?
-            </h3>
-            <p className="text-sm text-stone-500 mb-6 max-w-xs">
-              You are about to update profile details for{' '}
-              <span className="font-semibold text-stone-800">{user.name}</span>.
-            </p>
-            <div className="flex space-x-3 w-full">
-              <button
-                type="button"
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmedSubmit}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-800 hover:bg-amber-900 rounded-lg shadow transition"
-              >
-                Yes, Save Changes
-              </button>
-            </div>
-          </div>
-        )}
+        <ConfirmModal
+          isOpen={showConfirm}
+          variant="amber"
+          title="Are you sure?"
+          description={`You are about to update profile details for ${user.name}.`}
+          confirmText="Yes, Save Changes"
+          cancelText="Cancel"
+          isLoading={loading}
+          onConfirm={handleConfirmedSubmit}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   )
