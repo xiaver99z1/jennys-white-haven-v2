@@ -188,3 +188,68 @@ export type QuickAction = {
   type: 'checkin' | 'checkout'
   booking: DashboardBooking
 }
+
+export interface PaymentItem {
+  id: string
+  bookingId: string
+  amount: number
+  method: PaymentMethod | string
+  referenceNo?: string | null
+  notes?: string | null
+  paidAt: Date | string
+  receivedBy?: {
+    name: string
+  } | null
+}
+
+export interface GlobalSearchResults {
+  bookings: Array<{
+    id: string
+    bookingReference: string
+    guestName: string
+    roomLabel: string
+    status: string
+  }>
+  guests: Array<{
+    id: string
+    name: string
+    phone: string
+    email?: string | null
+  }>
+  rooms: Array<{
+    id: string
+    roomNumber: string
+    name: string
+    type: string
+    status: string
+  }>
+}
+
+export interface AdminNotificationItem {
+  id: string
+  type: 'arrival' | 'departure' | 'balance'
+  title: string
+  subtitle: string
+  href: '/admin' | '/admin/bookings'
+}
+
+export interface AdminNotificationsData {
+  totalCount: number
+  items: AdminNotificationItem[]
+}
+
+export interface NotificationRecord {
+  id: string
+  type: string
+  title: string
+  message: string
+  href: string
+  isRead: boolean
+  readAt?: Date | string | null
+  createdAt: Date | string
+}
+
+export interface NotificationsResponse {
+  unreadCount: number
+  items: NotificationRecord[]
+}

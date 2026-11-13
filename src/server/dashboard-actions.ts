@@ -4,6 +4,7 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { hasPermission } from '#/lib/permissions'
 import { requirePermission } from '#/server/room-actions'
+import { createNotification } from '#/server/notification-actions'
 
 // Camotes Island, Cebu runs on Philippine Standard Time (UTC+8, no DST).
 export const RESORT_UTC_OFFSET_HOURS = 8
@@ -226,6 +227,13 @@ export async function checkInBookingHandler({
     userAgent: session.session.userAgent ?? null,
   })
 
+  await createNotification({
+    type: 'BOOKING_CHECKIN',
+    title: `Guest Checked In: ${booking.guest.firstName} ${booking.guest.lastName}`,
+    message: `Room ${booking.room.roomNumber} · ${booking.bookingReference}`,
+    href: '/admin',
+  })
+
   return { success: true }
 }
 
@@ -286,6 +294,13 @@ export async function checkOutBookingHandler({
     description: `Checked out ${booking.guest.firstName} ${booking.guest.lastName} from Room ${booking.room.roomNumber} (${booking.bookingReference}); room set to CLEANING`,
     ipAddress: session.session.ipAddress ?? null,
     userAgent: session.session.userAgent ?? null,
+  })
+
+  await createNotification({
+    type: 'BOOKING_CHECKOUT',
+    title: `Guest Checked Out: ${booking.guest.firstName} ${booking.guest.lastName}`,
+    message: `Room ${booking.room.roomNumber} (${booking.bookingReference}) set to CLEANING`,
+    href: '/admin',
   })
 
   return { success: true }

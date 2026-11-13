@@ -3,6 +3,7 @@ import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { requirePermission } from '#/server/room-actions'
+import { createNotification } from '#/server/notification-actions'
 import type { BookingStatus, PaymentStatus } from '#/lib/constants/rooms'
 
 export function calculateNights(
@@ -226,6 +227,13 @@ export async function createBookingHandler({
     description: `Created booking ${booking.bookingReference} for ${guest.firstName} ${guest.lastName} in Room ${room.roomNumber} (${nights} night(s), ₱${totalAmount.toLocaleString()})`,
     ipAddress: session.session.ipAddress ?? null,
     userAgent: session.session.userAgent ?? null,
+  })
+
+  await createNotification({
+    type: 'BOOKING_CREATED',
+    title: `New Booking: ${booking.bookingReference}`,
+    message: `${guest.firstName} ${guest.lastName} · Room ${room.roomNumber} (${nights} night(s))`,
+    href: '/admin/bookings',
   })
 
   return {

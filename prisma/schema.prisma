@@ -36,6 +36,8 @@ model User {
   sessions               Session[]
   accounts               Account[]
   activityLogs           ActivityLog[] // ← Added missing opposite relation field
+  payments               Payment[]
+  notifications          Notification[]
 
   @@map("user")
 }
@@ -199,6 +201,8 @@ model Booking {
 
   deletedAt        DateTime?
 
+  payments         Payment[]
+
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -209,4 +213,39 @@ model Booking {
   @@index([checkIn, checkOut])
   @@index([deletedAt])
   @@map("booking")
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  bookingId    String
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount       Decimal  @db.Decimal(10, 2)
+  method       String
+  referenceNo  String?
+  notes        String?
+  receivedById String?
+  receivedBy   User?    @relation(fields: [receivedById], references: [id], onDelete: SetNull)
+  paidAt       DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([paidAt])
+  @@map("payment")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  href      String    @default("/admin")
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([isRead, createdAt])
+  @@index([userId])
+  @@map("notification")
 }
