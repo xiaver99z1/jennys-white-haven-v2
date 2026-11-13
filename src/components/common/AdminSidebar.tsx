@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
 import { hasPermission } from '#/lib/permissions'
 
 interface AdminSidebarProps {
@@ -14,6 +16,11 @@ export function AdminSidebar({
   setSidebarOpen,
   handleLogout,
 }: AdminSidebarProps) {
+  const [reportsOpen, setReportsOpen] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.location.pathname.startsWith('/admin/reports')
+      : false,
+  )
   return (
     <>
       {/* Mobile Backdrop Overlay */}
@@ -139,6 +146,48 @@ export function AdminSidebar({
               }
             />
 
+            {/* Conditionally show Reports submenu based on RBAC permissions */}
+            {hasPermission(currentUser, 'view:reports') && (
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  aria-expanded={reportsOpen}
+                  onClick={() => setReportsOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm text-stone-100 hover:bg-stone-800 hover:text-white transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-3">
+                    <BarChart3 className="w-5 h-5 shrink-0" />
+                    <span>Reports</span>
+                  </span>
+                  {reportsOpen ? (
+                    <ChevronDown className="w-4 h-4 text-stone-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-stone-400" />
+                  )}
+                </button>
+                {reportsOpen && (
+                  <div className="pl-8 space-y-1">
+                    <SubNavItem
+                      to="/admin/reports/revenue"
+                      label="Revenue & Payments"
+                    />
+                    <SubNavItem
+                      to="/admin/reports/occupancy"
+                      label="Occupancy & Rooms"
+                    />
+                    <SubNavItem
+                      to="/admin/reports/bookings"
+                      label="Bookings & Ops"
+                    />
+                    <SubNavItem
+                      to="/admin/reports/guests"
+                      label="Guests & Insights"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Conditionally show Users based on RBAC permissions */}
             {hasPermission(currentUser, 'view:users') && (
               <NavItem
@@ -217,6 +266,24 @@ function NavItem({
     >
       <span className="shrink-0">{icon}</span>
       <span>{label}</span>
+    </Link>
+  )
+}
+
+function SubNavItem({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      inactiveProps={{
+        className:
+          'block px-3 py-2 rounded-md text-xs text-stone-300 hover:bg-stone-800 hover:text-white transition cursor-pointer',
+      }}
+      activeProps={{
+        className:
+          'block px-3 py-2 rounded-md text-xs bg-stone-800 text-amber-300 font-semibold cursor-pointer',
+      }}
+    >
+      {label}
     </Link>
   )
 }

@@ -20,6 +20,11 @@ import { Route as AdminNotificationsRouteImport } from './routes/admin/notificat
 import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminRoomsRouteImport } from './routes/admin/rooms'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminReportsIndexRouteImport } from './routes/admin/reports/index'
+import { Route as AdminReportsBookingsRouteImport } from './routes/admin/reports/bookings'
+import { Route as AdminReportsGuestsRouteImport } from './routes/admin/reports/guests'
+import { Route as AdminReportsOccupancyRouteImport } from './routes/admin/reports/occupancy'
+import { Route as AdminReportsRevenueRouteImport } from './routes/admin/reports/revenue'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -77,6 +82,31 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminReportsIndexRoute = AdminReportsIndexRouteImport.update({
+  id: '/reports/',
+  path: '/reports/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminReportsBookingsRoute = AdminReportsBookingsRouteImport.update({
+  id: '/reports/bookings',
+  path: '/reports/bookings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminReportsGuestsRoute = AdminReportsGuestsRouteImport.update({
+  id: '/reports/guests',
+  path: '/reports/guests',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminReportsOccupancyRoute = AdminReportsOccupancyRouteImport.update({
+  id: '/reports/occupancy',
+  path: '/reports/occupancy',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminReportsRevenueRoute = AdminReportsRevenueRouteImport.update({
+  id: '/reports/revenue',
+  path: '/reports/revenue',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -95,7 +125,12 @@ export interface FileRoutesByFullPath {
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/reports/bookings': typeof AdminReportsBookingsRoute
+  '/admin/reports/guests': typeof AdminReportsGuestsRoute
+  '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
+  '/admin/reports/revenue': typeof AdminReportsRevenueRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/reports/': typeof AdminReportsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,7 +143,12 @@ export interface FileRoutesByTo {
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin': typeof AdminIndexRoute
+  '/admin/reports/bookings': typeof AdminReportsBookingsRoute
+  '/admin/reports/guests': typeof AdminReportsGuestsRoute
+  '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
+  '/admin/reports/revenue': typeof AdminReportsRevenueRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/reports': typeof AdminReportsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,7 +163,12 @@ export interface FileRoutesById {
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/reports/bookings': typeof AdminReportsBookingsRoute
+  '/admin/reports/guests': typeof AdminReportsGuestsRoute
+  '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
+  '/admin/reports/revenue': typeof AdminReportsRevenueRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/reports/': typeof AdminReportsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -139,7 +184,12 @@ export interface FileRouteTypes {
     | '/admin/rooms'
     | '/admin/users'
     | '/admin/'
+    | '/admin/reports/bookings'
+    | '/admin/reports/guests'
+    | '/admin/reports/occupancy'
+    | '/admin/reports/revenue'
     | '/api/auth/$'
+    | '/admin/reports/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -152,7 +202,12 @@ export interface FileRouteTypes {
     | '/admin/rooms'
     | '/admin/users'
     | '/admin'
+    | '/admin/reports/bookings'
+    | '/admin/reports/guests'
+    | '/admin/reports/occupancy'
+    | '/admin/reports/revenue'
     | '/api/auth/$'
+    | '/admin/reports'
   id:
     | '__root__'
     | '/'
@@ -166,7 +221,12 @@ export interface FileRouteTypes {
     | '/admin/rooms'
     | '/admin/users'
     | '/admin/'
+    | '/admin/reports/bookings'
+    | '/admin/reports/guests'
+    | '/admin/reports/occupancy'
+    | '/admin/reports/revenue'
     | '/api/auth/$'
+    | '/admin/reports/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -255,6 +315,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/reports/': {
+      id: '/admin/reports/'
+      path: '/reports'
+      fullPath: '/admin/reports/'
+      preLoaderRoute: typeof AdminReportsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/reports/bookings': {
+      id: '/admin/reports/bookings'
+      path: '/reports/bookings'
+      fullPath: '/admin/reports/bookings'
+      preLoaderRoute: typeof AdminReportsBookingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/reports/guests': {
+      id: '/admin/reports/guests'
+      path: '/reports/guests'
+      fullPath: '/admin/reports/guests'
+      preLoaderRoute: typeof AdminReportsGuestsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/reports/occupancy': {
+      id: '/admin/reports/occupancy'
+      path: '/reports/occupancy'
+      fullPath: '/admin/reports/occupancy'
+      preLoaderRoute: typeof AdminReportsOccupancyRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/reports/revenue': {
+      id: '/admin/reports/revenue'
+      path: '/reports/revenue'
+      fullPath: '/admin/reports/revenue'
+      preLoaderRoute: typeof AdminReportsRevenueRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -274,6 +369,11 @@ interface AdminRouteRouteChildren {
   AdminRoomsRoute: typeof AdminRoomsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminReportsBookingsRoute: typeof AdminReportsBookingsRoute
+  AdminReportsGuestsRoute: typeof AdminReportsGuestsRoute
+  AdminReportsOccupancyRoute: typeof AdminReportsOccupancyRoute
+  AdminReportsRevenueRoute: typeof AdminReportsRevenueRoute
+  AdminReportsIndexRoute: typeof AdminReportsIndexRoute
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
@@ -285,6 +385,11 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminRoomsRoute: AdminRoomsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminReportsBookingsRoute: AdminReportsBookingsRoute,
+  AdminReportsGuestsRoute: AdminReportsGuestsRoute,
+  AdminReportsOccupancyRoute: AdminReportsOccupancyRoute,
+  AdminReportsRevenueRoute: AdminReportsRevenueRoute,
+  AdminReportsIndexRoute: AdminReportsIndexRoute,
 }
 
 const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
