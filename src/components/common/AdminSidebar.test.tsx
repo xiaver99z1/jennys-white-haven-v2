@@ -62,6 +62,28 @@ describe('AdminSidebar', () => {
     expect(screen.queryByText('Users')).not.toBeInTheDocument()
   })
 
+  it('renders Settings navigation item when user has "manage:cms" permission', () => {
+    vi.mocked(hasPermission).mockImplementation(
+      (_user, perm) => perm === 'manage:cms',
+    )
+
+    render(<AdminSidebar {...defaultProps} />)
+
+    expect(hasPermission).toHaveBeenCalledWith(
+      mockUserWithPermissions,
+      'manage:cms',
+    )
+    expect(screen.getByText('Settings')).toBeInTheDocument()
+  })
+
+  it('hides Settings navigation item when user lacks "manage:cms" permission', () => {
+    vi.mocked(hasPermission).mockReturnValue(false)
+
+    render(<AdminSidebar {...defaultProps} />)
+
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
+  })
+
   it('toggles Reports submenu items when user has "view:reports" permission', async () => {
     const user = userEvent.setup()
     vi.mocked(hasPermission).mockReturnValue(true)
