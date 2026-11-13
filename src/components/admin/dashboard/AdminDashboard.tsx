@@ -58,6 +58,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
       const action = type === 'checkin' ? checkInBooking : checkOutBooking
       await action({ data: { id: booking.id } })
       await router.invalidate()
+      window.dispatchEvent(new Event('admin-notifications-refresh'))
     } catch (err: any) {
       setActionError(err.message || 'Action failed. Please try again.')
     } finally {

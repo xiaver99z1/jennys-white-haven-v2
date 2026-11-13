@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { AddBookingModal } from '#/components/admin/bookings/AddBookingModal'
 import { EditBookingModal } from '#/components/admin/bookings/EditBookingModal'
+import { BookingCalendar } from '#/components/admin/bookings/BookingCalendar'
+import { PaymentHistoryModal } from '#/components/admin/bookings/PaymentHistoryModal'
 import type {
   AdminRouter,
   BookingGuestOption,
@@ -31,6 +33,9 @@ import {
   RotateCcw,
   Archive,
   Loader2,
+  List,
+  CalendarDays,
+  Receipt,
 } from 'lucide-react'
 
 interface BookingsListProps {
@@ -49,9 +54,13 @@ export function BookingsList({
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | BookingStatus>('ALL')
   const [showDeleted, setShowDeleted] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingItem | null>(null)
+  const [paymentBookingId, setPaymentBookingId] = useState<string | null>(null)
+  const paymentBooking =
+    initialBookings.find((b) => b.id === paymentBookingId) ?? null
   const [restoringBookingTarget, setRestoringBookingTarget] =
     useState<BookingItem | null>(null)
 
@@ -113,12 +122,40 @@ export function BookingsList({
             Manage staycation reservations, check-ins, check-outs, and payments
           </p>
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="px-4 py-2.5 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-xs flex items-center gap-2 text-xs transition cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" /> New Booking
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="inline-flex rounded-xl border border-stone-200 bg-white p-0.5 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-stone-900 text-white'
+                  : 'text-stone-600 hover:bg-stone-100'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              List
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'calendar'
+                  ? 'bg-stone-900 text-white'
+                  : 'text-stone-600 hover:bg-stone-100'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              Calendar
+            </button>
+          </div>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2.5 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-xs flex items-center gap-2 text-xs transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> New Booking
+          </button>
+        </div>
       </div>
 
       {actionError && (
@@ -127,7 +164,15 @@ export function BookingsList({
         </div>
       )}
 
-      {/* Filters & Search Bar */}
+      {viewMode === 'calendar' ? (
+        <BookingCalendar
+          bookings={initialBookings}
+          rooms={rooms}
+          onSelectBooking={(booking) => setEditingBooking(booking)}
+        />
+      ) : (
+        <>
+          {/* Filters & Search Bar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200 shadow-2xs">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -325,27 +370,37 @@ export function BookingsList({
                             )}
                           </button>
                         ) : (
-                          <button
-                            disabled={isRowLocked}
-                            onClick={() => setEditingBooking(booking)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-amber-800 text-stone-700 hover:text-white font-semibold rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
-                          >
-                            {isSavingThis ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-800" />
-                                Saving...
-                              </>
-                            ) : isDeletingThis ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
-                                Deleting...
-                              </>
-                            ) : (
-                              <>
-                                <Edit2 className="w-3.5 h-3.5" /> Edit Booking
-                              </>
-                            )}
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isRowLocked}
+                              onClick={() => setPaymentBookingId(booking.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white font-semibold rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
+                            >
+                              <Receipt className="w-3.5 h-3.5" /> Payments
+                            </button>
+                            <button
+                              disabled={isRowLocked}
+                              onClick={() => setEditingBooking(booking)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-amber-800 text-stone-700 hover:text-white font-semibold rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
+                            >
+                              {isSavingThis ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-800" />
+                                  Saving...
+                                </>
+                              ) : isDeletingThis ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Edit2 className="w-3.5 h-3.5" /> Edit Booking
+                                </>
+                              )}
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -356,6 +411,8 @@ export function BookingsList({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Add Booking Modal */}
       <AddBookingModal
@@ -363,6 +420,7 @@ export function BookingsList({
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={async () => {
           await router.invalidate()
+          window.dispatchEvent(new Event('admin-notifications-refresh'))
         }}
         rooms={rooms}
         guests={guests}
@@ -382,11 +440,23 @@ export function BookingsList({
         onSuccess={async () => {
           try {
             await router.invalidate()
+            window.dispatchEvent(new Event('admin-notifications-refresh'))
           } finally {
             setSavingId(null)
             setDeletingId(null)
             setEditingBooking(null)
           }
+        }}
+      />
+
+      {/* Payment History Modal */}
+      <PaymentHistoryModal
+        isOpen={Boolean(paymentBooking)}
+        booking={paymentBooking}
+        onClose={() => setPaymentBookingId(null)}
+        onSuccess={async () => {
+          await router.invalidate()
+          window.dispatchEvent(new Event('admin-notifications-refresh'))
         }}
       />
 

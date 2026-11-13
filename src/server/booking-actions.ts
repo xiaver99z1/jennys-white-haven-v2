@@ -3,6 +3,7 @@ import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { requirePermission } from '#/server/room-actions'
+import { createNotification } from '#/server/notification-actions'
 import type { BookingStatus, PaymentStatus } from '#/lib/constants/rooms'
 
 export function calculateNights(
@@ -202,6 +203,18 @@ export async function createBookingHandler({
         },
       })
 
+      if (amountPaid > 0) {
+        await tx.payment.create({
+          data: {
+            bookingId: createdBooking.id,
+            amount: amountPaid,
+            method: paymentMethod || 'CASH',
+            notes: 'Initial payment at booking creation',
+            receivedById: admin.id,
+          },
+        })
+      }
+
       if (status === 'CHECKED_IN') {
         await tx.room.update({
           where: { id: targetRoom.id },
@@ -226,6 +239,13 @@ export async function createBookingHandler({
     description: `Created booking ${booking.bookingReference} for ${guest.firstName} ${guest.lastName} in Room ${room.roomNumber} (${nights} night(s), ₱${totalAmount.toLocaleString()})`,
     ipAddress: session.session.ipAddress ?? null,
     userAgent: session.session.userAgent ?? null,
+  })
+
+  await createNotification({
+    type: 'BOOKING_CREATED',
+    title: `New Booking: ${booking.bookingReference}`,
+    message: `${guest.firstName} ${guest.lastName} · Room ${room.roomNumber} (${nights} night(s))`,
+    href: '/admin/bookings',
   })
 
   return {
@@ -360,6 +380,19 @@ export async function updateBookingHandler({
         specialRequests: resolvedSpecialRequests,
       },
     })
+
+    const paymentDelta = amountPaid - Number(existing.amountPaid)
+    if (paymentDelta > 0) {
+      await tx.payment.create({
+        data: {
+          bookingId: data.id,
+          amount: paymentDelta,
+          method: resolvedPaymentMethod || 'CASH',
+          notes: 'Payment adjustment via booking edit',
+          receivedById: admin.id,
+        },
+      })
+    }
 
     // If booking was previously CHECKED_IN and moved rooms or left CHECKED_IN without checking out, release old room if no other active CHECKED_IN exists
     if (

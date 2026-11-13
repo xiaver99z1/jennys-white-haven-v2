@@ -36,6 +36,9 @@ vi.mock('#/lib/prisma', () => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
     },
+    payment: {
+      create: vi.fn(),
+    },
   },
 }))
 

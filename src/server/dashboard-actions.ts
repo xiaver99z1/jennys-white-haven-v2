@@ -4,6 +4,7 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { hasPermission } from '#/lib/permissions'
 import { requirePermission } from '#/server/room-actions'
+import { createNotification } from '#/server/notification-actions'
 
 // Camotes Island, Cebu runs on Philippine Standard Time (UTC+8, no DST).
 export const RESORT_UTC_OFFSET_HOURS = 8
@@ -226,6 +227,13 @@ export async function checkInBookingHandler({
     userAgent: session.session.userAgent ?? null,
   })
 
+  await createNotification({
+    type: 'BOOKING_CHECKIN',
+    title: `Guest Checked In: ${booking.guest.firstName} ${booking.guest.lastName}`,
+    message: `Room ${booking.room.roomNumber} · ${booking.bookingReference}`,
+    href: '/admin',
+  })
+
   return { success: true }
 }
 
@@ -241,7 +249,7 @@ export async function checkOutBookingHandler({
 }) {
   const admin = await requirePermission('update:bookings')
 
-  const booking = await prisma.$transaction(
+  const { booking, roomSetToCleaning } = await prisma.$transaction(
     async (tx) => {
       const target = await tx.booking.findUnique({
         where: { id: data.id },
@@ -267,25 +275,36 @@ export async function checkOutBookingHandler({
           status: 'CHECKED_IN',
         },
       })
-      if (!otherCheckedIn) {
+      const didSetCleaning = !otherCheckedIn
+      if (didSetCleaning) {
         await tx.room.update({
           where: { id: target.roomId },
           data: { status: 'CLEANING' },
         })
       }
 
-      return target
+      return { booking: target, roomSetToCleaning: didSetCleaning }
     },
     { isolationLevel: 'Serializable' },
   )
 
   const session = await authSession()
+  const roomSuffix = roomSetToCleaning ? '; room set to CLEANING' : ''
   await logActivity({
     userId: admin.id,
     action: 'BOOKING_CHECKED_OUT',
-    description: `Checked out ${booking.guest.firstName} ${booking.guest.lastName} from Room ${booking.room.roomNumber} (${booking.bookingReference}); room set to CLEANING`,
+    description: `Checked out ${booking.guest.firstName} ${booking.guest.lastName} from Room ${booking.room.roomNumber} (${booking.bookingReference})${roomSuffix}`,
     ipAddress: session.session.ipAddress ?? null,
     userAgent: session.session.userAgent ?? null,
+  })
+
+  await createNotification({
+    type: 'BOOKING_CHECKOUT',
+    title: `Guest Checked Out: ${booking.guest.firstName} ${booking.guest.lastName}`,
+    message: roomSetToCleaning
+      ? `Room ${booking.room.roomNumber} (${booking.bookingReference}) set to CLEANING`
+      : `Room ${booking.room.roomNumber} (${booking.bookingReference})`,
+    href: '/admin',
   })
 
   return { success: true }

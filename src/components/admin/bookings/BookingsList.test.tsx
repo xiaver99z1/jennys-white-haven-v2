@@ -8,6 +8,29 @@ vi.mock('#/server/booking-actions', () => ({
   restoreBooking: vi.fn(),
 }))
 
+vi.mock('#/components/admin/bookings/BookingCalendar', () => ({
+  BookingCalendar: ({ bookings, onSelectBooking }: any) => (
+    <div data-testid="mock-booking-calendar">
+      <button onClick={() => onSelectBooking(bookings[0])}>
+        Select Calendar Booking
+      </button>
+    </div>
+  ),
+}))
+
+vi.mock('#/components/admin/bookings/PaymentHistoryModal', () => ({
+  PaymentHistoryModal: ({ isOpen, booking, onClose, onSuccess }: any) => {
+    if (!isOpen || !booking) return null
+    return (
+      <div data-testid="mock-payment-modal">
+        <span>Payments {booking.bookingReference}</span>
+        <button onClick={onSuccess}>Success Payment</button>
+        <button onClick={onClose}>Close Payment</button>
+      </div>
+    )
+  },
+}))
+
 vi.mock('#/components/admin/bookings/AddBookingModal', () => ({
   AddBookingModal: ({ isOpen, onClose, onSuccess }: any) => {
     if (!isOpen) return null
@@ -359,5 +382,37 @@ describe('BookingsList', () => {
     await waitFor(() => {
       expect(mockRouter.invalidate).toHaveBeenCalled()
     })
+  })
+
+  it('switches between List and Calendar views and opens PaymentHistoryModal', async () => {
+    const user = userEvent.setup()
+    render(
+      <BookingsList
+        initialBookings={mockBookings}
+        rooms={mockRooms}
+        guests={mockGuests}
+        router={mockRouter}
+      />,
+    )
+
+    // Open PaymentHistoryModal
+    await user.click(screen.getAllByRole('button', { name: /payments/i })[0])
+    expect(screen.getByTestId('mock-payment-modal')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /success payment/i }))
+    expect(mockRouter.invalidate).toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /close payment/i }))
+    expect(screen.queryByTestId('mock-payment-modal')).not.toBeInTheDocument()
+
+    // Toggle to Calendar view and select booking
+    await user.click(screen.getByRole('button', { name: /calendar/i }))
+    expect(screen.getByTestId('mock-booking-calendar')).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: /select calendar booking/i }),
+    )
+    expect(screen.getByTestId('mock-edit-booking-modal')).toBeInTheDocument()
+
+    // Toggle back to List view
+    await user.click(screen.getByRole('button', { name: /^list$/i }))
+    expect(screen.getByText('JWH-20261112-0001')).toBeInTheDocument()
   })
 })
