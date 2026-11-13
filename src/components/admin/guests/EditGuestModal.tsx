@@ -2,21 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { updateGuest, deleteGuest } from '#/server/guest-actions'
 import { X, UserCheck, Trash2 } from 'lucide-react'
 import { GUEST_ID_TYPES, DEFAULT_NATIONALITY } from '#/lib/constants/rooms'
-import type { GuestIdType } from '#/lib/constants/rooms'
+import type { GuestIdType, GuestItem } from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
 
-export interface GuestItem {
-  id: string
-  firstName: string
-  lastName: string
-  email?: string | null
-  phone: string
-  idType?: string | null
-  idNumber?: string | null
-  nationality?: string | null
-  specialNotes?: string | null
-  deletedAt?: Date | string | null
-}
+export type { GuestItem }
 
 interface EditGuestModalProps {
   isOpen: boolean

@@ -1,18 +1,26 @@
 import { useState } from 'react'
 import { AddBookingModal } from '#/components/admin/bookings/AddBookingModal'
-import type {
-  BookingRoomOption,
-  BookingGuestOption,
-} from '#/components/admin/bookings/AddBookingModal'
 import { EditBookingModal } from '#/components/admin/bookings/EditBookingModal'
-import type { BookingItem } from '#/components/admin/bookings/EditBookingModal'
+import type {
+  AdminRouter,
+  BookingGuestOption,
+  BookingItem,
+  BookingRoomOption,
+  BookingStatus,
+} from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { EmptyState } from '#/components/common/EmptyState'
+import { StatusBadge } from '#/components/common/StatusBadge'
 import { restoreBooking } from '#/server/booking-actions'
+import { BOOKING_STATUSES } from '#/lib/constants/rooms'
+import { ADMIN_LABELS } from '#/lib/constants/labels'
 import {
-  BOOKING_STATUSES,
-  PAYMENT_STATUSES,
-} from '#/lib/constants/rooms'
-import type { BookingStatus } from '#/lib/constants/rooms'
+  formatDate,
+  formatFullName,
+  formatPeso,
+  getBookingStatusMeta,
+  getPaymentStatusMeta,
+} from '#/lib/formatters'
 import {
   Plus,
   Search,
@@ -29,26 +37,7 @@ interface BookingsListProps {
   initialBookings: BookingItem[]
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
-  router: any
-}
-
-const getBookingStatusBadge = (statusValue: string) => {
-  const found = BOOKING_STATUSES.find((s) => s.value === statusValue)
-  return found
-    ? found.colorClass
-    : 'bg-stone-100 text-stone-700 border-stone-200'
-}
-
-const getBookingStatusLabel = (statusValue: string) => {
-  const found = BOOKING_STATUSES.find((s) => s.value === statusValue)
-  return found ? found.label : statusValue
-}
-
-const getPaymentStatusBadge = (paymentValue: string) => {
-  const found = PAYMENT_STATUSES.find((p) => p.value === paymentValue)
-  return found
-    ? found.colorClass
-    : 'bg-stone-100 text-stone-600 border-stone-200'
+  router: AdminRouter
 }
 
 export function BookingsList({
@@ -166,7 +155,7 @@ export function BookingsList({
                 >
                   {status === 'ALL'
                     ? 'All Bookings'
-                    : getBookingStatusLabel(status)}
+                    : getBookingStatusMeta(status).label}
                 </button>
               ),
             )}
@@ -191,19 +180,15 @@ export function BookingsList({
       {/* Bookings Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-2xs overflow-hidden">
         {filteredBookings.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto mb-3 border border-amber-200/60">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-stone-800">
-              No bookings found
-            </h3>
-            <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
-              {showDeleted
+          <EmptyState
+            icon={<Calendar className="w-6 h-6 text-amber-800" />}
+            title={ADMIN_LABELS.bookings.emptyActiveTitle}
+            description={
+              showDeleted
                 ? 'No archived or soft-deleted bookings match your filters.'
-                : 'Get started by creating your first staycation reservation.'}
-            </p>
-          </div>
+                : 'Get started by creating your first staycation reservation.'
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -253,7 +238,10 @@ export function BookingsList({
                       {/* Guest */}
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-stone-800">
-                          {booking.guest.firstName} {booking.guest.lastName}
+                          {formatFullName(
+                            booking.guest.firstName,
+                            booking.guest.lastName,
+                          )}
                         </div>
                         <div className="text-[11px] text-stone-500">
                           {booking.guest.phone}
@@ -277,13 +265,8 @@ export function BookingsList({
                       {/* Stay Dates */}
                       <td className="py-3.5 px-4">
                         <div className="font-medium text-stone-800">
-                          {new Date(booking.checkIn).toISOString().split('T')[0]}{' '}
-                          →{' '}
-                          {
-                            new Date(booking.checkOut)
-                              .toISOString()
-                              .split('T')[0]
-                          }
+                          {formatDate(booking.checkIn)} →{' '}
+                          {formatDate(booking.checkOut)}
                         </div>
                         <div className="text-[11px] text-stone-500">
                           {booking.nights} night(s)
@@ -293,31 +276,32 @@ export function BookingsList({
                       {/* Payment */}
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-stone-900">
-                          ₱{Number(booking.totalAmount).toLocaleString()}
+                          {formatPeso(booking.totalAmount)}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getPaymentStatusBadge(
-                              booking.paymentStatus,
-                            )}`}
-                          >
-                            {booking.paymentStatus}
-                          </span>
+                          <StatusBadge
+                            label={booking.paymentStatus}
+                            size="xs"
+                            className={
+                              getPaymentStatusMeta(booking.paymentStatus)
+                                .className
+                            }
+                          />
                           <span className="text-[10px] text-stone-500">
-                            Paid: ₱{Number(booking.amountPaid).toLocaleString()}
+                            Paid: {formatPeso(booking.amountPaid)}
                           </span>
                         </div>
                       </td>
 
                       {/* Booking Status */}
                       <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getBookingStatusBadge(
-                            booking.status,
-                          )}`}
-                        >
-                          {getBookingStatusLabel(booking.status)}
-                        </span>
+                        <StatusBadge
+                          label={getBookingStatusMeta(booking.status).label}
+                          size="xs"
+                          className={
+                            getBookingStatusMeta(booking.status).className
+                          }
+                        />
                       </td>
 
                       {/* Actions */}

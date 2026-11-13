@@ -7,47 +7,17 @@ import {
   PAYMENT_METHODS,
 } from '#/lib/constants/rooms'
 import type {
-  BookingStatus,
-  PaymentStatus,
-  PaymentMethod,
-} from '#/lib/constants/rooms'
-import { ConfirmModal } from '#/components/common/ConfirmModal'
-import type {
-  BookingRoomOption,
   BookingGuestOption,
-} from './AddBookingModal'
+  BookingItem,
+  BookingRoomOption,
+  BookingStatus,
+  PaymentMethod,
+  PaymentStatus,
+} from '#/types'
+import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { formatDateInput } from '#/lib/formatters'
 
-export interface BookingItem {
-  id: string
-  bookingReference: string
-  roomId: string
-  guestId: string
-  checkIn: Date | string
-  checkOut: Date | string
-  nights: number
-  guestsCount: number
-  totalAmount: number
-  amountPaid: number
-  paymentStatus: string
-  paymentMethod?: string | null
-  status: string
-  specialRequests?: string | null
-  deletedAt?: Date | string | null
-  room: {
-    id: string
-    roomNumber: string
-    name: string
-    type: string
-    pricePerNight: number
-  }
-  guest: {
-    id: string
-    firstName: string
-    lastName: string
-    phone: string
-    email?: string | null
-  }
-}
+export type { BookingItem }
 
 interface EditBookingModalProps {
   isOpen: boolean
@@ -60,11 +30,6 @@ interface EditBookingModalProps {
   booking: BookingItem | null
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
-}
-
-const formatDateInput = (val: Date | string | undefined) => {
-  if (!val) return ''
-  return new Date(val).toISOString().split('T')[0]
 }
 
 const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({

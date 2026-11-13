@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import { AddGuestModal } from '#/components/admin/guests/AddGuestModal'
 import { EditGuestModal } from '#/components/admin/guests/EditGuestModal'
-import type { GuestItem } from '#/components/admin/guests/EditGuestModal'
+import type { AdminRouter, GuestItem } from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { EmptyState } from '#/components/common/EmptyState'
+import { StatusBadge } from '#/components/common/StatusBadge'
 import { GUEST_ID_TYPES } from '#/lib/constants/rooms'
+import { ADMIN_LABELS } from '#/lib/constants/labels'
+import { formatFullName } from '#/lib/formatters'
 import {
   Plus,
   Search,
@@ -21,9 +25,7 @@ import {
 
 interface GuestsListProps {
   initialGuests: GuestItem[]
-  router: {
-    invalidate: () => Promise<any>
-  }
+  router: AdminRouter
 }
 
 export function GuestsList({ initialGuests, router }: GuestsListProps) {
@@ -180,17 +182,15 @@ export function GuestsList({ initialGuests, router }: GuestsListProps) {
       {/* Guests Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-2xs overflow-hidden">
         {filteredGuests.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
-              <Users className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-stone-800">No guests found</h3>
-            <p className="text-xs text-stone-500 max-w-sm mx-auto">
-              {showArchived
+          <EmptyState
+            icon={<Users className="w-6 h-6" />}
+            title={ADMIN_LABELS.guests.emptyActiveTitle}
+            description={
+              showArchived
                 ? 'No archived or soft-deleted guests match your filters.'
-                : 'Get started by adding your first guest profile.'}
-            </p>
-          </div>
+                : 'Get started by adding your first guest profile.'
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -219,7 +219,7 @@ export function GuestsList({ initialGuests, router }: GuestsListProps) {
                         </div>
                         <div>
                           <div className="font-bold text-stone-900">
-                            {guest.firstName} {guest.lastName}
+                            {formatFullName(guest.firstName, guest.lastName)}
                           </div>
                         </div>
                       </div>
@@ -267,13 +267,19 @@ export function GuestsList({ initialGuests, router }: GuestsListProps) {
 
                     <td className="py-3 px-4">
                       {showArchived ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                          <AlertCircle className="w-3 h-3" /> Archived
-                        </span>
+                        <StatusBadge
+                          label="Archived"
+                          size="xs"
+                          icon={<AlertCircle className="w-3 h-3" />}
+                          className="bg-rose-50 text-rose-700 border-rose-200 font-bold"
+                        />
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3" /> Active
-                        </span>
+                        <StatusBadge
+                          label="Active"
+                          size="xs"
+                          icon={<CheckCircle2 className="w-3 h-3" />}
+                          className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold"
+                        />
                       )}
                     </td>
 

@@ -7,27 +7,16 @@ import {
   PAYMENT_METHODS,
 } from '#/lib/constants/rooms'
 import type {
+  BookingGuestOption,
+  BookingRoomOption,
   BookingStatus,
-  PaymentStatus,
   PaymentMethod,
-} from '#/lib/constants/rooms'
+  PaymentStatus,
+} from '#/types'
+import { formatLocalDate, formatPeso } from '#/lib/formatters'
 
-export interface BookingRoomOption {
-  id: string
-  roomNumber: string
-  name: string
-  type: string
-  capacity: number
-  pricePerNight: number
-}
-
-export interface BookingGuestOption {
-  id: string
-  firstName: string
-  lastName: string
-  phone: string
-  email?: string | null
-}
+export type { BookingGuestOption, BookingRoomOption }
+export { formatLocalDate }
 
 interface AddBookingModalProps {
   isOpen: boolean
@@ -35,13 +24,6 @@ interface AddBookingModalProps {
   onSuccess: () => Promise<void> | void
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
-}
-
-export const formatLocalDate = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 const getDefaultDates = () => {
@@ -323,7 +305,7 @@ export function AddBookingModal({
               <div className="text-right">
                 <span className="text-[11px] text-stone-500">Total Amount</span>
                 <p className="text-base font-bold text-amber-900">
-                  ₱{calculatedTotal.toLocaleString()}
+                  {formatPeso(calculatedTotal)}
                 </p>
               </div>
             </div>

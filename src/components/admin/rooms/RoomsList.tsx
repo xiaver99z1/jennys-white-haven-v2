@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { AddRoomModal } from '#/components/admin/rooms/AddRoomModal'
 import { EditRoomModal } from '#/components/admin/rooms/EditRoomModal'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { EmptyState } from '#/components/common/EmptyState'
+import { StatusBadge } from '#/components/common/StatusBadge'
+import { formatPeso } from '#/lib/formatters'
+import { ADMIN_LABELS } from '#/lib/constants/labels'
+import type { AdminRouter } from '#/types'
 import {
   Plus,
   Search,
@@ -17,9 +22,7 @@ import {
 
 interface RoomsListProps {
   initialRooms: any[]
-  router: {
-    invalidate: () => Promise<any>
-  }
+  router: AdminRouter
 }
 
 export function RoomsList({ initialRooms, router }: RoomsListProps) {
@@ -180,17 +183,15 @@ export function RoomsList({ initialRooms, router }: RoomsListProps) {
       {/* Rooms Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-2xs overflow-hidden">
         {filteredRooms.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-stone-800">No rooms found</h3>
-            <p className="text-xs text-stone-500 max-w-sm mx-auto">
-              {showArchived
+          <EmptyState
+            icon={<Building2 className="w-6 h-6" />}
+            title={ADMIN_LABELS.rooms.emptyActiveTitle}
+            description={
+              showArchived
                 ? 'No archived or soft-deleted rooms match your filters.'
-                : 'Get started by adding your first room.'}
-            </p>
-          </div>
+                : 'Get started by adding your first room.'
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -248,22 +249,31 @@ export function RoomsList({ initialRooms, router }: RoomsListProps) {
                     </td>
 
                     <td className="py-3 px-4 font-bold text-amber-900">
-                      ₱{Number(room.pricePerNight).toLocaleString()}
+                      {formatPeso(room.pricePerNight)}
                     </td>
 
                     <td className="py-3 px-4">
                       {showArchived ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                          <AlertCircle className="w-3 h-3" /> Archived
-                        </span>
+                        <StatusBadge
+                          label="Archived"
+                          size="xs"
+                          icon={<AlertCircle className="w-3 h-3" />}
+                          className="bg-rose-50 text-rose-700 border-rose-200 font-bold"
+                        />
                       ) : room.status === 'AVAILABLE' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3" /> Available
-                        </span>
+                        <StatusBadge
+                          label="Available"
+                          size="xs"
+                          icon={<CheckCircle2 className="w-3 h-3" />}
+                          className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold"
+                        />
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                          <AlertCircle className="w-3 h-3" /> {room.status}
-                        </span>
+                        <StatusBadge
+                          label={room.status}
+                          size="xs"
+                          icon={<AlertCircle className="w-3 h-3" />}
+                          className="bg-amber-50 text-amber-700 border-amber-200 font-bold"
+                        />
                       )}
                     </td>
 
