@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
+import { BarChart3, ChevronDown, ChevronRight, Settings } from 'lucide-react'
 import { hasPermission } from '#/lib/permissions'
 
 interface AdminSidebarProps {
@@ -208,6 +208,15 @@ export function AdminSidebar({
                     />
                   </svg>
                 }
+              />
+            )}
+
+            {/* Conditionally show Settings (Website CMS) based on RBAC permissions */}
+            {hasPermission(currentUser, 'manage:cms') && (
+              <NavItem
+                to="/admin/settings"
+                label="Settings"
+                icon={<Settings className="w-5 h-5" />}
               />
             )}
           </nav>

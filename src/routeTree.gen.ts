@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
+import { Route as BookingStatusRouteImport } from './routes/booking-status'
 import { Route as VerifyActivationRouteImport } from './routes/verify-activation'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
@@ -19,7 +20,10 @@ import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
 import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminRoomsRouteImport } from './routes/admin/rooms'
+import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as RoomsIndexRouteImport } from './routes/rooms/index'
+import { Route as RoomsIdRouteImport } from './routes/rooms/$id'
 import { Route as AdminReportsIndexRouteImport } from './routes/admin/reports/index'
 import { Route as AdminReportsBookingsRouteImport } from './routes/admin/reports/bookings'
 import { Route as AdminReportsGuestsRouteImport } from './routes/admin/reports/guests'
@@ -35,6 +39,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingStatusRoute = BookingStatusRouteImport.update({
+  id: '/booking-status',
+  path: '/booking-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyActivationRoute = VerifyActivationRouteImport.update({
@@ -77,10 +86,25 @@ const AdminRoomsRoute = AdminRoomsRouteImport.update({
   path: '/rooms',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const RoomsIndexRoute = RoomsIndexRouteImport.update({
+  id: '/rooms/',
+  path: '/rooms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomsIdRoute = RoomsIdRouteImport.update({
+  id: '/rooms/$id',
+  path: '/rooms/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminReportsIndexRoute = AdminReportsIndexRouteImport.update({
   id: '/reports/',
@@ -116,6 +140,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/booking-status': typeof BookingStatusRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
@@ -123,8 +148,11 @@ export interface FileRoutesByFullPath {
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/rooms/$id': typeof RoomsIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/rooms/': typeof RoomsIndexRoute
   '/admin/reports/bookings': typeof AdminReportsBookingsRoute
   '/admin/reports/guests': typeof AdminReportsGuestsRoute
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
@@ -134,6 +162,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/booking-status': typeof BookingStatusRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
@@ -141,8 +170,11 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/rooms/$id': typeof RoomsIdRoute
   '/admin': typeof AdminIndexRoute
+  '/rooms': typeof RoomsIndexRoute
   '/admin/reports/bookings': typeof AdminReportsBookingsRoute
   '/admin/reports/guests': typeof AdminReportsGuestsRoute
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
@@ -154,6 +186,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
+  '/booking-status': typeof BookingStatusRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/guests': typeof AdminGuestsRoute
@@ -161,8 +194,11 @@ export interface FileRoutesById {
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/rooms/$id': typeof RoomsIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/rooms/': typeof RoomsIndexRoute
   '/admin/reports/bookings': typeof AdminReportsBookingsRoute
   '/admin/reports/guests': typeof AdminReportsGuestsRoute
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
@@ -175,6 +211,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/booking-status'
     | '/verify-activation'
     | '/admin/bookings'
     | '/admin/guests'
@@ -182,8 +219,11 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/profile'
     | '/admin/rooms'
+    | '/admin/settings'
     | '/admin/users'
+    | '/rooms/$id'
     | '/admin/'
+    | '/rooms/'
     | '/admin/reports/bookings'
     | '/admin/reports/guests'
     | '/admin/reports/occupancy'
@@ -193,6 +233,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/booking-status'
     | '/verify-activation'
     | '/admin/bookings'
     | '/admin/guests'
@@ -200,8 +241,11 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/profile'
     | '/admin/rooms'
+    | '/admin/settings'
     | '/admin/users'
+    | '/rooms/$id'
     | '/admin'
+    | '/rooms'
     | '/admin/reports/bookings'
     | '/admin/reports/guests'
     | '/admin/reports/occupancy'
@@ -212,6 +256,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/booking-status'
     | '/verify-activation'
     | '/admin/bookings'
     | '/admin/guests'
@@ -219,8 +264,11 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/profile'
     | '/admin/rooms'
+    | '/admin/settings'
     | '/admin/users'
+    | '/rooms/$id'
     | '/admin/'
+    | '/rooms/'
     | '/admin/reports/bookings'
     | '/admin/reports/guests'
     | '/admin/reports/occupancy'
@@ -232,7 +280,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
+  BookingStatusRoute: typeof BookingStatusRoute
   VerifyActivationRoute: typeof VerifyActivationRoute
+  RoomsIdRoute: typeof RoomsIdRoute
+  RoomsIndexRoute: typeof RoomsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -250,6 +301,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/booking-status': {
+      id: '/booking-status'
+      path: '/booking-status'
+      fullPath: '/booking-status'
+      preLoaderRoute: typeof BookingStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-activation': {
@@ -308,12 +366,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRoomsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/rooms/': {
+      id: '/rooms/'
+      path: '/rooms'
+      fullPath: '/rooms/'
+      preLoaderRoute: typeof RoomsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rooms/$id': {
+      id: '/rooms/$id'
+      path: '/rooms/$id'
+      fullPath: '/rooms/$id'
+      preLoaderRoute: typeof RoomsIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/reports/': {
       id: '/admin/reports/'
@@ -367,6 +446,7 @@ interface AdminRouteRouteChildren {
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminProfileRoute: typeof AdminProfileRoute
   AdminRoomsRoute: typeof AdminRoomsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminReportsBookingsRoute: typeof AdminReportsBookingsRoute
@@ -383,6 +463,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminProfileRoute: AdminProfileRoute,
   AdminRoomsRoute: AdminRoomsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminReportsBookingsRoute: AdminReportsBookingsRoute,
@@ -399,7 +480,10 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
+  BookingStatusRoute: BookingStatusRoute,
   VerifyActivationRoute: VerifyActivationRoute,
+  RoomsIdRoute: RoomsIdRoute,
+  RoomsIndexRoute: RoomsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

@@ -416,3 +416,55 @@ export interface GuestsReportData {
     lastStay: Date | string | null
   }>
 }
+
+export type CmsSectionKey =
+  | 'hero'
+  | 'story'
+  | 'rooms'
+  | 'amenities'
+  | 'gallery'
+  | 'contact'
+
+export interface CmsSectionData {
+  key: CmsSectionKey
+  title: string
+  subtitle: string
+  body: string
+  ctaLabel: string
+  ctaHref: string
+  images: string[]
+  metadata: Record<string, string>
+  isPublished: boolean
+  sortOrder: number
+  updatedAt?: Date | string | null
+  updatedByName?: string | null
+}
+
+export interface PublicRoomItem {
+  id: string
+  roomNumber: string
+  name: string
+  type: RoomType
+  description: string | null
+  capacity: number
+  pricePerNight: number
+  amenities: string[]
+  images: string[]
+  status: RoomStatus
+}
+
+export interface PublicBookingLookupResult {
+  bookingReference: string
+  status: BookingStatus
+  paymentStatus: PaymentStatus
+  checkIn: Date | string
+  checkOut: Date | string
+  nights: number
+  guestsCount: number
+  totalAmount: number
+  amountPaid: number
+  balanceDue: number
+  roomName: string
+  roomNumber: string
+  guestName: string
+}
