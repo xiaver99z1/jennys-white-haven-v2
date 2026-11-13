@@ -11,75 +11,33 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { checkInBooking, checkOutBooking } from '#/server/dashboard-actions'
+import type {
+  DashboardBooking,
+  DashboardStats,
+  QuickAction,
+} from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
-import { BOOKING_STATUSES, PAYMENT_STATUSES } from '#/lib/constants/rooms'
+import { EmptyState } from '#/components/common/EmptyState'
+import { Panel } from '#/components/common/Panel'
+import { StatCard } from '#/components/common/StatCard'
+import { StatusBadge } from '#/components/common/StatusBadge'
+import {
+  formatDate,
+  formatFullName,
+  formatPeso,
+  getBookingStatusMeta,
+  getPaymentStatusMeta,
+} from '#/lib/formatters'
 
-export interface DashboardBooking {
-  id: string
-  bookingReference: string
-  checkIn: Date | string
-  checkOut: Date | string
-  nights: number
-  guestsCount: number
-  totalAmount: number
-  amountPaid: number
-  paymentStatus: string
-  status: string
-  room: { roomNumber: string; name: string }
-  guest: { firstName: string; lastName: string; phone: string }
-}
-
-export interface DashboardStats {
-  today: string
-  canUpdateBookings: boolean
-  arrivals: DashboardBooking[]
-  departures: DashboardBooking[]
-  rooms: {
-    total: number
-    available: number
-    occupied: number
-    cleaning: number
-    maintenance: number
-  }
-  recentBookings: DashboardBooking[]
-  outstanding: DashboardBooking[]
-  outstandingCount: number
-  revenue: {
-    monthTotal: number
-    monthPaid: number
-    monthBalanceDue: number
-    monthBookings: number
-  }
-}
+export type { DashboardBooking, DashboardStats }
 
 interface AdminDashboardProps {
   stats: DashboardStats
   router: any
 }
 
-type QuickAction = { type: 'checkin' | 'checkout'; booking: DashboardBooking }
-
-const DEFAULT_BADGE = 'bg-stone-100 text-stone-700 border-stone-200'
-
-const getBookingStatusMeta = (value: string) => {
-  const found = BOOKING_STATUSES.find((s) => s.value === value)
-  return found
-    ? { label: found.label, colorClass: found.colorClass }
-    : { label: value, colorClass: DEFAULT_BADGE }
-}
-
-const getPaymentStatusMeta = (value: string) => {
-  const found = PAYMENT_STATUSES.find((p) => p.value === value)
-  return found
-    ? { label: found.label, colorClass: found.colorClass }
-    : { label: value, colorClass: DEFAULT_BADGE }
-}
-
-const formatPeso = (amount: number) => `₱${amount.toLocaleString()}`
-const formatDate = (value: Date | string) =>
-  new Date(value).toISOString().slice(0, 10)
 const guestName = (b: DashboardBooking) =>
-  `${b.guest.firstName} ${b.guest.lastName}`
+  formatFullName(b.guest.firstName, b.guest.lastName)
 
 export function AdminDashboard({ stats, router }: AdminDashboardProps) {
   const [pendingAction, setPendingAction] = useState<QuickAction | null>(null)
@@ -194,7 +152,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Today's Arrivals" count={stats.arrivals.length}>
           {stats.arrivals.length === 0 ? (
-            <EmptyState text="No arrivals scheduled for today." />
+            <EmptyState message="No arrivals scheduled for today." />
           ) : (
             stats.arrivals.map((booking) => {
               const canCheckIn =
@@ -213,7 +171,10 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
                       }
                     />
                   ) : (
-                    <StatusBadge {...getBookingStatusMeta(booking.status)} />
+                    <StatusBadge
+                      size="xs"
+                      {...getBookingStatusMeta(booking.status)}
+                    />
                   )}
                 </BookingRow>
               )
@@ -223,7 +184,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
 
         <Panel title="Today's Departures" count={stats.departures.length}>
           {stats.departures.length === 0 ? (
-            <EmptyState text="No departures scheduled for today." />
+            <EmptyState message="No departures scheduled for today." />
           ) : (
             stats.departures.map((booking) => (
               <BookingRow key={booking.id} booking={booking}>
@@ -238,7 +199,10 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
                     }
                   />
                 ) : (
-                  <StatusBadge {...getBookingStatusMeta(booking.status)} />
+                  <StatusBadge
+                    size="xs"
+                    {...getBookingStatusMeta(booking.status)}
+                  />
                 )}
               </BookingRow>
             ))
@@ -262,7 +226,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
             }
           >
             {stats.recentBookings.length === 0 ? (
-              <EmptyState text="No bookings yet. They will appear here once guests start booking." />
+              <EmptyState message="No bookings yet. They will appear here once guests start booking." />
             ) : (
               stats.recentBookings.map((booking) => (
                 <BookingRow key={booking.id} booking={booking} showDates>
@@ -270,7 +234,10 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
                     <div className="text-xs font-bold text-stone-900">
                       {formatPeso(booking.totalAmount)}
                     </div>
-                    <StatusBadge {...getBookingStatusMeta(booking.status)} />
+                    <StatusBadge
+                      size="xs"
+                      {...getBookingStatusMeta(booking.status)}
+                    />
                   </div>
                 </BookingRow>
               ))
@@ -280,7 +247,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
 
         <Panel title="Balances Due" count={stats.outstandingCount}>
           {stats.outstanding.length === 0 ? (
-            <EmptyState text="All bookings are fully paid." />
+            <EmptyState message="All bookings are fully paid." />
           ) : (
             stats.outstanding.map((booking) => (
               <div
@@ -302,6 +269,7 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
                     )}
                   </div>
                   <StatusBadge
+                    size="xs"
                     {...getPaymentStatusMeta(booking.paymentStatus)}
                   />
                 </div>
@@ -328,66 +296,6 @@ export function AdminDashboard({ stats, router }: AdminDashboardProps) {
         onClose={() => setPendingAction(null)}
       />
     </div>
-  )
-}
-
-function StatCard({
-  title,
-  value,
-  hint,
-  icon,
-  accent,
-}: {
-  title: string
-  value: string
-  hint: string
-  icon: React.ReactNode
-  accent: string
-}) {
-  return (
-    <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-2xs flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-stone-500">{title}</p>
-        <p className="text-2xl font-bold text-stone-900 mt-1 truncate">
-          {value}
-        </p>
-        <p className="text-[11px] text-stone-400 mt-1">{hint}</p>
-      </div>
-      <div
-        className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${accent}`}
-      >
-        {icon}
-      </div>
-    </div>
-  )
-}
-
-function Panel({
-  title,
-  count,
-  action,
-  children,
-}: {
-  title: string
-  count?: number
-  action?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <section className="bg-white rounded-2xl border border-stone-200 shadow-2xs h-full">
-      <header className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-        <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-          {title}
-          {count !== undefined && (
-            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[10px] font-bold">
-              {count}
-            </span>
-          )}
-        </h2>
-        {action}
-      </header>
-      <div className="px-5 divide-y divide-stone-100">{children}</div>
-    </section>
   )
 }
 
@@ -422,22 +330,6 @@ function BookingRow({
   )
 }
 
-function StatusBadge({
-  label,
-  colorClass,
-}: {
-  label: string
-  colorClass: string
-}) {
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${colorClass}`}
-    >
-      {label}
-    </span>
-  )
-}
-
 function ActionButton({
   label,
   isProcessing,
@@ -468,8 +360,4 @@ function ActionButton({
       )}
     </button>
   )
-}
-
-function EmptyState({ text }: { text: string }) {
-  return <p className="py-6 text-center text-xs text-stone-500">{text}</p>
 }

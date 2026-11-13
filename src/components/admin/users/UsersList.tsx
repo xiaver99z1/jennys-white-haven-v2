@@ -6,58 +6,17 @@ import { EditUserProfileModal } from '#/components/admin/users/EditUserProfileMo
 import { UserActionsDropdown } from '#/components/admin/users/UserActionsDropdown'
 import { ResendVerificationModal } from '#/components/admin/users/ResendVerificationModal'
 
-export type User = {
-  id: string
-  name: string
-  email: string
-  emailVerified: boolean | Date | null
-  image: string | null
-  role: string | null
-  banned: boolean | null
-  createdAt: Date | string
-  updatedAt: Date | string
-}
+import type { AdminRouter, User } from '#/types'
+import { formatShortDate, getRoleBadgeClass } from '#/lib/formatters'
+
+export type { User }
 
 type SortField = 'name' | 'role' | 'createdAt'
 type SortOrder = 'asc' | 'desc'
 
-function formatDate(dateInput: string | Date) {
-  const date = new Date(dateInput)
-  const monthNames = [
-    'Jan.',
-    'Feb.',
-    'Mar.',
-    'Apr.',
-    'May',
-    'Jun.',
-    'Jul.',
-    'Aug.',
-    'Sep.',
-    'Oct.',
-    'Nov.',
-    'Dec.',
-  ]
-  return `${monthNames[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`
-}
-
-function getRoleBadgeColor(role?: string | null) {
-  switch (role?.toLowerCase()) {
-    case 'owner':
-      return 'bg-amber-100 text-amber-900 border-amber-300'
-    case 'manager':
-      return 'bg-sky-100 text-sky-900 border-sky-300'
-    case 'receptionist':
-      return 'bg-teal-100 text-teal-900 border-teal-300'
-    default:
-      return 'bg-stone-100 text-stone-700 border-stone-300'
-  }
-}
-
 interface UsersListProps {
   initialUsers: User[]
-  router: {
-    invalidate: () => Promise<any>
-  }
+  router: AdminRouter
 }
 
 export function UsersList({ initialUsers, router }: UsersListProps) {
@@ -221,7 +180,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
 
             <div className="shrink-0 flex items-center gap-1">
               <span
-                className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md border ${getRoleBadgeColor(
+                className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md border ${getRoleBadgeClass(
                   user.role,
                 )}`}
               >
@@ -238,7 +197,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
           </div>
 
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-stone-100 text-stone-500">
-            <span>Joined {formatDate(user.createdAt)}</span>
+            <span>Joined {formatShortDate(user.createdAt)}</span>
             <span
               className={
                 user.banned
@@ -272,7 +231,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
       ],
       renderCell: (user) => (
         <span
-          className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md border ${getRoleBadgeColor(user.role)}`}
+          className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md border ${getRoleBadgeClass(user.role)}`}
         >
           {user.role || 'Unassigned'}
         </span>
@@ -317,7 +276,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
       filterType: 'date',
       renderCell: (user) => (
         <span className="text-stone-600 text-xs">
-          {formatDate(user.createdAt)}
+          {formatShortDate(user.createdAt)}
         </span>
       ),
     },

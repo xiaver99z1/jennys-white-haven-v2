@@ -1,3 +1,5 @@
+import type { Permission, Role } from '#/types'
+
 export const ROLES = {
   owner: [
     'view:rooms',
@@ -40,8 +42,7 @@ export const ROLES = {
   ],
 } as const
 
-export type Role = keyof typeof ROLES
-export type Permission = (typeof ROLES)[Role][number]
+export type { Permission, Role }
 
 export function hasPermission(
   user: { role?: string | null } | null | undefined,

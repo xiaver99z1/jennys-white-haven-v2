@@ -1,30 +1,26 @@
 // ==========================================
-// 1. DOMAIN TYPES
+// 1. DOMAIN TYPES (centralized in #/types)
 // ==========================================
 
-export type RoomStatus = 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'CLEANING'
+import type {
+  AmenityCategory,
+  BookingStatus,
+  GuestIdType,
+  PaymentMethod,
+  PaymentStatus,
+  RoomStatus,
+  RoomType,
+} from '#/types'
 
-export type RoomType = 'Standard' | 'Deluxe' | 'Suite' | 'Villa'
-
-export type GuestIdType =
-  | 'Passport'
-  | "Driver's License"
-  | 'National ID'
-  | 'SSS / GSIS ID'
-  | 'Postal ID'
-  | 'Voter ID'
-  | 'Other'
-
-export type BookingStatus =
-  | 'PENDING'
-  | 'CONFIRMED'
-  | 'CHECKED_IN'
-  | 'CHECKED_OUT'
-  | 'CANCELLED'
-
-export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'REFUNDED'
-
-export type PaymentMethod = 'CASH' | 'GCASH' | 'BANK_TRANSFER' | 'CARD'
+export type {
+  AmenityCategory,
+  BookingStatus,
+  GuestIdType,
+  PaymentMethod,
+  PaymentStatus,
+  RoomStatus,
+  RoomType,
+}
 
 // ==========================================
 // 2. CONSTANTS & PRESETS
@@ -172,13 +168,6 @@ export const INITIAL_ROOM_FORM_STATE = {
   status: 'AVAILABLE' as RoomStatus,
   amenityInput: '',
   amenities: ['Wi-Fi', 'Air Conditioning', 'Hot Shower'] as string[],
-}
-
-export interface AmenityCategory {
-  category: string
-  headerBg: string
-  borderColor: string
-  items: readonly string[]
 }
 
 export const RESORT_AMENITY_CATEGORIES: readonly AmenityCategory[] = [
