@@ -12,6 +12,7 @@ import {
 
 interface NotificationsListProps {
   initialNotifications: NotificationRecord[]
+  unreadCount?: number
   router: AdminRouter
 }
 
@@ -31,12 +32,14 @@ function getTypeBadgeClass(type: string) {
 
 export function NotificationsList({
   initialNotifications,
+  unreadCount: serverUnreadCount,
   router,
 }: NotificationsListProps) {
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [isUpdating, setIsUpdating] = useState(false)
 
-  const unreadCount = initialNotifications.filter((n) => !n.isRead).length
+  const unreadCount =
+    serverUnreadCount ?? initialNotifications.filter((n) => !n.isRead).length
   const filtered =
     filter === 'unread'
       ? initialNotifications.filter((n) => !n.isRead)

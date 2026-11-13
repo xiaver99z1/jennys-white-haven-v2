@@ -69,44 +69,56 @@ export async function recordPaymentHandler({
     throw new Error('Payment amount must be greater than 0.')
   }
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: data.bookingId },
-  })
+  const { booking, payment, newAmountPaid, newPaymentStatus } =
+    await prisma.$transaction(
+      async (tx) => {
+        const foundBooking = await tx.booking.findUnique({
+          where: { id: data.bookingId },
+        })
 
-  if (!booking || booking.deletedAt) {
-    throw new Error('Booking not found.')
-  }
+        if (!foundBooking || foundBooking.deletedAt) {
+          throw new Error('Booking not found.')
+        }
 
-  const totalAmount = Number(booking.totalAmount)
-  const newAmountPaid = Number(booking.amountPaid) + data.amount
-  const newPaymentStatus = computePaymentStatus(newAmountPaid, totalAmount)
+        const totalAmount = Number(foundBooking.totalAmount)
+        const computedAmountPaid = Number(foundBooking.amountPaid) + data.amount
+        const computedPaymentStatus = computePaymentStatus(
+          computedAmountPaid,
+          totalAmount,
+        )
 
-  const payment = await prisma.$transaction(async (tx) => {
-    const created = await tx.payment.create({
-      data: {
-        bookingId: data.bookingId,
-        amount: data.amount,
-        method: data.method,
-        referenceNo: data.referenceNo?.trim() || null,
-        notes: data.notes?.trim() || null,
-        receivedById: admin.id,
+        const created = await tx.payment.create({
+          data: {
+            bookingId: data.bookingId,
+            amount: data.amount,
+            method: data.method,
+            referenceNo: data.referenceNo?.trim() || null,
+            notes: data.notes?.trim() || null,
+            receivedById: admin.id,
+          },
+          include: {
+            receivedBy: { select: { name: true } },
+          },
+        })
+
+        await tx.booking.update({
+          where: { id: data.bookingId },
+          data: {
+            amountPaid: computedAmountPaid,
+            paymentStatus: computedPaymentStatus,
+            paymentMethod: data.method,
+          },
+        })
+
+        return {
+          booking: foundBooking,
+          payment: created,
+          newAmountPaid: computedAmountPaid,
+          newPaymentStatus: computedPaymentStatus,
+        }
       },
-      include: {
-        receivedBy: { select: { name: true } },
-      },
-    })
-
-    await tx.booking.update({
-      where: { id: data.bookingId },
-      data: {
-        amountPaid: newAmountPaid,
-        paymentStatus: newPaymentStatus,
-        paymentMethod: data.method,
-      },
-    })
-
-    return created
-  })
+      { isolationLevel: 'Serializable' },
+    )
 
   const session = await authSession()
   await logActivity({

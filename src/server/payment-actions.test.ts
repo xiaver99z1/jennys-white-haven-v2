@@ -64,7 +64,10 @@ describe('payment-actions', () => {
     mockTransaction.mockImplementation(async (cb) =>
       cb({
         payment: { create: mockPaymentCreate },
-        booking: { update: mockBookingUpdate },
+        booking: {
+          findUnique: mockBookingFindUnique,
+          update: mockBookingUpdate,
+        },
       }),
     )
   })

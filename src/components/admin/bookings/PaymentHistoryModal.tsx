@@ -80,6 +80,10 @@ export function PaymentHistoryModal({
     }
   }, [isOpen, booking?.id])
 
+  useEffect(() => {
+    setSummary(null)
+  }, [booking?.amountPaid, booking?.paymentStatus, booking?.totalAmount])
+
   if (!isOpen || !booking) return null
 
   const totalAmount = Number(booking.totalAmount)
