@@ -212,8 +212,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
               <button
                 key={section.key}
                 type="button"
+                disabled={isUploading || isSaving || isResetting}
                 onClick={() => handleSelectSection(section.key)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between gap-2 cursor-pointer ${
+                className={`w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                   isSelected
                     ? 'bg-stone-900 text-white shadow-xs'
                     : 'text-stone-700 hover:bg-stone-100'
@@ -262,8 +263,12 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
         {/* Active Section Form */}
         <form
           onSubmit={handleSave}
-          className="lg:col-span-8 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-6 space-y-6"
+          className="lg:col-span-8 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-6"
         >
+          <fieldset
+            disabled={isSaving || isResetting}
+            className="space-y-6 disabled:opacity-80"
+          >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-stone-100">
             <div>
               <h2 className="text-lg font-bold text-stone-900">{meta.label}</h2>
@@ -564,6 +569,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
               {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
 

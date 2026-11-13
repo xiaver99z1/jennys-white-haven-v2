@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Calendar, Search, Users } from 'lucide-react'
@@ -45,7 +45,7 @@ export const Route = createFileRoute('/rooms/')({
   component: PublicRoomsPage,
 })
 
-const ROOM_TYPES = ['ALL', 'STANDARD', 'DELUXE', 'SUITE', 'VILLA'] as const
+const ROOM_TYPES = ['ALL', 'Standard', 'Deluxe', 'Suite', 'Villa'] as const
 
 function PublicRoomsPage() {
   const { rooms, sections } = Route.useLoaderData()
@@ -61,6 +61,13 @@ function PublicRoomsPage() {
     search.guests ? String(search.guests) : '',
   )
   const [type, setType] = useState(search.type ?? 'ALL')
+
+  useEffect(() => {
+    setCheckIn(search.checkIn ?? '')
+    setCheckOut(search.checkOut ?? '')
+    setGuests(search.guests ? String(search.guests) : '')
+    setType(search.type ?? 'ALL')
+  }, [search.checkIn, search.checkOut, search.guests, search.type])
 
   function handleFilterSubmit(e: FormEvent) {
     e.preventDefault()

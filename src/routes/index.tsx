@@ -8,6 +8,9 @@ import { PublicLayout } from '#/components/public/PublicLayout'
 import { formatPeso } from '#/lib/formatters'
 
 export const Route = createFileRoute('/')({
+  head: () => ({
+    meta: [{ title: "Jenny's White Haven | Camotes Island, Cebu" }],
+  }),
   loader: async () => {
     const [sections, rooms] = await Promise.all([
       getPublicCmsSections(),

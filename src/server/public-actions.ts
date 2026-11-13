@@ -72,7 +72,7 @@ export async function getPublicRoomsHandler({
     const overlapping = await prisma.booking.findMany({
       where: {
         deletedAt: null,
-        status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
         checkIn: { lt: checkOutDate },
         checkOut: { gt: checkInDate },
       },
@@ -88,7 +88,7 @@ export async function getPublicRoomsHandler({
       deletedAt: null,
       status: { not: 'MAINTENANCE' },
       ...(guests ? { capacity: { gte: guests } } : {}),
-      ...(type ? { type } : {}),
+      ...(type ? { type: { equals: type, mode: 'insensitive' } } : {}),
     },
     orderBy: { pricePerNight: 'asc' },
   })
@@ -188,7 +188,7 @@ export async function createPublicBookingHandler({
         where: {
           roomId: data.roomId,
           deletedAt: null,
-          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
           checkIn: { lt: checkOutDate },
           checkOut: { gt: checkInDate },
         },
@@ -199,15 +199,45 @@ export async function createPublicBookingHandler({
         )
       }
 
-      let guest = await tx.guest.findFirst({
-        where: {
-          deletedAt: null,
-          OR: [
-            { phone },
-            ...(email ? [{ email }] : []),
-          ],
-        },
-      })
+      // Resolve guest safely without attaching to an unrelated guest profile
+      let guest = null as { id: string } | null
+      if (email) {
+        const byEmail = await tx.guest.findFirst({
+          where: { email: { equals: email, mode: 'insensitive' } },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            deletedAt: true,
+          },
+        })
+        if (byEmail) {
+          const samePerson =
+            byEmail.deletedAt === null &&
+            byEmail.phone.trim() === phone &&
+            byEmail.firstName.trim().toLowerCase() === firstName.toLowerCase() &&
+            byEmail.lastName.trim().toLowerCase() === lastName.toLowerCase()
+          if (!samePerson) {
+            throw new Error(
+              'A guest profile with this email already exists with different details. Please verify your name and phone number, or leave email blank.',
+            )
+          }
+          guest = { id: byEmail.id }
+        }
+      }
+
+      if (!guest) {
+        guest = await tx.guest.findFirst({
+          where: {
+            deletedAt: null,
+            phone,
+            firstName: { equals: firstName, mode: 'insensitive' },
+            lastName: { equals: lastName, mode: 'insensitive' },
+          },
+          select: { id: true },
+        })
+      }
 
       if (!guest) {
         guest = await tx.guest.create({
@@ -217,7 +247,25 @@ export async function createPublicBookingHandler({
             phone,
             email,
           },
+          select: { id: true },
         })
+      }
+
+      const duplicatePending = await tx.booking.findFirst({
+        where: {
+          roomId: data.roomId,
+          guestId: guest.id,
+          deletedAt: null,
+          status: 'PENDING',
+          checkIn: { lt: checkOutDate },
+          checkOut: { gt: checkInDate },
+        },
+        select: { bookingReference: true },
+      })
+      if (duplicatePending) {
+        throw new Error(
+          `You already have a pending reservation request (${duplicatePending.bookingReference}) for these dates.`,
+        )
       }
 
       const computedTotal = nights * Number(targetRoom.pricePerNight)

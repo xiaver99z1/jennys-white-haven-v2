@@ -82,10 +82,18 @@ describe('public-actions', () => {
       checkIn: '2026-06-10',
       checkOut: '2026-06-12',
       guests: 2,
+      type: 'suite',
     })
 
     const rooms = await getPublicRoomsHandler({ data: search })
 
+    expect(mockRoomFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          type: { equals: 'suite', mode: 'insensitive' },
+        }),
+      }),
+    )
     expect(rooms).toHaveLength(1)
     expect(rooms[0].id).toBe('r2')
     expect(rooms[0].pricePerNight).toBe(5500)
@@ -213,6 +221,49 @@ describe('public-actions', () => {
         },
       }),
     ).rejects.toThrow('already reserved')
+
+    const txMismatchEmail = {
+      room: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'r2',
+          roomNumber: '102',
+          capacity: 4,
+          pricePerNight: 5000,
+          deletedAt: null,
+          status: 'AVAILABLE',
+        }),
+      },
+      booking: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      guest: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'g-other',
+          firstName: 'Juan',
+          lastName: 'Cruz',
+          phone: '+639999999999',
+          deletedAt: null,
+        }),
+      },
+    }
+    mockTransaction.mockImplementationOnce(
+      async (cb: (t: typeof txMismatchEmail) => unknown) => cb(txMismatchEmail),
+    )
+
+    await expect(
+      createPublicBookingHandler({
+        data: {
+          roomId: 'r2',
+          checkIn: '2026-06-10',
+          checkOut: '2026-06-12',
+          guestsCount: 2,
+          firstName: 'Maria',
+          lastName: 'Santos',
+          phone: '+639171234567',
+          email: 'juan@example.com',
+        },
+      }),
+    ).rejects.toThrow('already exists with different details')
   })
 
   it('looks up public booking only when reference and contact match', async () => {
