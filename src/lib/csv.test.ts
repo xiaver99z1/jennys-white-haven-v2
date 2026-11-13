@@ -4,10 +4,10 @@ import { buildCsvContent, downloadCsv } from './csv'
 describe('csv utilities', () => {
   it('builds RFC 4180 CSV with formula-injection protection and escaping', () => {
     const csv = buildCsvContent(
-      ['Name', 'Formula', 'Notes', 'Empty'],
+      ['Name', 'Formula', 'Notes', 'Empty', 'Refund'],
       [
-        ['Maria, Santos', '=SUM(A1:A2)', 'Said "Hello"', null],
-        ['John', '+1234', undefined, 500],
+        ['Maria, Santos', '=SUM(A1:A2)', 'Said "Hello"', null, -500],
+        ['John', '+1234', undefined, 500, NaN],
       ],
     )
 
@@ -15,7 +15,8 @@ describe('csv utilities', () => {
     expect(csv).toContain("'=SUM(A1:A2)")
     expect(csv).toContain('"Said ""Hello"""')
     expect(csv).toContain("'+1234")
-    expect(csv).toContain('500')
+    expect(csv).toContain(',-500')
+    expect(csv).toContain('500,')
   })
 
   it('triggers browser CSV download and cleans up object URL', () => {

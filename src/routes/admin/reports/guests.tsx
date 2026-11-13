@@ -1,17 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { getGuestsReport } from '#/server/report-actions'
 import { GuestsReportView } from '#/components/admin/reports/GuestsReportView'
-import type { ReportDateRangeInput, ReportPreset } from '#/types'
+import { parseReportSearch } from '#/lib/formatters'
 
 export const Route = createFileRoute('/admin/reports/guests')({
-  validateSearch: (search: Record<string, unknown>): ReportDateRangeInput => ({
-    preset:
-      typeof search.preset === 'string'
-        ? (search.preset as ReportPreset)
-        : 'thisMonth',
-    from: typeof search.from === 'string' ? search.from : undefined,
-    to: typeof search.to === 'string' ? search.to : undefined,
-  }),
+  validateSearch: parseReportSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => getGuestsReport({ data: deps }),
   component: GuestsReportPage,

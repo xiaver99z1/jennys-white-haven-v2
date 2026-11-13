@@ -44,6 +44,18 @@ describe('report-actions', () => {
   it('validates input and resolves all date range presets', () => {
     expect(validateReportInput()).toEqual({})
     expect(validateReportInput({ preset: 'today' })).toEqual({ preset: 'today' })
+    expect(() =>
+      validateReportInput({ preset: 'custom', from: 'bad', to: '2026-11-10' }),
+    ).toThrow('Invalid start date')
+    expect(() =>
+      validateReportInput({ preset: 'custom', from: '2026-11-10', to: '2026-02-30' }),
+    ).toThrow('Invalid end date')
+    expect(() => validateReportInput({ preset: 'custom' })).toThrow(
+      'Invalid custom date range',
+    )
+    expect(() =>
+      resolveReportDateRange({ preset: 'custom', from: 'bad', to: 'bad' }),
+    ).toThrow('Invalid custom date range')
 
     expect(resolveReportDateRange({ preset: 'today' }).dayCount).toBe(1)
     expect(resolveReportDateRange({ preset: 'last7' }).dayCount).toBe(7)
@@ -243,11 +255,15 @@ describe('report-actions', () => {
       data: { preset: 'custom', from: '2026-11-01', to: '2026-11-13' },
     })
 
-    expect(res.kpis.totalGuests).toBe(2)
+    expect(res.kpis.totalGuests).toBe(1)
     expect(res.kpis.newGuestsInPeriod).toBe(1)
     expect(res.kpis.repeatGuestsCount).toBe(1)
-    expect(res.kpis.verifiedIdRate).toBe(50)
+    expect(res.kpis.verifiedIdRate).toBe(100)
     expect(res.topGuests[0].name).toBe('Maria Santos')
     expect(res.topGuests[0].totalSpent).toBe(5000)
+
+    const allRes = await getGuestsReportHandler({ data: { preset: 'all' } })
+    expect(allRes.kpis.totalGuests).toBe(2)
+    expect(allRes.kpis.verifiedIdRate).toBe(50)
   })
 })

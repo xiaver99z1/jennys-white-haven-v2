@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, Download, Printer } from 'lucide-react'
 import type { ReportPreset, ReportRangeMeta } from '#/types'
 
@@ -32,6 +32,11 @@ export function ReportToolbar({
 }: ReportToolbarProps) {
   const [customFrom, setCustomFrom] = useState(range.from)
   const [customTo, setCustomTo] = useState(range.to)
+
+  useEffect(() => {
+    setCustomFrom(range.from)
+    setCustomTo(range.to)
+  }, [range.from, range.to])
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault()

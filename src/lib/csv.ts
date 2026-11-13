@@ -1,8 +1,10 @@
 function escapeCsvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return ''
-  const str = String(value)
-  // Guard against spreadsheet formula injection while keeping standard RFC 4180 quoting
-  const safe = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : ''
+  }
+  // Guard against spreadsheet formula injection only for string cells
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
   if (/[",\n\r]/.test(safe)) {
     return `"${safe.replace(/"/g, '""')}"`
   }

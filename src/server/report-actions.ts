@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { requirePermission } from '#/server/room-actions'
-import { formatFullName } from '#/lib/formatters'
+import { formatFullName, isValidCalendarDate } from '#/lib/formatters'
 import type {
   BookingStatus,
   BookingsReportData,
@@ -44,7 +44,12 @@ export function resolveReportDateRange(input?: ReportDateRangeInput): {
   let fromStr = todayStr
   let toStr = todayStr
 
-  if (preset === 'custom' && input?.from && input.to) {
+  if (preset === 'custom') {
+    if (!isValidCalendarDate(input?.from) || !isValidCalendarDate(input.to)) {
+      throw new Error(
+        'Invalid custom date range. Expected YYYY-MM-DD calendar dates.',
+      )
+    }
     fromStr = input.from <= input.to ? input.from : input.to
     toStr = input.from <= input.to ? input.to : input.from
   } else if (preset === 'today') {
@@ -92,7 +97,19 @@ export function resolveReportDateRange(input?: ReportDateRangeInput): {
 }
 
 export function validateReportInput(data?: ReportDateRangeInput) {
-  return data ?? {}
+  if (!data) return {}
+  if (data.from !== undefined && !isValidCalendarDate(data.from)) {
+    throw new Error('Invalid start date. Expected YYYY-MM-DD calendar date.')
+  }
+  if (data.to !== undefined && !isValidCalendarDate(data.to)) {
+    throw new Error('Invalid end date. Expected YYYY-MM-DD calendar date.')
+  }
+  if (data.preset === 'custom' && (!data.from || !data.to)) {
+    throw new Error(
+      'Invalid custom date range. Expected YYYY-MM-DD calendar dates.',
+    )
+  }
+  return data
 }
 
 export async function getRevenueReportHandler({
@@ -136,7 +153,6 @@ export async function getRevenueReportHandler({
         paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
       },
       orderBy: { checkIn: 'asc' },
-      take: 25,
       include: {
         guest: { select: { firstName: true, lastName: true } },
         room: { select: { roomNumber: true } },
@@ -150,7 +166,7 @@ export async function getRevenueReportHandler({
     0,
   )
 
-  const outstandingBookings = outstandingRows
+  const allOutstanding = outstandingRows
     .map((b) => {
       const totalAmount = Number(b.totalAmount)
       const amountPaid = Number(b.amountPaid)
@@ -168,10 +184,11 @@ export async function getRevenueReportHandler({
     })
     .filter((b) => b.balanceDue > 0)
 
-  const outstandingBalance = outstandingBookings.reduce(
+  const outstandingBalance = allOutstanding.reduce(
     (sum, b) => sum + b.balanceDue,
     0,
   )
+  const outstandingBookings = allOutstanding.slice(0, 50)
 
   const collectionRate =
     totalBilled > 0
@@ -261,7 +278,6 @@ export async function getOccupancyReportHandler({
 
   const [rooms, bookings] = await Promise.all([
     prisma.room.findMany({
-      where: { deletedAt: null },
       orderBy: { roomNumber: 'asc' },
     }),
     prisma.booking.findMany({
@@ -322,7 +338,11 @@ export async function getOccupancyReportHandler({
     })
   }
 
-  const byRoom = rooms.map((r) => {
+  const includedRooms = rooms.filter(
+    (r) => !r.deletedAt || roomStats.has(r.id),
+  )
+
+  const byRoom = includedRooms.map((r) => {
     const stats = roomStats.get(r.id) ?? {
       nightsSold: 0,
       revenue: 0,
@@ -382,7 +402,7 @@ export async function getOccupancyReportHandler({
   })
 
   const occupiedRoomNights = byRoom.reduce((sum, r) => sum + r.nightsSold, 0)
-  const availableRoomNights = rooms.length * range.dayCount
+  const availableRoomNights = includedRooms.length * range.dayCount
   const totalRoomRevenue = byRoom.reduce((sum, r) => sum + r.revenue, 0)
   const occupancyRate =
     availableRoomNights > 0
@@ -414,7 +434,7 @@ export async function getOccupancyReportHandler({
       adr,
       revPar,
       totalRoomRevenue,
-      activeRoomCount: rooms.length,
+      activeRoomCount: includedRooms.length,
     },
     byRoomType,
     byRoom,
@@ -535,7 +555,11 @@ export async function getGuestsReportHandler({
     where: { deletedAt: null },
     include: {
       bookings: {
-        where: { deletedAt: null, status: { not: 'CANCELLED' } },
+        where: {
+          deletedAt: null,
+          status: { not: 'CANCELLED' },
+          checkIn: { gte: range.startDate, lte: range.endDate },
+        },
         select: {
           totalAmount: true,
           nights: true,
@@ -546,12 +570,23 @@ export async function getGuestsReportHandler({
     },
   })
 
-  const totalGuests = guests.length
-  const newGuestsInPeriod = guests.filter(
+  const periodGuests =
+    range.preset === 'all'
+      ? guests
+      : guests.filter(
+          (g) =>
+            (g.createdAt >= range.startDate && g.createdAt <= range.endDate) ||
+            g.bookings.length > 0,
+        )
+
+  const totalGuests = periodGuests.length
+  const newGuestsInPeriod = periodGuests.filter(
     (g) => g.createdAt >= range.startDate && g.createdAt <= range.endDate,
   ).length
-  const repeatGuestsCount = guests.filter((g) => g.bookings.length >= 2).length
-  const verifiedIdCount = guests.filter(
+  const repeatGuestsCount = periodGuests.filter(
+    (g) => g.bookings.length >= 2,
+  ).length
+  const verifiedIdCount = periodGuests.filter(
     (g) => Boolean(g.idType) && Boolean(g.idNumber),
   ).length
   const verifiedIdRate =
@@ -560,7 +595,7 @@ export async function getGuestsReportHandler({
   const idTypeMap = new Map<string, number>()
   const nationalityMap = new Map<string, number>()
 
-  for (const g of guests) {
+  for (const g of periodGuests) {
     const idKey = g.idType || 'UNSPECIFIED'
     idTypeMap.set(idKey, (idTypeMap.get(idKey) ?? 0) + 1)
 
@@ -585,7 +620,7 @@ export async function getGuestsReportHandler({
     .sort((a, b) => b.count - a.count)
     .slice(0, 8)
 
-  const topGuests = guests
+  const topGuests = periodGuests
     .map((g) => ({
       id: g.id,
       name: formatFullName(g.firstName, g.lastName),
