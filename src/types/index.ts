@@ -253,3 +253,166 @@ export interface NotificationsResponse {
   unreadCount: number
   items: NotificationRecord[]
 }
+
+export type ReportPreset =
+  | 'today'
+  | 'last7'
+  | 'thisMonth'
+  | 'lastMonth'
+  | 'last90'
+  | 'all'
+  | 'custom'
+
+export interface ReportDateRangeInput {
+  from?: string
+  to?: string
+  preset?: ReportPreset
+}
+
+export interface ReportRangeMeta {
+  from: string
+  to: string
+  preset: ReportPreset
+  dayCount: number
+}
+
+export interface RevenueReportData {
+  range: ReportRangeMeta
+  kpis: {
+    totalCollected: number
+    totalBilled: number
+    outstandingBalance: number
+    collectionRate: number
+    paymentCount: number
+  }
+  byMethod: Array<{
+    method: string
+    amount: number
+    count: number
+    share: number
+  }>
+  dailyTrend: Array<{
+    date: string
+    amount: number
+    count: number
+  }>
+  recentPayments: Array<{
+    id: string
+    bookingId: string
+    bookingReference: string
+    guestName: string
+    amount: number
+    method: string
+    referenceNo: string | null
+    paidAt: Date | string
+    receivedByName: string | null
+  }>
+  outstandingBookings: Array<{
+    id: string
+    bookingReference: string
+    guestName: string
+    roomNumber: string
+    checkIn: Date | string
+    totalAmount: number
+    amountPaid: number
+    balanceDue: number
+    paymentStatus: PaymentStatus
+  }>
+}
+
+export interface OccupancyReportData {
+  range: ReportRangeMeta
+  kpis: {
+    occupancyRate: number
+    occupiedRoomNights: number
+    availableRoomNights: number
+    adr: number
+    revPar: number
+    totalRoomRevenue: number
+    activeRoomCount: number
+  }
+  byRoomType: Array<{
+    type: RoomType
+    roomCount: number
+    nightsSold: number
+    availableNights: number
+    occupancyRate: number
+    revenue: number
+  }>
+  byRoom: Array<{
+    id: string
+    roomNumber: string
+    name: string
+    type: RoomType
+    status: RoomStatus
+    pricePerNight: number
+    nightsSold: number
+    occupancyRate: number
+    revenue: number
+    bookingCount: number
+  }>
+}
+
+export interface BookingsReportData {
+  range: ReportRangeMeta
+  kpis: {
+    totalBookings: number
+    confirmedOrCompleted: number
+    cancelledCount: number
+    cancellationRate: number
+    avgLengthOfStay: number
+    totalGuestsHosted: number
+  }
+  byStatus: Array<{
+    status: BookingStatus
+    count: number
+    revenue: number
+    share: number
+  }>
+  bookings: Array<{
+    id: string
+    bookingReference: string
+    guestName: string
+    roomNumber: string
+    roomName: string
+    checkIn: Date | string
+    checkOut: Date | string
+    nights: number
+    guestsCount: number
+    totalAmount: number
+    amountPaid: number
+    status: BookingStatus
+    paymentStatus: PaymentStatus
+  }>
+}
+
+export interface GuestsReportData {
+  range: ReportRangeMeta
+  kpis: {
+    totalGuests: number
+    newGuestsInPeriod: number
+    repeatGuestsCount: number
+    verifiedIdRate: number
+  }
+  byIdType: Array<{
+    idType: string
+    count: number
+    share: number
+  }>
+  byNationality: Array<{
+    nationality: string
+    count: number
+    share: number
+  }>
+  topGuests: Array<{
+    id: string
+    name: string
+    email: string | null
+    phone: string
+    nationality: string | null
+    bookingCount: number
+    totalNights: number
+    totalSpent: number
+    lastStay: Date | string | null
+  }>
+}

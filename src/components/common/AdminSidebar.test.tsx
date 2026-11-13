@@ -62,6 +62,22 @@ describe('AdminSidebar', () => {
     expect(screen.queryByText('Users')).not.toBeInTheDocument()
   })
 
+  it('toggles Reports submenu items when user has "view:reports" permission', async () => {
+    const user = userEvent.setup()
+    vi.mocked(hasPermission).mockReturnValue(true)
+
+    render(<AdminSidebar {...defaultProps} />)
+
+    const reportsToggle = screen.getByRole('button', { name: /Reports/i })
+    expect(screen.queryByText('Revenue & Payments')).not.toBeInTheDocument()
+
+    await user.click(reportsToggle)
+    expect(screen.getByText('Revenue & Payments')).toBeInTheDocument()
+    expect(screen.getByText('Occupancy & Rooms')).toBeInTheDocument()
+    expect(screen.getByText('Bookings & Ops')).toBeInTheDocument()
+    expect(screen.getByText('Guests & Insights')).toBeInTheDocument()
+  })
+
   it('triggers setSidebarOpen(false) when mobile backdrop overlay is clicked', async () => {
     const user = userEvent.setup()
     const setSidebarOpen = vi.fn()

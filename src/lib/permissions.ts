@@ -20,6 +20,7 @@ export const ROLES = {
     'delete:users',
     'resend-email:users',
     'block-user:users',
+    'view:reports',
   ],
   manager: [
     'view:rooms',
@@ -32,6 +33,7 @@ export const ROLES = {
     'create:guests',
     'update:guests',
     'view:users',
+    'view:reports',
   ],
   receptionist: [
     'view:rooms',

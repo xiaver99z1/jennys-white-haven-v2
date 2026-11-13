@@ -1,4 +1,4 @@
-import type { StatusMeta } from '#/types'
+import type { ReportDateRangeInput, ReportPreset, StatusMeta } from '#/types'
 import {
   ADMIN_LABELS,
   BOOKING_STATUS_META,
@@ -109,4 +109,47 @@ export function getErrorMessage(
   fallback: string = ADMIN_LABELS.common.somethingWentWrong,
 ): string {
   return err instanceof Error ? err.message : fallback
+}
+
+const VALID_REPORT_PRESETS: ReadonlySet<string> = new Set([
+  'today',
+  'last7',
+  'thisMonth',
+  'lastMonth',
+  'last90',
+  'all',
+  'custom',
+])
+
+/**
+ * Checks whether a value is a valid YYYY-MM-DD calendar date.
+ */
+export function isValidCalendarDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false
+  }
+  const [y, m, d] = value.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  )
+}
+
+/**
+ * Validates and normalizes URL search parameters for report routes.
+ */
+export function parseReportSearch(
+  search: Record<string, unknown>,
+): ReportDateRangeInput {
+  const from = isValidCalendarDate(search.from) ? search.from : undefined
+  const to = isValidCalendarDate(search.to) ? search.to : undefined
+  const rawPreset =
+    typeof search.preset === 'string' && VALID_REPORT_PRESETS.has(search.preset)
+      ? (search.preset as ReportPreset)
+      : 'thisMonth'
+  const preset =
+    rawPreset === 'custom' && (!from || !to) ? 'thisMonth' : rawPreset
+  return { preset, from, to }
 }
