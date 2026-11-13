@@ -301,13 +301,20 @@ describe('AdminNavbar', () => {
     expect(screen.queryByText('Arrival: Maria Santos')).not.toBeInTheDocument()
   })
 
-  it('handles notification fetch failure gracefully and shows caught-up state', async () => {
+  it('handles notification fetch failure gracefully and supports retry', async () => {
     const user = userEvent.setup()
-    mockGetNotifications.mockRejectedValueOnce(new Error('fail'))
+    mockGetNotifications
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockResolvedValueOnce({ unreadCount: 0, items: [] })
 
     render(<AdminNavbar {...defaultProps} />)
     await user.click(screen.getByRole('button', { name: 'Notifications' }))
-    expect(screen.getByText(/You're all caught up\./i)).toBeInTheDocument()
+    expect(screen.getByText(/Failed to load notifications\./i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(screen.getByText(/You're all caught up\./i)).toBeInTheDocument()
+    })
   })
 
   it('ignores async notification and search callbacks after unmount', async () => {

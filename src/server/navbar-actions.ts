@@ -21,20 +21,23 @@ export async function globalAdminSearchHandler({
     return { bookings: [], guests: [], rooms: [] }
   }
 
+  const tokens = q.split(/\s+/).filter(Boolean)
+  const guestNameFilter = {
+    AND: tokens.map((token) => ({
+      OR: [
+        { firstName: { contains: token, mode: 'insensitive' as const } },
+        { lastName: { contains: token, mode: 'insensitive' as const } },
+      ],
+    })),
+  }
+
   const [bookings, guests, rooms] = await Promise.all([
     prisma.booking.findMany({
       where: {
         deletedAt: null,
         OR: [
           { bookingReference: { contains: q, mode: 'insensitive' } },
-          {
-            guest: {
-              OR: [
-                { firstName: { contains: q, mode: 'insensitive' } },
-                { lastName: { contains: q, mode: 'insensitive' } },
-              ],
-            },
-          },
+          { guest: guestNameFilter },
           {
             room: {
               OR: [
@@ -56,8 +59,7 @@ export async function globalAdminSearchHandler({
       where: {
         deletedAt: null,
         OR: [
-          { firstName: { contains: q, mode: 'insensitive' } },
-          { lastName: { contains: q, mode: 'insensitive' } },
+          guestNameFilter,
           { phone: { contains: q, mode: 'insensitive' } },
           { email: { contains: q, mode: 'insensitive' } },
         ],

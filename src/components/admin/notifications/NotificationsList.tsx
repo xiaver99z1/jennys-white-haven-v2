@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Bell, Check, CheckCheck } from 'lucide-react'
 import type { AdminRouter, NotificationRecord } from '#/types'
-import { formatShortDate } from '#/lib/formatters'
+import { formatShortDate, getErrorMessage } from '#/lib/formatters'
 import { EmptyState } from '#/components/common/EmptyState'
 import { StatusBadge } from '#/components/common/StatusBadge'
 import {
@@ -37,6 +37,7 @@ export function NotificationsList({
 }: NotificationsListProps) {
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const unreadCount =
     serverUnreadCount ?? initialNotifications.filter((n) => !n.isRead).length
@@ -47,10 +48,13 @@ export function NotificationsList({
 
   const handleMarkRead = async (id: string) => {
     setIsUpdating(true)
+    setError(null)
     try {
       await markNotificationRead({ data: { id } })
       window.dispatchEvent(new Event('admin-notifications-refresh'))
       await router.invalidate()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to mark notification as read.'))
     } finally {
       setIsUpdating(false)
     }
@@ -58,10 +62,13 @@ export function NotificationsList({
 
   const handleMarkAllRead = async () => {
     setIsUpdating(true)
+    setError(null)
     try {
       await markAllNotificationsRead()
       window.dispatchEvent(new Event('admin-notifications-refresh'))
       await router.invalidate()
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to mark all notifications as read.'))
     } finally {
       setIsUpdating(false)
     }
@@ -91,6 +98,13 @@ export function NotificationsList({
           </button>
         )}
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="flex items-center gap-2 bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs">

@@ -110,6 +110,12 @@ describe('payment-actions', () => {
       }),
     ).rejects.toThrow('Payment amount must be greater than 0.')
 
+    await expect(
+      recordPaymentHandler({
+        data: { bookingId: 'b1', amount: 10.123, method: 'CASH' },
+      }),
+    ).rejects.toThrow('Payment amount cannot have more than 2 decimal places.')
+
     mockBookingFindUnique.mockResolvedValue(null)
     await expect(
       recordPaymentHandler({

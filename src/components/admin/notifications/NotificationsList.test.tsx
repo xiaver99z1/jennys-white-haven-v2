@@ -117,4 +117,31 @@ describe('NotificationsList', () => {
       screen.getByText("You're all caught up with no unread notifications."),
     ).toBeInTheDocument()
   })
+
+  it('displays error when marking single or all notifications fails', async () => {
+    const user = userEvent.setup()
+    mockMarkNotificationRead.mockRejectedValueOnce(new Error('Mark failed'))
+    mockMarkAllNotificationsRead.mockRejectedValueOnce(
+      new Error('Mark all failed'),
+    )
+
+    render(
+      <NotificationsList
+        initialNotifications={mockNotifications}
+        router={mockRouter}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /Mark read/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Mark failed')).toBeInTheDocument()
+    })
+
+    await user.click(
+      screen.getByRole('button', { name: /Mark all as read \(1\)/i }),
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Mark all failed')).toBeInTheDocument()
+    })
+  })
 })

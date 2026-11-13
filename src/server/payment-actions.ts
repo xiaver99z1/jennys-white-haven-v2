@@ -69,6 +69,13 @@ export async function recordPaymentHandler({
     throw new Error('Payment amount must be greater than 0.')
   }
 
+  const amountCents = Math.round(data.amount * 100)
+  if (Math.abs(data.amount * 100 - amountCents) > 1e-6) {
+    throw new Error('Payment amount cannot have more than 2 decimal places.')
+  }
+
+  const session = await authSession()
+
   const { booking, payment, newAmountPaid, newPaymentStatus } =
     await prisma.$transaction(
       async (tx) => {
@@ -80,17 +87,21 @@ export async function recordPaymentHandler({
           throw new Error('Booking not found.')
         }
 
-        const totalAmount = Number(foundBooking.totalAmount)
-        const computedAmountPaid = Number(foundBooking.amountPaid) + data.amount
+        const totalCents = Math.round(Number(foundBooking.totalAmount) * 100)
+        const existingPaidCents = Math.round(
+          Number(foundBooking.amountPaid) * 100,
+        )
+        const nextPaidCents = existingPaidCents + amountCents
+        const computedAmountPaid = nextPaidCents / 100
         const computedPaymentStatus = computePaymentStatus(
-          computedAmountPaid,
-          totalAmount,
+          nextPaidCents,
+          totalCents,
         )
 
         const created = await tx.payment.create({
           data: {
             bookingId: data.bookingId,
-            amount: data.amount,
+            amount: amountCents / 100,
             method: data.method,
             referenceNo: data.referenceNo?.trim() || null,
             notes: data.notes?.trim() || null,
@@ -120,7 +131,6 @@ export async function recordPaymentHandler({
       { isolationLevel: 'Serializable' },
     )
 
-  const session = await authSession()
   await logActivity({
     userId: admin.id,
     action: 'PAYMENT_RECORDED',

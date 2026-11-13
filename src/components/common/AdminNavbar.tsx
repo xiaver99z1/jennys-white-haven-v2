@@ -40,26 +40,42 @@ export function AdminNavbar({
     unreadCount: 0,
     items: [],
   })
+  const [notifError, setNotifError] = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
 
   const searchRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
+  const notifSeqRef = useRef(0)
+  const isMountedRef = useRef(true)
+
+  const loadNotifications = () => {
+    const seq = ++notifSeqRef.current
+    setNotifLoading(true)
+    setNotifError(false)
+    getNotifications({ data: { limit: 8 } })
+      .then((res) => {
+        if (isMountedRef.current && seq === notifSeqRef.current) {
+          setNotifications(res)
+        }
+      })
+      .catch(() => {
+        if (isMountedRef.current && seq === notifSeqRef.current) {
+          setNotifError(true)
+        }
+      })
+      .finally(() => {
+        if (isMountedRef.current && seq === notifSeqRef.current) {
+          setNotifLoading(false)
+        }
+      })
+  }
 
   useEffect(() => {
-    let active = true
-    const loadNotifications = () => {
-      getNotifications({ data: { limit: 8 } })
-        .then((res) => {
-          if (active) setNotifications(res)
-        })
-        .catch(() => {
-          /* ignore background notification load errors */
-        })
-    }
-
+    isMountedRef.current = true
     loadNotifications()
     window.addEventListener('admin-notifications-refresh', loadNotifications)
     return () => {
-      active = false
+      isMountedRef.current = false
       window.removeEventListener(
         'admin-notifications-refresh',
         loadNotifications,
@@ -319,7 +335,24 @@ export function AdminNavbar({
                   {notifications.unreadCount}
                 </span>
               </div>
-              {notifications.items.length === 0 ? (
+              {notifError ? (
+                <div className="px-4 py-6 text-center space-y-2">
+                  <p className="text-red-600 font-medium">
+                    Failed to load notifications.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={loadNotifications}
+                    className="px-3 py-1 rounded-lg bg-stone-900 text-white text-[11px] font-semibold hover:bg-stone-800 transition cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : notifLoading && notifications.items.length === 0 ? (
+                <div className="px-4 py-6 text-center text-stone-500">
+                  Loading notifications...
+                </div>
+              ) : notifications.items.length === 0 ? (
                 <div className="px-4 py-6 text-center text-stone-500">
                   You&apos;re all caught up.
                 </div>

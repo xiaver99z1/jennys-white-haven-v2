@@ -182,6 +182,58 @@ describe('PaymentHistoryModal', () => {
     })
   })
 
+  it('separates refresh failure from payment success and allows retry refresh', async () => {
+    const user = userEvent.setup()
+    const onSuccess = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Refresh failed'))
+      .mockResolvedValueOnce(undefined)
+
+    mockGetBookingPayments.mockResolvedValue({ success: true, payments: [] })
+    mockRecordPayment.mockResolvedValue({
+      success: true,
+      payment: {
+        id: 'p-ref',
+        bookingId: 'b1',
+        amount: 2500,
+        method: 'CASH',
+        referenceNo: null,
+        notes: null,
+        paidAt: '2026-11-13T00:00:00.000Z',
+        receivedBy: { name: 'Admin' },
+      },
+      amountPaid: 2500,
+      paymentStatus: 'PAID',
+    })
+
+    render(
+      <PaymentHistoryModal
+        isOpen
+        booking={sampleBooking}
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Record Payment/i }),
+      ).not.toBeDisabled()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Record Payment/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Refresh failed')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Retry refresh/i }))
+    await waitFor(() => {
+      expect(screen.queryByText('Refresh failed')).not.toBeInTheDocument()
+    })
+    expect(mockRecordPayment).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores async resolution and rejection after unmount', async () => {
     let resolveFetch!: (val: { success: boolean; payments: any[] }) => void
     mockGetBookingPayments.mockImplementationOnce(

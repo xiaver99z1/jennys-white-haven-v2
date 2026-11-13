@@ -249,7 +249,7 @@ export async function checkOutBookingHandler({
 }) {
   const admin = await requirePermission('update:bookings')
 
-  const booking = await prisma.$transaction(
+  const { booking, roomSetToCleaning } = await prisma.$transaction(
     async (tx) => {
       const target = await tx.booking.findUnique({
         where: { id: data.id },
@@ -275,23 +275,25 @@ export async function checkOutBookingHandler({
           status: 'CHECKED_IN',
         },
       })
-      if (!otherCheckedIn) {
+      const didSetCleaning = !otherCheckedIn
+      if (didSetCleaning) {
         await tx.room.update({
           where: { id: target.roomId },
           data: { status: 'CLEANING' },
         })
       }
 
-      return target
+      return { booking: target, roomSetToCleaning: didSetCleaning }
     },
     { isolationLevel: 'Serializable' },
   )
 
   const session = await authSession()
+  const roomSuffix = roomSetToCleaning ? '; room set to CLEANING' : ''
   await logActivity({
     userId: admin.id,
     action: 'BOOKING_CHECKED_OUT',
-    description: `Checked out ${booking.guest.firstName} ${booking.guest.lastName} from Room ${booking.room.roomNumber} (${booking.bookingReference}); room set to CLEANING`,
+    description: `Checked out ${booking.guest.firstName} ${booking.guest.lastName} from Room ${booking.room.roomNumber} (${booking.bookingReference})${roomSuffix}`,
     ipAddress: session.session.ipAddress ?? null,
     userAgent: session.session.userAgent ?? null,
   })
@@ -299,7 +301,9 @@ export async function checkOutBookingHandler({
   await createNotification({
     type: 'BOOKING_CHECKOUT',
     title: `Guest Checked Out: ${booking.guest.firstName} ${booking.guest.lastName}`,
-    message: `Room ${booking.room.roomNumber} (${booking.bookingReference}) set to CLEANING`,
+    message: roomSetToCleaning
+      ? `Room ${booking.room.roomNumber} (${booking.bookingReference}) set to CLEANING`
+      : `Room ${booking.room.roomNumber} (${booking.bookingReference})`,
     href: '/admin',
   })
 
