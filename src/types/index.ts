@@ -43,7 +43,7 @@ export type ProfileActionType =
   | 'CHANGE_EMAIL'
 
 export interface AdminRouter {
-  invalidate: () => Promise<unknown>
+  invalidate: () => Promise<void>
 }
 
 export interface StatusMeta {
