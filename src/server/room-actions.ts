@@ -205,7 +205,6 @@ export async function updateRoomHandler({
 
   const nextImages = data.images
     ? await persistRoomImagesToR2({
-        roomId: existingRoom.id,
         roomNumber: data.roomNumber ?? existingRoom.roomNumber,
         images: data.images,
         uploadedById: admin.id,
@@ -228,6 +227,12 @@ export async function updateRoomHandler({
   })
 
   if (nextImages) {
+    await persistRoomImagesToR2({
+      roomId: updatedRoom.id,
+      roomNumber: updatedRoom.roomNumber,
+      images: nextImages,
+      uploadedById: admin.id,
+    })
     await purgeReplacedR2Objects(existingRoom.images, nextImages)
   }
 

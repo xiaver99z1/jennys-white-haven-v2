@@ -14,12 +14,12 @@ export function getR2Config(): R2Config | null {
   const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim() ?? ''
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim() ?? ''
   const bucketName = process.env.R2_BUCKET_NAME?.trim() ?? ''
-  const privateBucketName =
-    process.env.R2_PRIVATE_BUCKET_NAME?.trim() || bucketName
-  const publicUrl = (process.env.R2_PUBLIC_URL?.trim() ?? '').replace(
-    /\/+$/,
-    '',
-  )
+  const rawPrivateBucket =
+    process.env.R2_PRIVATE_BUCKET_NAME?.split('#')[0]?.trim() ?? ''
+  const privateBucketName = rawPrivateBucket || bucketName
+  const publicUrl = (
+    process.env.R2_PUBLIC_URL?.split('#')[0]?.trim() ?? ''
+  ).replace(/\/+$/, '')
 
   if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
     return null
@@ -33,6 +33,18 @@ export function getR2Config(): R2Config | null {
     privateBucketName,
     publicUrl,
   }
+}
+
+function resolveTargetBucket(config: R2Config, isPrivate?: boolean): string {
+  if (!isPrivate) return config.bucketName
+  const explicitPrivate =
+    process.env.R2_PRIVATE_BUCKET_NAME?.split('#')[0]?.trim() ?? ''
+  if (!explicitPrivate || explicitPrivate === config.bucketName) {
+    throw new Error(
+      'R2_PRIVATE_BUCKET_NAME must be set to a dedicated private bucket for private documents.',
+    )
+  }
+  return explicitPrivate
 }
 
 async function getR2Client(config: R2Config) {
@@ -60,7 +72,7 @@ export function isBase64DataUrl(value: string): boolean {
 export function buildObjectKey(
   scope: MediaScope,
   filename: string,
-  timestamp: number = Date.now(),
+  timestamp?: number,
 ): { objectKey: string; thumbnailKey: string | null } {
   const cleaned = filename
     .trim()
@@ -69,9 +81,13 @@ export function buildObjectKey(
     .replace(/^-+|-+$/g, '')
   const safeName = cleaned || 'asset.webp'
   const prefix = scope === 'bookings' ? 'private/bookings' : scope
-  const objectKey = `${prefix}/${timestamp}-${safeName}`
+  const uniqueId =
+    timestamp !== undefined
+      ? String(timestamp)
+      : `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
+  const objectKey = `${prefix}/${uniqueId}-${safeName}`
   const thumbnailKey =
-    scope === 'rooms' ? `rooms/thumbs/${timestamp}-${safeName}` : null
+    scope === 'rooms' ? `rooms/thumbs/${uniqueId}-${safeName}` : null
   return { objectKey, thumbnailKey }
 }
 
@@ -140,10 +156,10 @@ export function resolvePublicMediaUrl(
 
   // If a stored value is an .r2.dev URL or matches R2_PUBLIC_URL, normalize it to its object key first
   const extractedKey = extractObjectKey(trimmed)
+  const hasR2 = getR2Config() !== null
   if (isR2ManagedObjectKey(extractedKey)) {
-    // Serve via first-party /api/media/view?key=... route when using .r2.dev
-    // (Using ?key= avoids Vite dev server intercepting .jpg/.png paths as static public/ files)
-    if (publicUrl.endsWith('.r2.dev')) {
+    // Serve via first-party /api/media/view?key=... route when using .r2.dev or when R2 is configured without a custom CDN domain
+    if (publicUrl.endsWith('.r2.dev') || (!publicUrl && hasR2)) {
       return `/api/media/view?key=${encodeURIComponent(extractedKey)}`
     }
     if (publicUrl) {
@@ -188,7 +204,7 @@ export async function createR2PresignedUploadUrl(params: {
   const { PutObjectCommand } = await import('@aws-sdk/client-s3')
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
   const client = await getR2Client(config)
-  const bucket = params.isPrivate ? config.privateBucketName : config.bucketName
+  const bucket = resolveTargetBucket(config, params.isPrivate)
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: params.objectKey,
@@ -218,8 +234,9 @@ export async function createR2PresignedDownloadUrl(params: {
   const { GetObjectCommand } = await import('@aws-sdk/client-s3')
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
   const client = await getR2Client(config)
+  const bucket = resolveTargetBucket(config, true)
   const command = new GetObjectCommand({
-    Bucket: config.privateBucketName,
+    Bucket: bucket,
     Key: params.objectKey,
   })
 
@@ -242,7 +259,7 @@ export async function putR2Object(params: {
 
   const { PutObjectCommand } = await import('@aws-sdk/client-s3')
   const client = await getR2Client(config)
-  const bucket = params.isPrivate ? config.privateBucketName : config.bucketName
+  const bucket = resolveTargetBucket(config, params.isPrivate)
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,
@@ -266,7 +283,7 @@ export async function getR2Object(params: {
 
   const { GetObjectCommand } = await import('@aws-sdk/client-s3')
   const client = await getR2Client(config)
-  const bucket = params.isPrivate ? config.privateBucketName : config.bucketName
+  const bucket = resolveTargetBucket(config, params.isPrivate)
   const res = await client.send(
     new GetObjectCommand({
       Bucket: bucket,
@@ -289,11 +306,13 @@ export async function deleteR2Object(params: {
   isPrivate?: boolean
 }): Promise<boolean> {
   const config = getR2Config()
-  if (!config) return true
+  if (!config) {
+    throw new Error('R2 storage is not configured for object deletion.')
+  }
 
   const { DeleteObjectCommand } = await import('@aws-sdk/client-s3')
   const client = await getR2Client(config)
-  const bucket = params.isPrivate ? config.privateBucketName : config.bucketName
+  const bucket = resolveTargetBucket(config, params.isPrivate)
   await client.send(
     new DeleteObjectCommand({
       Bucket: bucket,

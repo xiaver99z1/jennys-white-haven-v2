@@ -96,16 +96,21 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('scope', 'cms')
-      if (oldImageUrl) {
-        formData.append('oldImageUrl', oldImageUrl)
-      }
       const url = await uploadAvatar({ data: formData })
       if (targetIndex !== undefined) {
-        setImages((prev) =>
-          prev.map((item, idx) => (idx === targetIndex ? url : item)),
-        )
+        setImages((prev) => {
+          if (oldImageUrl) {
+            const currentIdx = prev.indexOf(oldImageUrl)
+            if (currentIdx !== -1) {
+              return prev.map((item, idx) =>
+                idx === currentIdx ? url : item,
+              )
+            }
+          }
+          return prev.map((item, idx) => (idx === targetIndex ? url : item))
+        })
       } else {
-        setImages((prev) => [...prev, url])
+        setImages((prev) => (prev.includes(url) ? prev : [...prev, url]))
       }
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to upload image.'))
@@ -559,7 +564,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         <button
                           type="button"
                           onClick={() => handleMoveImage(idx, -1)}
-                          disabled={idx === 0}
+                          disabled={isUploading || idx === 0}
                           aria-label={`Move image ${idx + 1} up`}
                           className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
                         >
@@ -568,7 +573,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         <button
                           type="button"
                           onClick={() => handleMoveImage(idx, 1)}
-                          disabled={idx === images.length - 1}
+                          disabled={isUploading || idx === images.length - 1}
                           aria-label={`Move image ${idx + 1} down`}
                           className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
                         >
@@ -576,9 +581,10 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         </button>
                         <button
                           type="button"
+                          disabled={isUploading}
                           onClick={() => handleRemoveImage(idx)}
                           aria-label={`Remove image ${idx + 1}`}
-                          className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

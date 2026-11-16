@@ -92,16 +92,11 @@ export const getPublicCmsSections = createServerFn({ method: 'GET' }).handler(
 
 export async function getAdminCmsSectionsHandler(): Promise<CmsSectionData[]> {
   await requirePermission('manage:cms')
-  try {
-    const rows = await prisma.siteSection.findMany({
-      orderBy: { sortOrder: 'asc' },
-      include: { updatedBy: { select: { name: true } } },
-    })
-    return mergeWithDefaults(rows)
-  } catch (err) {
-    console.warn('Failed to load admin CMS sections, using defaults:', err)
-    return DEFAULT_CMS_SECTIONS
-  }
+  const rows = await prisma.siteSection.findMany({
+    orderBy: { sortOrder: 'asc' },
+    include: { updatedBy: { select: { name: true } } },
+  })
+  return mergeWithDefaults(rows)
 }
 
 export const getAdminCmsSections = createServerFn({ method: 'GET' }).handler(
@@ -146,9 +141,9 @@ export async function upsertCmsSectionHandler({
       'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
     )
   }
-  const cleanImages = data.images
-    .map((u) => extractObjectKey(u))
-    .filter(Boolean)
+  const cleanImages = Array.from(
+    new Set(data.images.map((u) => extractObjectKey(u)).filter(Boolean)),
+  )
   const cleanMeta: Record<string, string> = {}
   for (const [k, v] of Object.entries(data.metadata)) {
     cleanMeta[k] = v.trim()

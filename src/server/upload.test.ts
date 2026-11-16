@@ -11,7 +11,9 @@ import {
 } from './upload'
 
 const {
+  mockAuthSession,
   mockTransaction,
+  mockMediaFindUnique,
   mockMediaUpsert,
   mockMediaUpdateMany,
   mockMediaDeleteMany,
@@ -23,7 +25,9 @@ const {
   mockPutR2Object,
   mockDeleteR2Object,
 } = vi.hoisted(() => ({
+  mockAuthSession: vi.fn(),
   mockTransaction: vi.fn(),
+  mockMediaFindUnique: vi.fn(),
   mockMediaUpsert: vi.fn(),
   mockMediaUpdateMany: vi.fn(),
   mockMediaDeleteMany: vi.fn(),
@@ -36,10 +40,15 @@ const {
   mockDeleteR2Object: vi.fn(),
 }))
 
+vi.mock('#/lib/auth-helpers', () => ({
+  authSession: mockAuthSession,
+}))
+
 vi.mock('#/lib/prisma', () => ({
   prisma: {
     $transaction: mockTransaction,
     media: {
+      findUnique: mockMediaFindUnique,
       upsert: mockMediaUpsert,
       updateMany: mockMediaUpdateMany,
       deleteMany: mockMediaDeleteMany,
@@ -62,11 +71,17 @@ vi.mock('#/lib/r2', async (importOriginal) => {
 })
 
 describe('upload-actions (Cloudflare R2 + Media)', () => {
-  const originalR2PublicUrl = process.env.R2_PUBLIC_URL
+  const originalEnv = { ...process.env }
 
   beforeEach(() => {
     vi.clearAllMocks()
     delete process.env.R2_PUBLIC_URL
+    delete process.env.R2_ACCOUNT_ID
+    mockAuthSession.mockResolvedValue({
+      user: { id: 'admin-1', role: 'owner' },
+      session: { ipAddress: '127.0.0.1', userAgent: 'vitest' },
+    })
+    mockMediaFindUnique.mockResolvedValue(null)
     mockTransaction.mockImplementation(
       async (cb: (tx: unknown) => Promise<unknown>) =>
         await cb({
@@ -76,17 +91,14 @@ describe('upload-actions (Cloudflare R2 + Media)', () => {
           },
         }),
     )
+    mockMediaUpdateMany.mockResolvedValue({ count: 1 })
     mockMediaUpsert.mockResolvedValue({ id: 'media-1', objectKey: 'rooms/1.webp' })
     mockPutR2Object.mockResolvedValue(true)
     mockDeleteR2Object.mockResolvedValue(true)
   })
 
   afterEach(() => {
-    if (originalR2PublicUrl === undefined) {
-      delete process.env.R2_PUBLIC_URL
-    } else {
-      process.env.R2_PUBLIC_URL = originalR2PublicUrl
-    }
+    process.env = { ...originalEnv }
   })
 
   it('validates input helpers', () => {
@@ -116,8 +128,10 @@ describe('upload-actions (Cloudflare R2 + Media)', () => {
     })
 
     expect(res.mediaId).toBe('media-1')
-    expect(res.objectKey).toMatch(/^rooms\/\d+-ocean-suite\.webp$/)
-    expect(res.thumbnailKey).toMatch(/^rooms\/thumbs\/\d+-ocean-suite\.webp$/)
+    expect(res.objectKey).toMatch(/^rooms\/\d+-[a-f0-9]+-ocean-suite\.webp$/)
+    expect(res.thumbnailKey).toMatch(
+      /^rooms\/thumbs\/\d+-[a-f0-9]+-ocean-suite\.webp$/,
+    )
     expect(res.uploadUrl).toBe('https://r2.example.com/presigned-put')
     expect(res.publicUrl).toBe('https://cdn.example.com/rooms/photo.webp')
   })
@@ -156,7 +170,7 @@ describe('upload-actions (Cloudflare R2 + Media)', () => {
 
     const url = await uploadAvatarHandler({ data: formData })
 
-    expect(url).toMatch(/^\/uploads\/cms\/\d+-beach\.webp$/)
+    expect(url).toMatch(/^\/uploads\/cms\/\d+-[a-f0-9]+-beach\.webp$/)
     expect(url).not.toMatch(/^data:/)
     expect(mockPutR2Object).toHaveBeenCalled()
     expect(mockMediaUpdateMany).toHaveBeenCalledWith(
@@ -204,10 +218,40 @@ describe('upload-actions (Cloudflare R2 + Media)', () => {
     const res = await cleanupPendingMediaDeletionsHandler()
 
     expect(res).toEqual({ deletedCount: 1, failedCount: 1 })
-    expect(mockMediaDelete).toHaveBeenCalledWith({ where: { id: 'm1' } })
-    expect(mockMediaUpdate).toHaveBeenCalledWith({
-      where: { id: 'm2' },
-      data: { status: 'FAILED_DELETE' },
+    expect(mockMediaDeleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'm1', status: 'PENDING_DELETE' }),
+      }),
+    )
+    expect(mockMediaUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'm2', status: 'PENDING_DELETE' }),
+        data: { status: 'FAILED_DELETE' },
+      }),
+    )
+  })
+
+  it('skips deleting R2 object when another room or section still references it', async () => {
+    mockMediaFindUnique.mockResolvedValueOnce({
+      id: 'm-shared',
+      objectKey: 'rooms/shared.webp',
+      _count: {
+        roomMedia: 1,
+        businessMedia: 0,
+        bookingMedia: 0,
+        userProfiles: 0,
+      },
     })
+
+    const formData = new FormData()
+    formData.append(
+      'file',
+      new File(['bytes'], 'new.webp', { type: 'image/webp' }),
+    )
+    formData.append('oldImageUrl', 'rooms/shared.webp')
+
+    await uploadAvatarHandler({ data: formData })
+
+    expect(mockDeleteR2Object).not.toHaveBeenCalled()
   })
 })

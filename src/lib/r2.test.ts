@@ -15,6 +15,7 @@ describe('r2 helpers', () => {
     delete process.env.R2_ACCESS_KEY_ID
     delete process.env.R2_SECRET_ACCESS_KEY
     delete process.env.R2_BUCKET_NAME
+    delete process.env.R2_PRIVATE_BUCKET_NAME
     delete process.env.R2_PUBLIC_URL
   })
 

@@ -1,5 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
+import { authSession } from '#/lib/auth-helpers'
+import { hasPermission } from '#/lib/permissions'
 import {
   buildObjectKey,
   createR2PresignedDownloadUrl,
@@ -17,6 +19,19 @@ export function validateUploadAvatar(formData: FormData) {
   return formData
 }
 
+const ALLOWED_PUBLIC_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+])
+
+const ALLOWED_PRIVATE_MIME_TYPES = new Set([
+  ...ALLOWED_PUBLIC_IMAGE_MIME_TYPES,
+  'application/pdf',
+])
+
 export interface PresignedUploadInput {
   filename: string
   mimeType: string
@@ -33,6 +48,7 @@ export async function getPresignedUploadUrlHandler({
 }: {
   data: PresignedUploadInput
 }) {
+  const session = await authSession()
   const filename = data.filename.trim()
   if (!filename) {
     throw new Error('Filename is required')
@@ -40,7 +56,13 @@ export async function getPresignedUploadUrlHandler({
 
   const scope: MediaScope = data.scope ?? 'rooms'
   const isPrivate = scope === 'bookings'
-  const mimeType = data.mimeType.trim() || 'image/webp'
+  const mimeType = (data.mimeType.trim() || 'image/webp').toLowerCase()
+  const allowedMimes = isPrivate
+    ? ALLOWED_PRIVATE_MIME_TYPES
+    : ALLOWED_PUBLIC_IMAGE_MIME_TYPES
+  if (!allowedMimes.has(mimeType)) {
+    throw new Error(`Unsupported file MIME type: ${mimeType}`)
+  }
   const { objectKey, thumbnailKey } = buildObjectKey(scope, filename)
 
   const media = await prisma.$transaction(async (tx) => {
@@ -53,6 +75,7 @@ export async function getPresignedUploadUrlHandler({
         mimeType,
         sizeBytes: data.sizeBytes ?? null,
         status: 'PENDING_UPLOAD',
+        uploadedById: session.user.id,
       },
       update: {
         thumbnailKey,
@@ -94,12 +117,19 @@ export async function getPrivateMediaUrlHandler({
 }: {
   data: { objectKey: string }
 }) {
+  const session = await authSession()
+  if (!hasPermission(session.user, 'view:bookings')) {
+    throw new Error('Unauthorized: Insufficient permissions.')
+  }
   const key = extractObjectKey(data.objectKey)
   if (!key) {
     throw new Error('Object key is required')
   }
   const signedUrl = await createR2PresignedDownloadUrl({ objectKey: key })
-  return { url: signedUrl ?? `/uploads/${key}` }
+  if (!signedUrl) {
+    throw new Error('Private storage is not configured for signed downloads.')
+  }
+  return { url: signedUrl }
 }
 
 export const getPrivateMediaUrl = createServerFn({ method: 'POST' })
@@ -111,13 +141,48 @@ export const getPrivateMediaUrl = createServerFn({ method: 'POST' })
  */
 export async function deleteSingleR2Media(
   keyOrUrl: string,
-  isPrivate: boolean = false,
+  isPrivate?: boolean,
 ): Promise<void> {
   if (!isR2ManagedObjectKey(keyOrUrl)) return
   const objectKey = extractObjectKey(keyOrUrl)
   if (!objectKey) return
 
-  const prismaAny = prisma as unknown as { media?: typeof prisma.media }
+  const prismaAny = prisma as unknown as {
+    media?: typeof prisma.media
+    room?: typeof prisma.room
+    siteSection?: typeof prisma.siteSection
+  }
+
+  let targetIsPrivate =
+    isPrivate ?? objectKey.startsWith('private/bookings/')
+
+  // Do not delete an object if another room, section, booking, or user still references it
+  if (prismaAny.media && 'findUnique' in prismaAny.media) {
+    const existingMedia = await prismaAny.media.findUnique({
+      where: { objectKey },
+      include: {
+        _count: {
+          select: {
+            roomMedia: true,
+            businessMedia: true,
+            bookingMedia: true,
+            userProfiles: true,
+          },
+        },
+      },
+    })
+    if (existingMedia?.bucket === 'private') {
+      targetIsPrivate = true
+    }
+    const activeRefs =
+      (existingMedia?._count.roomMedia ?? 0) +
+      (existingMedia?._count.businessMedia ?? 0) +
+      (existingMedia?._count.bookingMedia ?? 0) +
+      (existingMedia?._count.userProfiles ?? 0)
+    if (activeRefs > 0) {
+      return
+    }
+  }
 
   if (prismaAny.media) {
     await prismaAny.media.updateMany({
@@ -130,7 +195,7 @@ export async function deleteSingleR2Media(
   }
 
   try {
-    await deleteR2Object({ objectKey, isPrivate })
+    await deleteR2Object({ objectKey, isPrivate: targetIsPrivate })
     if (prismaAny.media) {
       await prismaAny.media.deleteMany({
         where: { objectKey, status: 'PENDING_DELETE' },
@@ -214,7 +279,12 @@ export async function persistRoomImagesToR2(params: {
           import('node:fs/promises'),
           import('node:path'),
         ])
-        const destPath = path.join(process.cwd(), 'public', 'uploads', objectKey)
+        const destPath = path.join(
+          process.cwd(),
+          'public',
+          'uploads',
+          objectKey,
+        )
         await mkdir(path.dirname(destPath), { recursive: true })
         await writeFile(destPath, bytes)
       }
@@ -244,36 +314,60 @@ export async function persistRoomImagesToR2(params: {
   }
 
   const prismaAny = prisma as unknown as {
+    $transaction?: typeof prisma.$transaction
     media?: typeof prisma.media
     roomMedia?: typeof prisma.roomMedia
   }
   if (params.roomId && prismaAny.media && prismaAny.roomMedia) {
-    await prismaAny.roomMedia.deleteMany({ where: { roomId: params.roomId } })
-    for (const [idx, entry] of mediaEntries.entries()) {
-      const mediaRow = await prismaAny.media.upsert({
-        where: { objectKey: entry.objectKey },
-        create: {
-          objectKey: entry.objectKey,
-          thumbnailKey: entry.thumbnailKey,
-          bucket: 'public',
-          mimeType: entry.mimeType,
-          sizeBytes: entry.sizeBytes,
-          status: 'READY',
-          uploadedById: params.uploadedById ?? null,
-        },
-        update: {
-          thumbnailKey: entry.thumbnailKey,
-          status: 'READY',
-          deletedAt: null,
-        },
+    const seenKeys = new Set<string>()
+    const uniqueEntries = mediaEntries.filter((entry) => {
+      if (seenKeys.has(entry.objectKey)) return false
+      seenKeys.add(entry.objectKey)
+      return true
+    })
+
+    const syncAssociations = async (client: {
+      media: typeof prisma.media
+      roomMedia: typeof prisma.roomMedia
+    }) => {
+      await client.roomMedia.deleteMany({ where: { roomId: params.roomId } })
+      for (const [idx, entry] of uniqueEntries.entries()) {
+        const mediaRow = await client.media.upsert({
+          where: { objectKey: entry.objectKey },
+          create: {
+            objectKey: entry.objectKey,
+            thumbnailKey: entry.thumbnailKey,
+            bucket: 'public',
+            mimeType: entry.mimeType,
+            sizeBytes: entry.sizeBytes,
+            status: 'READY',
+            uploadedById: params.uploadedById ?? null,
+          },
+          update: {
+            thumbnailKey: entry.thumbnailKey,
+            status: 'READY',
+            deletedAt: null,
+          },
+        })
+        await client.roomMedia.create({
+          data: {
+            roomId: params.roomId!,
+            mediaId: mediaRow.id,
+            sortOrder: idx,
+            isPrimary: idx === 0,
+          },
+        })
+      }
+    }
+
+    if (typeof prismaAny.$transaction === 'function') {
+      await prismaAny.$transaction(async (tx) => {
+        await syncAssociations(tx)
       })
-      await prismaAny.roomMedia.create({
-        data: {
-          roomId: params.roomId,
-          mediaId: mediaRow.id,
-          sortOrder: idx,
-          isPrimary: idx === 0,
-        },
+    } else {
+      await syncAssociations({
+        media: prismaAny.media,
+        roomMedia: prismaAny.roomMedia,
       })
     }
   }
@@ -282,6 +376,7 @@ export async function persistRoomImagesToR2(params: {
 }
 
 export async function uploadAvatarHandler({ data }: { data: FormData }) {
+  const session = await authSession()
   const file = data.get('file') as File | null
   const oldImageUrl = data.get('oldImageUrl') as string | null
   const rawScope = (data.get('scope') as string | null)?.trim()
@@ -295,7 +390,13 @@ export async function uploadAvatarHandler({ data }: { data: FormData }) {
   }
 
   const isPrivate = scope === 'bookings'
-  const mimeType = file.type || 'image/webp'
+  const mimeType = (file.type || 'image/webp').toLowerCase()
+  const allowedMimes = isPrivate
+    ? ALLOWED_PRIVATE_MIME_TYPES
+    : ALLOWED_PUBLIC_IMAGE_MIME_TYPES
+  if (!allowedMimes.has(mimeType)) {
+    throw new Error(`Unsupported file MIME type: ${mimeType}`)
+  }
   const { objectKey, thumbnailKey } = buildObjectKey(
     scope,
     file.name || 'upload.webp',
@@ -304,7 +405,7 @@ export async function uploadAvatarHandler({ data }: { data: FormData }) {
   const arrayBuffer = await file.arrayBuffer()
   const bytes = new Uint8Array(arrayBuffer)
 
-  // 1. Store file in Cloudflare R2 (or local public/uploads disk fallback in dev — NEVER Base64 in DB)
+  // 1. Store file in Cloudflare R2 (or local public/uploads disk fallback for public dev assets — NEVER write private docs to public/)
   const uploadedToR2 = await putR2Object({
     objectKey,
     body: bytes,
@@ -312,7 +413,13 @@ export async function uploadAvatarHandler({ data }: { data: FormData }) {
     isPrivate,
   })
 
-  if (!uploadedToR2 && process.env.NODE_ENV !== 'test') {
+  if (!uploadedToR2 && isPrivate && process.env.NODE_ENV !== 'test') {
+    throw new Error(
+      'Private R2 storage must be configured to upload booking documents.',
+    )
+  }
+
+  if (!uploadedToR2 && !isPrivate && process.env.NODE_ENV !== 'test') {
     const [{ mkdir, writeFile }, path] = await Promise.all([
       import('node:fs/promises'),
       import('node:path'),
@@ -338,6 +445,7 @@ export async function uploadAvatarHandler({ data }: { data: FormData }) {
         mimeType,
         sizeBytes: file.size || bytes.byteLength,
         status: 'READY',
+        uploadedById: session.user.id,
       },
       update: {
         thumbnailKey,
@@ -359,20 +467,9 @@ export async function uploadAvatarHandler({ data }: { data: FormData }) {
     }
   })
 
-  // 3. Delete old R2 object ONLY AFTER DB transaction commits; mark FAILED_DELETE for cleanup job if R2 fails
+  // 3. Delete old R2 object ONLY AFTER DB transaction commits (respecting reference count)
   if (oldKey && oldKey !== objectKey) {
-    try {
-      await deleteR2Object({ objectKey: oldKey, isPrivate })
-      await prisma.media.deleteMany({
-        where: { objectKey: oldKey, status: 'PENDING_DELETE' },
-      })
-    } catch (err) {
-      console.warn('Deferred R2 deletion to cleanup job:', err)
-      await prisma.media.updateMany({
-        where: { objectKey: oldKey },
-        data: { status: 'FAILED_DELETE' },
-      })
-    }
+    await deleteSingleR2Media(oldKey, isPrivate)
   }
 
   return isPrivate ? objectKey : resolvePublicMediaUrl(objectKey)
@@ -391,6 +488,13 @@ export async function deleteUploadedMediaHandler({
 }: {
   data: { keyOrUrl: string }
 }) {
+  const session = await authSession()
+  if (
+    !hasPermission(session.user, 'update:rooms') &&
+    !hasPermission(session.user, 'manage:cms')
+  ) {
+    throw new Error('Unauthorized: Insufficient permissions.')
+  }
   await deleteSingleR2Media(data.keyOrUrl)
   return { success: true }
 }
@@ -406,6 +510,13 @@ export async function cleanupPendingMediaDeletionsHandler(): Promise<{
   deletedCount: number
   failedCount: number
 }> {
+  const session = await authSession()
+  if (
+    !hasPermission(session.user, 'delete:rooms') &&
+    !hasPermission(session.user, 'manage:cms')
+  ) {
+    throw new Error('Unauthorized: Insufficient permissions.')
+  }
   const pending = await prisma.media.findMany({
     where: {
       status: { in: ['PENDING_DELETE', 'FAILED_DELETE'] },
@@ -417,16 +528,46 @@ export async function cleanupPendingMediaDeletionsHandler(): Promise<{
   let failedCount = 0
 
   for (const item of pending) {
+    // Atomically claim the row only if it is still pending deletion and unreferenced
+    const claimDate = new Date()
+    const claimed = await prisma.media.updateMany({
+      where: {
+        id: item.id,
+        status: { in: ['PENDING_DELETE', 'FAILED_DELETE'] },
+        roomMedia: { none: {} },
+        businessMedia: { none: {} },
+        bookingMedia: { none: {} },
+        userProfiles: { none: {} },
+      },
+      data: {
+        status: 'PENDING_DELETE',
+        deletedAt: claimDate,
+      },
+    })
+    if (claimed.count === 0) continue
+
     try {
       await deleteR2Object({
         objectKey: item.objectKey,
-        isPrivate: item.bucket === 'private',
+        isPrivate:
+          item.bucket === 'private' ||
+          item.objectKey.startsWith('private/bookings/'),
       })
-      await prisma.media.delete({ where: { id: item.id } })
+      await prisma.media.deleteMany({
+        where: {
+          id: item.id,
+          status: 'PENDING_DELETE',
+          deletedAt: claimDate,
+        },
+      })
       deletedCount += 1
     } catch {
-      await prisma.media.update({
-        where: { id: item.id },
+      await prisma.media.updateMany({
+        where: {
+          id: item.id,
+          status: 'PENDING_DELETE',
+          deletedAt: claimDate,
+        },
         data: { status: 'FAILED_DELETE' },
       })
       failedCount += 1

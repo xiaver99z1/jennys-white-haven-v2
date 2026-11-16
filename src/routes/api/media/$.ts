@@ -30,10 +30,20 @@ export const Route = createFileRoute('/api/media/$')({
             return new Response('Not Found', { status: 404 })
           }
 
+          const safeContentType = [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/avif',
+            'image/gif',
+          ].includes(r2Obj.contentType.toLowerCase())
+            ? r2Obj.contentType
+            : 'image/jpeg'
+
           return new Response(Buffer.from(r2Obj.body), {
             status: 200,
             headers: {
-              'Content-Type': r2Obj.contentType,
+              'Content-Type': safeContentType,
               'Cache-Control': 'public, max-age=31536000, immutable',
               'X-Content-Type-Options': 'nosniff',
             },
