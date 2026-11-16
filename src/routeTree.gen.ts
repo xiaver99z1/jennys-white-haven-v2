@@ -30,6 +30,7 @@ import { Route as AdminReportsGuestsRouteImport } from './routes/admin/reports/g
 import { Route as AdminReportsOccupancyRouteImport } from './routes/admin/reports/occupancy'
 import { Route as AdminReportsRevenueRouteImport } from './routes/admin/reports/revenue'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiMediaSplatRouteImport } from './routes/api/media/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -136,6 +137,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMediaSplatRoute = ApiMediaSplatRouteImport.update({
+  id: '/api/media/$',
+  path: '/api/media/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
   '/admin/reports/revenue': typeof AdminReportsRevenueRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/media/$': typeof ApiMediaSplatRoute
   '/admin/reports/': typeof AdminReportsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -180,6 +187,7 @@ export interface FileRoutesByTo {
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
   '/admin/reports/revenue': typeof AdminReportsRevenueRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/media/$': typeof ApiMediaSplatRoute
   '/admin/reports': typeof AdminReportsIndexRoute
 }
 export interface FileRoutesById {
@@ -204,6 +212,7 @@ export interface FileRoutesById {
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
   '/admin/reports/revenue': typeof AdminReportsRevenueRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/media/$': typeof ApiMediaSplatRoute
   '/admin/reports/': typeof AdminReportsIndexRoute
 }
 export interface FileRouteTypes {
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/admin/reports/occupancy'
     | '/admin/reports/revenue'
     | '/api/auth/$'
+    | '/api/media/$'
     | '/admin/reports/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/admin/reports/occupancy'
     | '/admin/reports/revenue'
     | '/api/auth/$'
+    | '/api/media/$'
     | '/admin/reports'
   id:
     | '__root__'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/admin/reports/occupancy'
     | '/admin/reports/revenue'
     | '/api/auth/$'
+    | '/api/media/$'
     | '/admin/reports/'
   fileRoutesById: FileRoutesById
 }
@@ -285,6 +297,7 @@ export interface RootRouteChildren {
   RoomsIdRoute: typeof RoomsIdRoute
   RoomsIndexRoute: typeof RoomsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiMediaSplatRoute: typeof ApiMediaSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -436,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/media/$': {
+      id: '/api/media/$'
+      path: '/api/media/$'
+      fullPath: '/api/media/$'
+      preLoaderRoute: typeof ApiMediaSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -485,6 +505,7 @@ const rootRouteChildren: RootRouteChildren = {
   RoomsIdRoute: RoomsIdRoute,
   RoomsIndexRoute: RoomsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiMediaSplatRoute: ApiMediaSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

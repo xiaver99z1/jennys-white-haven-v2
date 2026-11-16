@@ -37,15 +37,29 @@ vi.mock('#/lib/logger', () => ({
   logActivity: mockLogActivity,
 }))
 
-vi.mock('#/lib/prisma', () => ({
-  prisma: {
+vi.mock('#/lib/prisma', () => {
+  const client = {
     siteSection: {
       findMany: mockFindMany,
+      findUnique: vi.fn().mockResolvedValue(null),
       upsert: mockUpsert,
       deleteMany: mockDeleteMany,
     },
-  },
-}))
+    media: {
+      upsert: vi.fn().mockResolvedValue({ id: 'm1' }),
+    },
+    businessMedia: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      create: vi.fn().mockResolvedValue({ id: 'bm1' }),
+    },
+  }
+  return {
+    prisma: {
+      ...client,
+      $transaction: vi.fn((cb: (tx: typeof client) => unknown) => cb(client)),
+    },
+  }
+})
 
 describe('cms-actions', () => {
   beforeEach(() => {

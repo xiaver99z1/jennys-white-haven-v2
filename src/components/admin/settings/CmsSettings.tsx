@@ -75,15 +75,43 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     if (found) loadSectionIntoForm(found)
   }
 
-  async function handleImageUpload(file: File | undefined) {
-    if (!file) return
+  async function handleImageUpload(
+    file: File | undefined,
+    replaceIndex?: number,
+  ) {
+    if (!file || !current) return
     setIsUploading(true)
     setError(null)
     try {
+      const isSingleImageSection =
+        current.key === 'hero' ||
+        current.key === 'story' ||
+        current.key === 'amenities'
+      const targetIndex =
+        replaceIndex ??
+        (isSingleImageSection && images.length > 0 ? 0 : undefined)
+      const oldImageUrl =
+        targetIndex !== undefined ? images.at(targetIndex) : undefined
+
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('scope', 'cms')
       const url = await uploadAvatar({ data: formData })
-      setImages((prev) => [...prev, url])
+      if (targetIndex !== undefined) {
+        setImages((prev) => {
+          if (oldImageUrl) {
+            const currentIdx = prev.indexOf(oldImageUrl)
+            if (currentIdx !== -1) {
+              return prev.map((item, idx) =>
+                idx === currentIdx ? url : item,
+              )
+            }
+          }
+          return prev.map((item, idx) => (idx === targetIndex ? url : item))
+        })
+      } else {
+        setImages((prev) => (prev.includes(url) ? prev : [...prev, url]))
+      }
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to upload image.'))
     } finally {
@@ -94,6 +122,12 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   function handleAddImageUrl() {
     const trimmed = newImageUrl.trim()
     if (!trimmed) return
+    if (trimmed.toLowerCase().startsWith('data:')) {
+      setError(
+        'Base64 data URLs cannot be stored in PostgreSQL. Please upload the image file or paste an HTTP/CDN URL.',
+      )
+      return
+    }
     setImages((prev) => [...prev, trimmed])
     setNewImageUrl('')
   }
@@ -510,10 +544,27 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         #{idx + 1} · {src}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
+                        <label
+                          aria-label={`Replace image ${idx + 1}`}
+                          className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition"
+                        >
+                          Replace
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              e.target.value = ''
+                              void handleImageUpload(file, idx)
+                            }}
+                          />
+                        </label>
                         <button
                           type="button"
                           onClick={() => handleMoveImage(idx, -1)}
-                          disabled={idx === 0}
+                          disabled={isUploading || idx === 0}
                           aria-label={`Move image ${idx + 1} up`}
                           className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
                         >
@@ -522,7 +573,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         <button
                           type="button"
                           onClick={() => handleMoveImage(idx, 1)}
-                          disabled={idx === images.length - 1}
+                          disabled={isUploading || idx === images.length - 1}
                           aria-label={`Move image ${idx + 1} down`}
                           className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
                         >
@@ -530,9 +581,10 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         </button>
                         <button
                           type="button"
+                          disabled={isUploading}
                           onClick={() => handleRemoveImage(idx)}
                           aria-label={`Remove image ${idx + 1}`}
-                          className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

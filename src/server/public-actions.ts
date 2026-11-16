@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { isValidCalendarDate, formatPeso } from '#/lib/formatters'
+import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
   calculateNights,
   generateBookingReference,
@@ -44,7 +45,9 @@ function serializeRoom(r: {
     capacity: r.capacity,
     pricePerNight: Number(r.pricePerNight),
     amenities: r.amenities,
-    images: r.images,
+    images: r.images
+      .filter((img) => Boolean(img.trim()) && !isBase64DataUrl(img))
+      .map((img) => resolvePublicMediaUrl(img)),
     status: r.status,
   }
 }

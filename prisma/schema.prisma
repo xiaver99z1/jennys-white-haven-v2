@@ -39,7 +39,11 @@ model User {
   payments               Payment[]
   notifications          Notification[]
   siteSections           SiteSection[]
+  profileMediaId         String?
+  profileMedia           Media?    @relation("UserProfileMedia", fields: [profileMediaId], references: [id], onDelete: SetNull)
+  uploadedMedia          Media[]   @relation("UploadedMedia")
 
+  @@index([profileMediaId])
   @@map("user")
 }
 
@@ -129,6 +133,7 @@ model Room {
   deletedAt     DateTime?  // NULL = active room, Timestamp = deleted/archived
 
   bookings      Booking[]
+  media         RoomMedia[]
 
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -203,6 +208,7 @@ model Booking {
   deletedAt        DateTime?
 
   payments         Payment[]
+  media            BookingMedia[]
 
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -265,9 +271,87 @@ model SiteSection {
   sortOrder   Int      @default(0)
   updatedById String?
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  media       BusinessMedia[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([isPublished, sortOrder])
   @@map("site_section")
+}
+
+// ======================
+// Cloudflare R2 Media Models
+// ======================
+
+enum MediaStatus {
+  PENDING_UPLOAD
+  READY
+  PENDING_DELETE
+  FAILED_DELETE
+}
+
+model Media {
+  id            String          @id @default(cuid())
+  objectKey     String          @unique
+  thumbnailKey  String?
+  bucket        String          @default("public") // "public" | "private"
+  mimeType      String          @default("image/webp")
+  sizeBytes     Int?
+  status        MediaStatus     @default(READY)
+  uploadedById  String?
+  uploadedBy    User?           @relation("UploadedMedia", fields: [uploadedById], references: [id], onDelete: SetNull)
+  userProfiles  User[]          @relation("UserProfileMedia")
+  roomMedia     RoomMedia[]
+  bookingMedia  BookingMedia[]
+  businessMedia BusinessMedia[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+
+  @@index([status])
+  @@index([bucket])
+  @@map("media")
+}
+
+model RoomMedia {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([roomId, mediaId])
+  @@index([roomId, sortOrder])
+  @@map("room_media")
+}
+
+model BookingMedia {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  category  String   @default("RECEIPT") // "RECEIPT" | "ID_DOCUMENT" | "OTHER"
+  createdAt DateTime @default(now())
+
+  @@unique([bookingId, mediaId])
+  @@index([bookingId])
+  @@map("booking_media")
+}
+
+model BusinessMedia {
+  id        String      @id @default(cuid())
+  sectionId String
+  section   SiteSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media       @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  sortOrder Int         @default(0)
+  createdAt DateTime    @default(now())
+
+  @@unique([sectionId, mediaId])
+  @@index([sectionId, sortOrder])
+  @@map("business_media")
 }
