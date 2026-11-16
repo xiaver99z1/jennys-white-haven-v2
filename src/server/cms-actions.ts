@@ -4,13 +4,26 @@ import { authSession } from '#/lib/auth-helpers'
 import { logActivity } from '#/lib/logger'
 import { requirePermission } from '#/server/room-actions'
 import { DEFAULT_CMS_SECTIONS } from '#/lib/constants/cms'
+import {
+  extractObjectKey,
+  isBase64DataUrl,
+  resolvePublicMediaUrl,
+} from '#/lib/r2'
+import { purgeReplacedR2Objects } from '#/server/upload'
 import type { CmsSectionData, CmsSectionKey } from '#/types'
 
 const VALID_KEYS = new Set<string>(DEFAULT_CMS_SECTIONS.map((s) => s.key))
 
 function toStringArray(val: unknown): string[] {
   if (!Array.isArray(val)) return []
-  return val.filter((item): item is string => typeof item === 'string')
+  return val
+    .filter(
+      (item): item is string =>
+        typeof item === 'string' &&
+        Boolean(item.trim()) &&
+        !isBase64DataUrl(item),
+    )
+    .map((item) => resolvePublicMediaUrl(item))
 }
 
 function toStringRecord(val: unknown): Record<string, string> {
@@ -62,10 +75,15 @@ function mergeWithDefaults(
 export async function getPublicCmsSectionsHandler(): Promise<
   CmsSectionData[]
 > {
-  const rows = await prisma.siteSection.findMany({
-    orderBy: { sortOrder: 'asc' },
-  })
-  return mergeWithDefaults(rows).filter((s) => s.isPublished)
+  try {
+    const rows = await prisma.siteSection.findMany({
+      orderBy: { sortOrder: 'asc' },
+    })
+    return mergeWithDefaults(rows).filter((s) => s.isPublished)
+  } catch (err) {
+    console.warn('Failed to load public CMS sections, using defaults:', err)
+    return DEFAULT_CMS_SECTIONS.filter((s) => s.isPublished)
+  }
 }
 
 export const getPublicCmsSections = createServerFn({ method: 'GET' }).handler(
@@ -74,11 +92,16 @@ export const getPublicCmsSections = createServerFn({ method: 'GET' }).handler(
 
 export async function getAdminCmsSectionsHandler(): Promise<CmsSectionData[]> {
   await requirePermission('manage:cms')
-  const rows = await prisma.siteSection.findMany({
-    orderBy: { sortOrder: 'asc' },
-    include: { updatedBy: { select: { name: true } } },
-  })
-  return mergeWithDefaults(rows)
+  try {
+    const rows = await prisma.siteSection.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: { updatedBy: { select: { name: true } } },
+    })
+    return mergeWithDefaults(rows)
+  } catch (err) {
+    console.warn('Failed to load admin CMS sections, using defaults:', err)
+    return DEFAULT_CMS_SECTIONS
+  }
 }
 
 export const getAdminCmsSections = createServerFn({ method: 'GET' }).handler(
@@ -118,42 +141,87 @@ export async function upsertCmsSectionHandler({
   }
 
   const def = DEFAULT_CMS_SECTIONS.find((s) => s.key === data.key)!
-  const cleanImages = data.images.map((u) => u.trim()).filter(Boolean)
+  if (data.images.some((u) => isBase64DataUrl(u))) {
+    throw new Error(
+      'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
+    )
+  }
+  const cleanImages = data.images
+    .map((u) => extractObjectKey(u))
+    .filter(Boolean)
   const cleanMeta: Record<string, string> = {}
   for (const [k, v] of Object.entries(data.metadata)) {
     cleanMeta[k] = v.trim()
   }
 
   const session = await authSession()
-
-  const saved = await prisma.siteSection.upsert({
+  const existingRow = await prisma.siteSection.findUnique({
     where: { key: data.key },
-    create: {
-      key: data.key,
-      title,
-      subtitle: data.subtitle?.trim() || null,
-      body: data.body?.trim() || null,
-      ctaLabel: data.ctaLabel?.trim() || null,
-      ctaHref: data.ctaHref?.trim() || null,
-      images: cleanImages,
-      metadata: cleanMeta,
-      isPublished: data.isPublished,
-      sortOrder: def.sortOrder,
-      updatedById: admin.id,
-    },
-    update: {
-      title,
-      subtitle: data.subtitle?.trim() || null,
-      body: data.body?.trim() || null,
-      ctaLabel: data.ctaLabel?.trim() || null,
-      ctaHref: data.ctaHref?.trim() || null,
-      images: cleanImages,
-      metadata: cleanMeta,
-      isPublished: data.isPublished,
-      updatedById: admin.id,
-    },
-    include: { updatedBy: { select: { name: true } } },
+    select: { images: true },
   })
+  const previousImages = Array.isArray(existingRow?.images)
+    ? existingRow.images.filter((i): i is string => typeof i === 'string')
+    : []
+
+  const saved = await prisma.$transaction(async (tx) => {
+    const upserted = await tx.siteSection.upsert({
+      where: { key: data.key },
+      create: {
+        key: data.key,
+        title,
+        subtitle: data.subtitle?.trim() || null,
+        body: data.body?.trim() || null,
+        ctaLabel: data.ctaLabel?.trim() || null,
+        ctaHref: data.ctaHref?.trim() || null,
+        images: cleanImages,
+        metadata: cleanMeta,
+        isPublished: data.isPublished,
+        sortOrder: def.sortOrder,
+        updatedById: admin.id,
+      },
+      update: {
+        title,
+        subtitle: data.subtitle?.trim() || null,
+        body: data.body?.trim() || null,
+        ctaLabel: data.ctaLabel?.trim() || null,
+        ctaHref: data.ctaHref?.trim() || null,
+        images: cleanImages,
+        metadata: cleanMeta,
+        isPublished: data.isPublished,
+        updatedById: admin.id,
+      },
+      include: { updatedBy: { select: { name: true } } },
+    })
+
+    await tx.businessMedia.deleteMany({ where: { sectionId: upserted.id } })
+    for (const [idx, objectKey] of cleanImages.entries()) {
+      const mediaRow = await tx.media.upsert({
+        where: { objectKey },
+        create: {
+          objectKey,
+          bucket: 'public',
+          mimeType: 'image/webp',
+          status: 'READY',
+          uploadedById: admin.id,
+        },
+        update: {
+          status: 'READY',
+          deletedAt: null,
+        },
+      })
+      await tx.businessMedia.create({
+        data: {
+          sectionId: upserted.id,
+          mediaId: mediaRow.id,
+          sortOrder: idx,
+        },
+      })
+    }
+
+    return upserted
+  })
+
+  await purgeReplacedR2Objects(previousImages, cleanImages)
 
   await logActivity({
     userId: admin.id,
@@ -201,7 +269,16 @@ export async function resetCmsSectionHandler({
   }
 
   const session = await authSession()
+  const existingRow = await prisma.siteSection.findUnique({
+    where: { key: data.key },
+    select: { images: true },
+  })
+  const previousImages = Array.isArray(existingRow?.images)
+    ? existingRow.images.filter((i): i is string => typeof i === 'string')
+    : []
+
   await prisma.siteSection.deleteMany({ where: { key: data.key } })
+  await purgeReplacedR2Objects(previousImages, [])
 
   await logActivity({
     userId: admin.id,

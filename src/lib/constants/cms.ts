@@ -118,9 +118,7 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     body: 'Thoughtfully designed spaces, warm tropical hospitality, and unhurried days beside crystal-clear waters.',
     ctaLabel: 'Explore Rooms',
     ctaHref: '/rooms',
-    images: [
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1800&q=80',
-    ],
+    images: [],
     metadata: {
       eyebrow: 'Camotes Island · Cebu, Philippines',
     },
@@ -134,9 +132,7 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     body: "Tucked away in Camotes Island, Jenny's White Haven pairs serene minimalist architecture with genuine Filipino warmth. Wake up to soft coastal light, spend your afternoon by the shore, and return to crisp linens and quiet comfort.",
     ctaLabel: 'Check Availability',
     ctaHref: '/rooms',
-    images: [
-      'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1400&q=80',
-    ],
+    images: [],
     metadata: {
       eyebrow: 'The Sanctuary',
       highlight: 'Quiet mornings by the sea, unhurried island afternoons.',
@@ -166,9 +162,7 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     body: 'From seamless port-to-haven transfers to curated local recommendations across Camotes Island, our team takes care of the details so you can simply unwind.',
     ctaLabel: 'Book Your Stay',
     ctaHref: '/rooms',
-    images: [
-      'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=1400&q=80',
-    ],
+    images: [],
     metadata: {
       items:
         'Air-Conditioned Coastal Rooms, High-Speed Fiber Wi-Fi, Private En-Suite Bath, Fresh Linens & Bath Essentials, Port Transfer Assistance, Curated Island Tour Tips',
@@ -183,11 +177,7 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     body: '',
     ctaLabel: '',
     ctaHref: '',
-    images: [
-      'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=1200&q=80',
-    ],
+    images: [],
     metadata: {
       eyebrow: 'Atmosphere',
     },

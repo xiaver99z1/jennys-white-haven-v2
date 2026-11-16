@@ -4,6 +4,11 @@ import { hasPermission } from '#/lib/permissions'
 import { logActivity } from '#/lib/logger'
 import type { RoomStatus } from '@prisma/client'
 import { authSession } from '#/lib/auth-helpers'
+import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
+import {
+  persistRoomImagesToR2,
+  purgeReplacedR2Objects,
+} from '#/server/upload'
 
 // Helper for server-side authorization with strict permission typing
 export async function requirePermission(
@@ -40,6 +45,14 @@ export async function getRoomsListHandler() {
   return rooms.map((room) => ({
     ...room,
     pricePerNight: Number(room.pricePerNight),
+    images: room.images
+      .filter(
+        (img) =>
+          Boolean(img.trim()) &&
+          !isBase64DataUrl(img) &&
+          !img.includes('vercel-storage.com'),
+      )
+      .map((img) => resolvePublicMediaUrl(img)),
   }))
 }
 
@@ -85,6 +98,14 @@ export async function createRoomHandler({
     throw new Error(`Room number "${data.roomNumber}" already exists.`)
   }
 
+  const uploadedImages = data.images
+    ? await persistRoomImagesToR2({
+        roomNumber: data.roomNumber.trim(),
+        images: data.images,
+        uploadedById: admin.id,
+      })
+    : []
+
   const room = await prisma.room.create({
     data: {
       roomNumber: data.roomNumber.trim(),
@@ -94,9 +115,18 @@ export async function createRoomHandler({
       capacity: data.capacity,
       pricePerNight: data.pricePerNight,
       amenities: data.amenities,
-      images: data.images || [],
+      images: uploadedImages,
     },
   })
+
+  if (uploadedImages.length > 0) {
+    await persistRoomImagesToR2({
+      roomId: room.id,
+      roomNumber: room.roomNumber,
+      images: uploadedImages,
+      uploadedById: admin.id,
+    })
+  }
 
   const imageNames = getImageNames(data.images)
 
@@ -125,6 +155,7 @@ export async function createRoomHandler({
     room: {
       ...room,
       pricePerNight: Number(room.pricePerNight),
+      images: room.images.map((img) => resolvePublicMediaUrl(img)),
     },
   }
 }
@@ -172,6 +203,15 @@ export async function updateRoomHandler({
   })
   if (!existingRoom) throw new Error('Room not found.')
 
+  const nextImages = data.images
+    ? await persistRoomImagesToR2({
+        roomId: existingRoom.id,
+        roomNumber: data.roomNumber ?? existingRoom.roomNumber,
+        images: data.images,
+        uploadedById: admin.id,
+      })
+    : undefined
+
   const updatedRoom = await prisma.room.update({
     where: { id: data.id },
     data: {
@@ -183,9 +223,13 @@ export async function updateRoomHandler({
       pricePerNight: data.pricePerNight,
       status: data.status,
       amenities: data.amenities,
-      images: data.images,
+      images: nextImages,
     },
   })
+
+  if (nextImages) {
+    await purgeReplacedR2Objects(existingRoom.images, nextImages)
+  }
 
   const changes: string[] = []
 
@@ -277,6 +321,7 @@ export async function updateRoomHandler({
     room: {
       ...updatedRoom,
       pricePerNight: Number(updatedRoom.pricePerNight),
+      images: updatedRoom.images.map((img) => resolvePublicMediaUrl(img)),
     },
   }
 }
