@@ -36,7 +36,7 @@ export function NotFoundPage({ variant = 'public' }: NotFoundPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4] text-stone-900 flex flex-col items-center justify-center px-6 py-16 text-center">
+    <main className="min-h-screen bg-[#FAF8F4] text-stone-900 flex flex-col items-center justify-center px-6 py-16 text-center">
       <div className="max-w-lg space-y-6">
         <p className="text-[11px] uppercase tracking-[0.28em] text-amber-800 font-semibold">
           Jenny&apos;s White Haven · 404
@@ -64,6 +64,6 @@ export function NotFoundPage({ variant = 'public' }: NotFoundPageProps) {
           </Link>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

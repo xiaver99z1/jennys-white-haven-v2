@@ -77,7 +77,16 @@ export function ProfileSettings() {
   // Handle Avatar Image Upload & Preview
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setMessage({
+        type: 'error',
+        text: 'Please select a valid image file (JPG, PNG, WEBP, GIF).',
+      })
+      return
+    }
 
     if (file.size > 5 * 1024 * 1024) {
       setMessage({ type: 'error', text: 'Image size must be less than 5MB' })
@@ -306,6 +315,7 @@ export function ProfileSettings() {
               type="file"
               accept="image/*"
               className="hidden"
+              disabled={avatarLoading}
               onChange={handleAvatarChange}
             />
           </label>
@@ -335,7 +345,8 @@ export function ProfileSettings() {
             <button
               type="button"
               onClick={handleCancelAvatar}
-              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-medium rounded-lg transition cursor-pointer"
+              disabled={avatarLoading}
+              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>

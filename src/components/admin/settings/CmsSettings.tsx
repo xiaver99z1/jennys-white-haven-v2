@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import {
@@ -29,6 +29,7 @@ interface CmsSettingsProps {
 
 export function CmsSettings({ initialSections }: CmsSettingsProps) {
   const router = useRouter()
+  const uploadInputRef = useRef<HTMLInputElement>(null)
   const [sections, setSections] = useState<CmsSectionData[]>(initialSections)
   const [activeKey, setActiveKey] = useState<CmsSectionKey>(
     initialSections.at(0)?.key ?? 'hero',
@@ -80,6 +81,10 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     replaceIndex?: number,
   ) {
     if (!file || !current) return
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (JPG, PNG, WEBP, GIF).')
+      return
+    }
     setIsUploading(true)
     setError(null)
     try {
@@ -488,25 +493,32 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                     used as the primary photo.
                   </p>
                 </div>
-                <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition self-start">
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => uploadInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition self-start disabled:opacity-50"
+                >
                   {isUploading ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <ImagePlus className="w-3.5 h-3.5" />
                   )}
                   {isUploading ? 'Uploading...' : 'Upload Image'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={isUploading}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      e.target.value = ''
-                      void handleImageUpload(file)
-                    }}
-                  />
-                </label>
+                </button>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  accept="image/*"
+                  tabIndex={-1}
+                  className="hidden"
+                  disabled={isUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    void handleImageUpload(file)
+                  }}
+                />
               </div>
 
               <div className="flex gap-2">
@@ -545,23 +557,31 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                           #{idx + 1} · {src}
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
-                          <label
+                          <button
+                            type="button"
+                            disabled={isUploading}
                             aria-label={`Replace image ${idx + 1}`}
-                            className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition"
+                            onClick={(e) => {
+                              const input = e.currentTarget
+                                .nextElementSibling as HTMLInputElement | null
+                              input?.click()
+                            }}
+                            className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
                           >
                             Replace
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={isUploading}
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                e.target.value = ''
-                                void handleImageUpload(file, idx)
-                              }}
-                            />
-                          </label>
+                          </button>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            tabIndex={-1}
+                            className="hidden"
+                            disabled={isUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              e.target.value = ''
+                              void handleImageUpload(file, idx)
+                            }}
+                          />
                           <button
                             type="button"
                             onClick={() => handleMoveImage(idx, -1)}

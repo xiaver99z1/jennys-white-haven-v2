@@ -58,6 +58,76 @@ export function validateSaveProfileAvatar(data: { image: string | null }) {
   return data
 }
 
+/**
+ * Inspects decoded file header magic bytes so we never trust client-supplied MIME types.
+ */
+function detectImageFormat(
+  bytes: Uint8Array,
+): { mimeType: string; ext: string } | null {
+  if (bytes.byteLength >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return { mimeType: 'image/jpeg', ext: 'jpg' }
+  }
+  if (
+    bytes.byteLength >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return { mimeType: 'image/png', ext: 'png' }
+  }
+  if (
+    bytes.byteLength >= 6 &&
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x38 &&
+    (bytes[4] === 0x37 || bytes[4] === 0x39) &&
+    bytes[5] === 0x61
+  ) {
+    return { mimeType: 'image/gif', ext: 'gif' }
+  }
+  if (
+    bytes.byteLength >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return { mimeType: 'image/webp', ext: 'webp' }
+  }
+  if (
+    bytes.byteLength >= 12 &&
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70 &&
+    bytes[8] === 0x61 &&
+    bytes[9] === 0x76 &&
+    bytes[10] === 0x69 &&
+    bytes[11] === 0x66
+  ) {
+    return { mimeType: 'image/avif', ext: 'avif' }
+  }
+  return null
+}
+
+const ALLOWED_AVATAR_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+])
+
 export async function saveProfileAvatarHandler({
   data,
 }: {
@@ -72,12 +142,18 @@ export async function saveProfileAvatarHandler({
 
     const raw = data.image?.trim() ?? ''
     if (!raw) {
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: { image: null, profileMediaId: null },
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: session.user.id },
+          data: { image: null, profileMediaId: null },
+        })
       })
       if (existingUser?.image && isR2ManagedObjectKey(existingUser.image)) {
-        await deleteSingleR2Media(existingUser.image)
+        try {
+          await deleteSingleR2Media(existingUser.image)
+        } catch (cleanupErr) {
+          console.warn('Deferred old avatar cleanup:', cleanupErr)
+        }
       }
       return { success: true, image: null }
     }
@@ -87,11 +163,25 @@ export async function saveProfileAvatarHandler({
     let sizeBytes: number | null = null
 
     if (isBase64DataUrl(raw)) {
-      const match = /^data:([^;]+);base64,(.+)$/s.exec(raw)
-      mimeType = (match?.[1] || 'image/webp').toLowerCase()
-      const base64Data = match?.[2] || ''
-      const ext = (mimeType.split('/')[1] || 'webp').replace('jpeg', 'jpg')
+      const match = /^data:([^;]+);base64,([A-Za-z0-9+/=\s]+)$/s.exec(raw)
+      if (!match) {
+        throw new Error('Invalid image data URL')
+      }
+      const declaredMime = match[1].trim().toLowerCase()
+      if (!ALLOWED_AVATAR_MIME_TYPES.has(declaredMime)) {
+        throw new Error(`Unsupported avatar image type: ${declaredMime}`)
+      }
+      const base64Data = match[2]
       const bytes = new Uint8Array(Buffer.from(base64Data, 'base64'))
+      if (bytes.byteLength === 0 || bytes.byteLength > 5 * 1024 * 1024) {
+        throw new Error('Avatar image must be between 1 byte and 5MB')
+      }
+      const detected = detectImageFormat(bytes)
+      if (!detected) {
+        throw new Error('Decoded avatar bytes do not match an allowed image format')
+      }
+      mimeType = detected.mimeType
+      const ext = detected.ext
       sizeBytes = bytes.byteLength
       const built = buildObjectKey('avatars', `avatar.${ext}`)
       objectKey = built.objectKey
@@ -157,7 +247,11 @@ export async function saveProfileAvatarHandler({
       isR2ManagedObjectKey(existingUser.image) &&
       extractObjectKey(existingUser.image) !== objectKey
     ) {
-      await deleteSingleR2Media(existingUser.image)
+      try {
+        await deleteSingleR2Media(existingUser.image)
+      } catch (cleanupErr) {
+        console.warn('Deferred old avatar cleanup:', cleanupErr)
+      }
     }
 
     return { success: true, image: displayUrl }

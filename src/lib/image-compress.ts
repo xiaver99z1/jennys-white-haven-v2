@@ -58,7 +58,9 @@ export async function compressImageForUpload(
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob((b) => resolve(b), 'image/webp', quality),
       )
-      if (!blob || blob.size === 0) return file
+      if (!blob || blob.size === 0 || blob.type !== 'image/webp') {
+        return file
+      }
 
       const baseName = file.name.replace(/\.[^.]+$/, '') || 'upload'
       return new File([blob], `${baseName}.webp`, { type: 'image/webp' })

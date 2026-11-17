@@ -163,6 +163,21 @@ describe('profile-actions handlers and validators', () => {
         }),
       )
     })
+
+    it('rejects non-image base64 data URLs such as text/html or image/svg+xml', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce(mockUserSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        image: null,
+        profileMediaId: null,
+      } as any)
+
+      const res = await saveProfileAvatarHandler({
+        data: { image: 'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==' },
+      })
+
+      expect(res.success).toBe(false)
+      expect(res.error).toContain('Unsupported avatar image type')
+    })
   })
 })
 
