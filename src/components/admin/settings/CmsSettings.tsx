@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { CMS_SECTION_META } from '#/lib/constants/cms'
 import { formatShortDate, getErrorMessage } from '#/lib/formatters'
+import { compressImageForUpload } from '#/lib/image-compress'
 import { resetCmsSection, upsertCmsSection } from '#/server/cms-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
@@ -28,13 +29,13 @@ interface CmsSettingsProps {
 
 export function CmsSettings({ initialSections }: CmsSettingsProps) {
   const router = useRouter()
+  const uploadInputRef = useRef<HTMLInputElement>(null)
   const [sections, setSections] = useState<CmsSectionData[]>(initialSections)
   const [activeKey, setActiveKey] = useState<CmsSectionKey>(
     initialSections.at(0)?.key ?? 'hero',
   )
 
-  const current =
-    sections.find((s) => s.key === activeKey) ?? sections.at(0)
+  const current = sections.find((s) => s.key === activeKey) ?? sections.at(0)
 
   const [title, setTitle] = useState(current?.title ?? '')
   const [subtitle, setSubtitle] = useState(current?.subtitle ?? '')
@@ -80,6 +81,10 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     replaceIndex?: number,
   ) {
     if (!file || !current) return
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (JPG, PNG, WEBP, GIF).')
+      return
+    }
     setIsUploading(true)
     setError(null)
     try {
@@ -93,8 +98,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       const oldImageUrl =
         targetIndex !== undefined ? images.at(targetIndex) : undefined
 
+      const compressedFile = await compressImageForUpload(file)
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', compressedFile)
       formData.append('scope', 'cms')
       const url = await uploadAvatar({ data: formData })
       if (targetIndex !== undefined) {
@@ -102,9 +108,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
           if (oldImageUrl) {
             const currentIdx = prev.indexOf(oldImageUrl)
             if (currentIdx !== -1) {
-              return prev.map((item, idx) =>
-                idx === currentIdx ? url : item,
-              )
+              return prev.map((item, idx) => (idx === currentIdx ? url : item))
             }
           }
           return prev.map((item, idx) => (idx === targetIndex ? url : item))
@@ -192,9 +196,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       )
       loadSectionIntoForm(res.section)
       setConfirmResetOpen(false)
-      setSuccessMsg(
-        `${CMS_SECTION_META[current.key].label} reset to defaults.`,
-      )
+      setSuccessMsg(`${CMS_SECTION_META[current.key].label} reset to defaults.`)
       await router.invalidate()
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to reset section.'))
@@ -234,9 +236,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
 
       {/* Section Tabs + Editor */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Section Selector */}
-        <aside className="lg:col-span-4 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-3 space-y-1">
-          <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+        {/* Responsive Section Selector: sticky horizontal pills on mobile, sticky vertical list on desktop */}
+        <aside className="sticky top-0 z-20 lg:top-6 lg:col-span-4 bg-white/95 backdrop-blur-xs rounded-2xl border border-stone-200/80 shadow-sm p-2 sm:p-3 flex lg:flex-col gap-1.5 lg:gap-1 overflow-x-auto lg:overflow-visible">
+          <div className="hidden lg:block px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-stone-400">
             Public Site Sections
           </div>
           {sections.map((section) => {
@@ -248,7 +250,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                 type="button"
                 disabled={isUploading || isSaving || isResetting}
                 onClick={() => handleSelectSection(section.key)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                className={`shrink-0 lg:shrink lg:w-full text-left px-3 py-2 lg:py-2.5 rounded-xl transition flex items-center justify-between gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                   isSelected
                     ? 'bg-stone-900 text-white shadow-xs'
                     : 'text-stone-700 hover:bg-stone-100'
@@ -259,7 +261,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                     {sectionMeta.label}
                   </div>
                   <div
-                    className={`text-[11px] truncate ${
+                    className={`hidden lg:block text-[11px] truncate ${
                       isSelected ? 'text-stone-300' : 'text-stone-400'
                     }`}
                   >
@@ -267,7 +269,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                   </div>
                 </div>
                 <span
-                  className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                  className={`hidden lg:inline-flex shrink-0 items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                     section.isPublished
                       ? isSelected
                         ? 'bg-emerald-500/20 text-emerald-200'
@@ -297,207 +299,219 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
         {/* Active Section Form */}
         <form
           onSubmit={handleSave}
-          className="lg:col-span-8 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-6"
+          className="lg:col-span-8 min-w-0 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-4 sm:p-6"
         >
           <fieldset
             disabled={isSaving || isResetting}
             className="space-y-6 disabled:opacity-80"
           >
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-stone-100">
-            <div>
-              <h2 className="text-lg font-bold text-stone-900">{meta.label}</h2>
-              <p className="text-xs text-stone-500">{meta.description}</p>
-              {current.updatedAt && (
-                <p className="text-[11px] text-stone-400 mt-1">
-                  Last updated {formatShortDate(current.updatedAt)}
-                  {current.updatedByName ? ` by ${current.updatedByName}` : ''}
-                </p>
-              )}
-            </div>
-
-            <label className="inline-flex items-center gap-2.5 px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer self-start">
-              <input
-                type="checkbox"
-                checked={isPublished}
-                onChange={(e) => setIsPublished(e.target.checked)}
-                className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
-              />
-              <span className="text-xs font-semibold text-stone-700">
-                Published on site
-              </span>
-            </label>
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700"
-            >
-              {error}
-            </div>
-          )}
-
-          {successMsg && (
-            <div
-              role="status"
-              className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800 flex items-center gap-2"
-            >
-              <Check className="w-4 h-4 shrink-0" />
-              {successMsg}
-            </div>
-          )}
-
-          {/* Primary Content Fields */}
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label
-                htmlFor="cms-title"
-                className="block text-xs font-semibold text-stone-700 mb-1.5"
-              >
-                Section Title <span className="text-rose-500">*</span>
-              </label>
-              <input
-                id="cms-title"
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="cms-subtitle"
-                className="block text-xs font-semibold text-stone-700 mb-1.5"
-              >
-                Subtitle
-              </label>
-              <input
-                id="cms-subtitle"
-                type="text"
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="cms-body"
-                className="block text-xs font-semibold text-stone-700 mb-1.5"
-              >
-                Body Copy
-              </label>
-              <textarea
-                id="cms-body"
-                rows={4}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-stone-100">
               <div>
-                <label
-                  htmlFor="cms-cta-label"
-                  className="block text-xs font-semibold text-stone-700 mb-1.5"
-                >
-                  Button / CTA Label
-                </label>
-                <input
-                  id="cms-cta-label"
-                  type="text"
-                  value={ctaLabel}
-                  onChange={(e) => setCtaLabel(e.target.value)}
-                  placeholder="Explore Rooms"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="cms-cta-href"
-                  className="block text-xs font-semibold text-stone-700 mb-1.5"
-                >
-                  Button / CTA Link
-                </label>
-                <input
-                  id="cms-cta-href"
-                  type="text"
-                  value={ctaHref}
-                  onChange={(e) => setCtaHref(e.target.value)}
-                  placeholder="/rooms"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section-Specific Metadata Fields */}
-          {meta.metadataFields.length > 0 && (
-            <div className="pt-4 border-t border-stone-100 space-y-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
-                Section Details
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {meta.metadataFields.map((field) => (
-                  <div
-                    key={field.key}
-                    className={
-                      field.key === 'items' || field.key === 'paymentInfo'
-                        ? 'sm:col-span-2'
-                        : ''
-                    }
-                  >
-                    <label
-                      htmlFor={`cms-meta-${field.key}`}
-                      className="block text-xs font-semibold text-stone-700 mb-1.5"
-                    >
-                      {field.label}
-                    </label>
-                    <input
-                      id={`cms-meta-${field.key}`}
-                      type="text"
-                      value={metadata[field.key] ?? ''}
-                      placeholder={field.placeholder}
-                      onChange={(e) =>
-                        setMetadata((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Images Manager */}
-          <div className="pt-4 border-t border-stone-100 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
-                  Section Images ({images.length})
-                </h3>
-                <p className="text-[11px] text-stone-400">
-                  Upload photography or paste image URLs. The first image is
-                  used as the primary photo.
-                </p>
-              </div>
-              <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition self-start">
-                {isUploading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <ImagePlus className="w-3.5 h-3.5" />
+                <h2 className="text-lg font-bold text-stone-900">
+                  {meta.label}
+                </h2>
+                <p className="text-xs text-stone-500">{meta.description}</p>
+                {current.updatedAt && (
+                  <p className="text-[11px] text-stone-400 mt-1">
+                    Last updated {formatShortDate(current.updatedAt)}
+                    {current.updatedByName
+                      ? ` by ${current.updatedByName}`
+                      : ''}
+                  </p>
                 )}
-                {isUploading ? 'Uploading...' : 'Upload Image'}
+              </div>
+
+              <label className="inline-flex items-center gap-2.5 px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer self-start">
                 <input
+                  type="checkbox"
+                  checked={isPublished}
+                  onChange={(e) => setIsPublished(e.target.checked)}
+                  className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
+                />
+                <span className="text-xs font-semibold text-stone-700">
+                  Published on site
+                </span>
+              </label>
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700"
+              >
+                {error}
+              </div>
+            )}
+
+            {successMsg && (
+              <div
+                role="status"
+                className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4 shrink-0" />
+                {successMsg}
+              </div>
+            )}
+
+            {/* Primary Content Fields */}
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label
+                  htmlFor="cms-title"
+                  className="block text-xs font-semibold text-stone-700 mb-1.5"
+                >
+                  Section Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="cms-title"
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="cms-subtitle"
+                  className="block text-xs font-semibold text-stone-700 mb-1.5"
+                >
+                  Subtitle
+                </label>
+                <input
+                  id="cms-subtitle"
+                  type="text"
+                  value={subtitle}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="cms-body"
+                  className="block text-xs font-semibold text-stone-700 mb-1.5"
+                >
+                  Body Copy
+                </label>
+                <textarea
+                  id="cms-body"
+                  rows={4}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="cms-cta-label"
+                    className="block text-xs font-semibold text-stone-700 mb-1.5"
+                  >
+                    Button / CTA Label
+                  </label>
+                  <input
+                    id="cms-cta-label"
+                    type="text"
+                    value={ctaLabel}
+                    onChange={(e) => setCtaLabel(e.target.value)}
+                    placeholder="Explore Rooms"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="cms-cta-href"
+                    className="block text-xs font-semibold text-stone-700 mb-1.5"
+                  >
+                    Button / CTA Link
+                  </label>
+                  <input
+                    id="cms-cta-href"
+                    type="text"
+                    value={ctaHref}
+                    onChange={(e) => setCtaHref(e.target.value)}
+                    placeholder="/rooms"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section-Specific Metadata Fields */}
+            {meta.metadataFields.length > 0 && (
+              <div className="pt-4 border-t border-stone-100 space-y-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+                  Section Details
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {meta.metadataFields.map((field) => (
+                    <div
+                      key={field.key}
+                      className={
+                        field.key === 'items' || field.key === 'paymentInfo'
+                          ? 'sm:col-span-2'
+                          : ''
+                      }
+                    >
+                      <label
+                        htmlFor={`cms-meta-${field.key}`}
+                        className="block text-xs font-semibold text-stone-700 mb-1.5"
+                      >
+                        {field.label}
+                      </label>
+                      <input
+                        id={`cms-meta-${field.key}`}
+                        type="text"
+                        value={metadata[field.key] ?? ''}
+                        placeholder={field.placeholder}
+                        onChange={(e) =>
+                          setMetadata((prev) => ({
+                            ...prev,
+                            [field.key]: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Images Manager */}
+            <div className="pt-4 border-t border-stone-100 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+                    Section Images ({images.length})
+                  </h3>
+                  <p className="text-[11px] text-stone-400">
+                    Upload photography or paste image URLs. The first image is
+                    used as the primary photo.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => uploadInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition self-start disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="w-3.5 h-3.5" />
+                  )}
+                  {isUploading ? 'Uploading...' : 'Upload Image'}
+                </button>
+                <input
+                  ref={uploadInputRef}
                   type="file"
                   accept="image/*"
-                  className="sr-only"
+                  tabIndex={-1}
+                  className="hidden"
                   disabled={isUploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
@@ -505,54 +519,62 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                     void handleImageUpload(file)
                   }}
                 />
-              </label>
-            </div>
+              </div>
 
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                placeholder="https://... paste an image URL"
-                className="flex-1 px-3.5 py-2 rounded-xl border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-              />
-              <button
-                type="button"
-                onClick={handleAddImageUrl}
-                disabled={!newImageUrl.trim()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-xs font-semibold text-stone-700 transition disabled:opacity-50 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add URL
-              </button>
-            </div>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  placeholder="https://... paste an image URL"
+                  className="flex-1 px-3.5 py-2 rounded-xl border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddImageUrl}
+                  disabled={!newImageUrl.trim()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-xs font-semibold text-stone-700 transition disabled:opacity-50 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add URL
+                </button>
+              </div>
 
-            {images.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {images.map((src, idx) => (
-                  <div
-                    key={`${src}-${idx}`}
-                    className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
-                  >
-                    <img
-                      src={src}
-                      alt={`${meta.label} ${idx + 1}`}
-                      className="w-full h-36 object-cover"
-                    />
-                    <div className="p-2 flex items-center justify-between gap-2 bg-white border-t border-stone-100">
-                      <span className="text-[11px] text-stone-500 truncate">
-                        #{idx + 1} · {src}
-                      </span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <label
-                          aria-label={`Replace image ${idx + 1}`}
-                          className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition"
-                        >
-                          Replace
+              {images.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {images.map((src, idx) => (
+                    <div
+                      key={`${src}-${idx}`}
+                      className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
+                    >
+                      <img
+                        src={src}
+                        alt={`${meta.label} ${idx + 1}`}
+                        className="w-full h-36 object-cover"
+                      />
+                      <div className="p-2 flex items-center justify-between gap-2 bg-white border-t border-stone-100">
+                        <span className="text-[11px] text-stone-500 truncate">
+                          #{idx + 1} · {src}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            disabled={isUploading}
+                            aria-label={`Replace image ${idx + 1}`}
+                            onClick={(e) => {
+                              const input = e.currentTarget
+                                .nextElementSibling as HTMLInputElement | null
+                              input?.click()
+                            }}
+                            className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
+                          >
+                            Replace
+                          </button>
                           <input
                             type="file"
                             accept="image/*"
-                            className="sr-only"
+                            tabIndex={-1}
+                            className="hidden"
                             disabled={isUploading}
                             onChange={(e) => {
                               const file = e.target.files?.[0]
@@ -560,67 +582,66 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                               void handleImageUpload(file, idx)
                             }}
                           />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveImage(idx, -1)}
-                          disabled={isUploading || idx === 0}
-                          aria-label={`Move image ${idx + 1} up`}
-                          className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                        >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveImage(idx, 1)}
-                          disabled={isUploading || idx === images.length - 1}
-                          aria-label={`Move image ${idx + 1} down`}
-                          className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isUploading}
-                          onClick={() => handleRemoveImage(idx)}
-                          aria-label={`Remove image ${idx + 1}`}
-                          className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveImage(idx, -1)}
+                            disabled={isUploading || idx === 0}
+                            aria-label={`Move image ${idx + 1} up`}
+                            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveImage(idx, 1)}
+                            disabled={isUploading || idx === images.length - 1}
+                            aria-label={`Move image ${idx + 1} down`}
+                            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isUploading}
+                            onClick={() => handleRemoveImage(idx)}
+                            aria-label={`Remove image ${idx + 1}`}
+                            className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Footer Actions */}
-          <div className="pt-4 border-t border-stone-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setConfirmResetOpen(true)}
-              disabled={isSaving || isResetting}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer disabled:opacity-50"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset to Defaults
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSaving || isUploading}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-xs font-semibold text-white shadow-xs transition cursor-pointer disabled:opacity-50"
-            >
-              {isSaving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5" />
+                  ))}
+                </div>
               )}
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-4 border-t border-stone-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmResetOpen(true)}
+                disabled={isSaving || isResetting}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer disabled:opacity-50"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset to Defaults
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSaving || isUploading}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-xs font-semibold text-white shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </fieldset>
         </form>
       </div>

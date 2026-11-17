@@ -2,7 +2,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ProfileSettings } from './ProfileSettings'
 import { authClient } from '#/lib/auth-client'
-import { logProfileActivity } from '#/server/profile-actions'
+import {
+  logProfileActivity,
+  saveProfileAvatar,
+} from '#/server/profile-actions'
+import { uploadAvatar } from '#/server/upload'
 
 vi.mock('#/lib/auth-client', () => ({
   authClient: {
@@ -14,6 +18,15 @@ vi.mock('#/lib/auth-client', () => ({
 
 vi.mock('#/server/profile-actions', () => ({
   logProfileActivity: vi.fn(),
+  saveProfileAvatar: vi.fn(),
+}))
+
+vi.mock('#/server/upload', () => ({
+  uploadAvatar: vi.fn(),
+}))
+
+vi.mock('#/lib/image-compress', () => ({
+  compressImageForUpload: vi.fn(async (file: File) => file),
 }))
 
 describe('ProfileSettings', () => {
@@ -33,6 +46,7 @@ describe('ProfileSettings', () => {
     vi.clearAllMocks()
     vi.mocked(authClient.getSession).mockResolvedValue(mockUserSession as any)
     vi.mocked(logProfileActivity).mockResolvedValue(undefined as any)
+    vi.mocked(uploadAvatar).mockResolvedValue('/api/media/view?key=avatars/new.webp')
   })
 
   afterEach(() => {
@@ -126,9 +140,11 @@ describe('ProfileSettings', () => {
     // 3. Valid file upload & Cancel
     const validFile = new File(['dummy'], 'avatar.png', { type: 'image/png' })
     fireEvent.change(fileInput, { target: { files: [validFile] } })
-    expect(
-      screen.getByRole('button', { name: 'Save Avatar' }),
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Save Avatar' }),
+      ).toBeInTheDocument(),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(
@@ -137,6 +153,11 @@ describe('ProfileSettings', () => {
 
     // 4. Re-upload & Save Avatar -> Cancel confirmation modal first, then API Error with custom message & fallback message
     fireEvent.change(fileInput, { target: { files: [validFile] } })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Save Avatar' }),
+      ).toBeInTheDocument(),
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
     expect(screen.getByText('Update Profile Picture?')).toBeInTheDocument()
     const cancelBtns = screen.getAllByRole('button', { name: 'Cancel' })
@@ -145,18 +166,22 @@ describe('ProfileSettings', () => {
       screen.queryByText('Update Profile Picture?'),
     ).not.toBeInTheDocument()
 
-    vi.mocked(authClient.updateUser).mockResolvedValueOnce({
-      error: { message: 'Avatar upload failed' },
-    } as any)
+    vi.mocked(saveProfileAvatar).mockResolvedValueOnce({
+      success: false,
+      image: null,
+      error: 'Avatar upload failed',
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
       expect(screen.getByText('Avatar upload failed')).toBeInTheDocument()
     })
 
-    vi.mocked(authClient.updateUser).mockResolvedValueOnce({
-      error: { message: '' },
-    } as any)
+    vi.mocked(saveProfileAvatar).mockResolvedValueOnce({
+      success: false,
+      image: null,
+      error: '',
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {
@@ -164,7 +189,7 @@ describe('ProfileSettings', () => {
     })
 
     // 5. Save Avatar -> Catch block (thrown error)
-    vi.mocked(authClient.updateUser).mockRejectedValueOnce(
+    vi.mocked(saveProfileAvatar).mockRejectedValueOnce(
       new Error('Network error'),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
@@ -176,9 +201,10 @@ describe('ProfileSettings', () => {
     })
 
     // 6. Save Avatar -> Success
-    vi.mocked(authClient.updateUser).mockResolvedValueOnce({
-      error: null,
-    } as any)
+    vi.mocked(saveProfileAvatar).mockResolvedValueOnce({
+      success: true,
+      image: '/api/media/view?key=avatars/new.webp',
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save Avatar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Yes, Save Changes' }))
     await waitFor(() => {

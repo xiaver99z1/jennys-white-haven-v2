@@ -11,6 +11,7 @@ import { logUserLogout } from '#/server/auth-actions'
 import { useEffect, useState, useRef } from 'react'
 import { AdminSidebar } from '#/components/common/AdminSidebar'
 import { AdminNavbar } from '#/components/common/AdminNavbar'
+import { NotFoundPage } from '#/components/common/NotFoundPage'
 
 // Get current session
 const getSession = createServerFn({ method: 'GET' }).handler(async () => {
@@ -52,6 +53,7 @@ export const Route = createFileRoute('/admin')({
     ],
     links: [{ rel: 'icon', href: '/logo.png' }],
   }),
+  notFoundComponent: () => <NotFoundPage variant="admin" />,
   component: AdminLayout,
 })
 
@@ -152,7 +154,7 @@ function AdminLayout() {
   const user = sessionData?.user
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-stone-100 overflow-hidden">
+    <div className="h-dvh w-screen flex flex-col bg-stone-100 overflow-hidden">
       {/* Top Navbar Header Component */}
       <AdminNavbar
         user={user}
@@ -165,7 +167,7 @@ function AdminLayout() {
       />
 
       {/* Main Container below navbar with strict height containment */}
-      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-4rem)]">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* Sidebar Navigation Component */}
         <AdminSidebar
           currentUser={user}
@@ -175,7 +177,7 @@ function AdminLayout() {
         />
 
         {/* Isolated Scrollable Main Content Area */}
-        <main className="flex-1 overflow-y-auto h-full transition-all duration-300">
+        <main className="flex-1 min-h-0 min-w-0 overflow-y-auto h-full transition-all duration-300">
           <div className="p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>

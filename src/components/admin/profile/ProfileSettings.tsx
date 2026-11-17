@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { authClient } from '#/lib/auth-client'
-import { logProfileActivity } from '#/server/profile-actions'
+import { compressImageForUpload } from '#/lib/image-compress'
+import {
+  logProfileActivity,
+  saveProfileAvatar,
+} from '#/server/profile-actions'
+import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
 
 export function ProfileSettings() {
@@ -11,6 +16,7 @@ export function ProfileSettings() {
   const [initialName, setInitialName] = useState('')
   const [image, setImage] = useState<string | null>(null)
   const [initialImage, setInitialImage] = useState<string | null>(null)
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
 
   // Password States
   const [currentPassword, setCurrentPassword] = useState('')
@@ -52,6 +58,7 @@ export function ProfileSettings() {
   // Cancel Handlers
   const handleCancelAvatar = () => {
     setImage(initialImage)
+    setPendingAvatarFile(null)
     setMessage(null)
   }
 
@@ -67,15 +74,26 @@ export function ProfileSettings() {
     setMessage(null)
   }
 
-  // Handle Avatar Image Upload & Auto-Compress
+  // Handle Avatar Image Upload & Preview
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setMessage({
+        type: 'error',
+        text: 'Please select a valid image file (JPG, PNG, WEBP, GIF).',
+      })
+      return
+    }
 
     if (file.size > 5 * 1024 * 1024) {
       setMessage({ type: 'error', text: 'Image size must be less than 5MB' })
       return
     }
+
+    setPendingAvatarFile(file)
 
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -84,22 +102,38 @@ export function ProfileSettings() {
     reader.readAsDataURL(file)
   }
 
-  // Save Avatar Only
+  // Save Avatar Only (compresses + uploads to Cloudflare R2 + links User.profileMedia)
   const handleSaveAvatar = async () => {
     setConfirmAction(null)
     setAvatarLoading(true)
     setMessage(null)
 
     try {
-      const { error } = await authClient.updateUser({ image })
+      let nextImage = image
+      if (pendingAvatarFile) {
+        const compressed = await compressImageForUpload(
+          pendingAvatarFile,
+          1024,
+          0.85,
+        )
+        const formData = new FormData()
+        formData.append('file', compressed)
+        formData.append('scope', 'avatars')
+        nextImage = await uploadAvatar({ data: formData })
+      }
 
-      if (error) {
+      const res = await saveProfileAvatar({ data: { image: nextImage } })
+
+      if (!res.success) {
         setMessage({
           type: 'error',
-          text: error.message || 'Failed to update avatar',
+          text: res.error || 'Failed to update avatar',
         })
       } else {
-        setInitialImage(image)
+        const savedUrl = res.image ?? nextImage
+        setImage(savedUrl)
+        setInitialImage(savedUrl)
+        setPendingAvatarFile(null)
         setMessage({
           type: 'success',
           text: 'Profile picture updated successfully!',
@@ -113,7 +147,9 @@ export function ProfileSettings() {
         })
 
         window.dispatchEvent(
-          new CustomEvent('user-profile-updated', { detail: { name, image } }),
+          new CustomEvent('user-profile-updated', {
+            detail: { name, image: savedUrl },
+          }),
         )
       }
     } catch {
@@ -279,6 +315,7 @@ export function ProfileSettings() {
               type="file"
               accept="image/*"
               className="hidden"
+              disabled={avatarLoading}
               onChange={handleAvatarChange}
             />
           </label>
@@ -308,7 +345,8 @@ export function ProfileSettings() {
             <button
               type="button"
               onClick={handleCancelAvatar}
-              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-medium rounded-lg transition cursor-pointer"
+              disabled={avatarLoading}
+              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
