@@ -1,6 +1,7 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { NotFoundPage } from '#/components/common/NotFoundPage'
 
 import appCss from '../styles.css?url'
 
@@ -25,6 +26,7 @@ export const Route = createRootRoute({
       },
     ],
   }),
+  notFoundComponent: () => <NotFoundPage variant="public" />,
   shellComponent: RootDocument,
 })
 

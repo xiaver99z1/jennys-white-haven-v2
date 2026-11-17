@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type * as R2Module from '#/lib/r2'
 import {
   validateProfileActivity,
   logProfileActivityHandler,
+  validateSaveProfileAvatar,
+  saveProfileAvatarHandler,
 } from './profile-actions'
 import { authSession } from '#/lib/auth-helpers'
 import { logActivity } from '#/lib/logger'
+import { prisma } from '#/lib/prisma'
 
 vi.mock('#/lib/auth-helpers', () => ({
   authSession: vi.fn(),
@@ -12,6 +16,36 @@ vi.mock('#/lib/auth-helpers', () => ({
 
 vi.mock('#/lib/logger', () => ({
   logActivity: vi.fn(),
+}))
+
+vi.mock('#/lib/prisma', () => {
+  const client = {
+    user: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    media: {
+      upsert: vi.fn(),
+    },
+  }
+  return {
+    prisma: {
+      ...client,
+      $transaction: vi.fn((cb: (tx: typeof client) => unknown) => cb(client)),
+    },
+  }
+})
+
+vi.mock('#/lib/r2', async (importOriginal) => {
+  const actual = await importOriginal<typeof R2Module>()
+  return {
+    ...actual,
+    putR2Object: vi.fn().mockResolvedValue(true),
+  }
+})
+
+vi.mock('#/server/upload', () => ({
+  deleteSingleR2Media: vi.fn().mockResolvedValue(undefined),
 }))
 
 describe('profile-actions handlers and validators', () => {
@@ -95,6 +129,39 @@ describe('profile-actions handlers and validators', () => {
 
       expect(result).toEqual({ success: false, error: 'Unauthorized' })
       expect(consoleSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('saveProfileAvatar', () => {
+    it('validates input and links Media + User.profileMediaId on save', async () => {
+      expect(
+        validateSaveProfileAvatar({ image: 'avatars/test.webp' }),
+      ).toEqual({ image: 'avatars/test.webp' })
+
+      vi.mocked(authSession).mockResolvedValueOnce(mockUserSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        image: '/api/media/view?key=avatars/old.webp',
+        profileMediaId: 'm-old',
+      } as any)
+      vi.mocked(prisma.media.upsert).mockResolvedValueOnce({
+        id: 'm-new',
+        objectKey: 'avatars/new.webp',
+      } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+
+      const res = await saveProfileAvatarHandler({
+        data: { image: '/api/media/view?key=avatars/new.webp' },
+      })
+
+      expect(res.success).toBe(true)
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({
+            profileMediaId: 'm-new',
+          }),
+        }),
+      )
     })
   })
 })
