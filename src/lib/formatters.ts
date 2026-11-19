@@ -102,6 +102,17 @@ export function getRoleBadgeClass(role?: string | null): string {
 }
 
 /**
+ * Formats a role key for display (e.g. "super_admin" -> "super admin").
+ */
+export function formatRoleLabel(
+  role?: string | null,
+  fallback = '',
+): string {
+  if (!role) return fallback
+  return role.replace(/_/g, ' ')
+}
+
+/**
  * Extracts a safe user-facing error message from an unknown thrown value.
  */
 export function getErrorMessage(

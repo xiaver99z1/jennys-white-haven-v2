@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AdminLoginForm } from './AdminLoginForm'
 import { authClient } from '#/lib/auth-client'
-import { logUserLogin } from '#/server/auth-actions'
+import { logUserLogin, resendVerificationByEmail } from '#/server/auth-actions'
 
 vi.mock('#/lib/auth-client', () => ({
   authClient: {
@@ -14,6 +14,7 @@ vi.mock('#/lib/auth-client', () => ({
 
 vi.mock('#/server/auth-actions', () => ({
   logUserLogin: vi.fn(),
+  resendVerificationByEmail: vi.fn(),
 }))
 
 describe('AdminLoginForm', () => {
@@ -84,7 +85,7 @@ describe('AdminLoginForm', () => {
     })
   })
 
-  it('displays verification error when error.code is EMAIL_NOT_VERIFIED or message mentions verify', async () => {
+  it('displays verification error and allows resending verification email (success and error)', async () => {
     render(<AdminLoginForm />)
 
     fireEvent.change(screen.getByLabelText(/email/i), {
@@ -105,6 +106,50 @@ describe('AdminLoginForm', () => {
       expect(
         screen.getByText(
           'Please check your email and activate your account before logging in.',
+        ),
+      ).toBeInTheDocument()
+    })
+
+    // Resend verification email succeeds
+    vi.mocked(resendVerificationByEmail).mockResolvedValueOnce({
+      success: true,
+      message: 'Fresh verification link sent.',
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    await waitFor(() => {
+      expect(resendVerificationByEmail).toHaveBeenCalledWith({
+        data: { email: 'unverified@resort.com' },
+      })
+      expect(
+        screen.getByText('Fresh verification link sent.'),
+      ).toBeInTheDocument()
+    })
+
+    // Resend fails with Error
+    vi.mocked(resendVerificationByEmail).mockRejectedValueOnce(
+      new Error('Please wait a minute'),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Please wait a minute')).toBeInTheDocument()
+    })
+
+    // Resend fails with non-Error fallback
+    vi.mocked(resendVerificationByEmail).mockRejectedValueOnce('unexpected')
+    fireEvent.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Failed to resend verification email. Please try again.',
         ),
       ).toBeInTheDocument()
     })

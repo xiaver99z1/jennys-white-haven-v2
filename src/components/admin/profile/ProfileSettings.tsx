@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { authClient } from '#/lib/auth-client'
 import { compressImageForUpload } from '#/lib/image-compress'
+import { formatRoleLabel } from '#/lib/formatters'
 import {
   logProfileActivity,
   saveProfileAvatar,
@@ -326,7 +327,7 @@ export function ProfileSettings() {
               </h2>
               {session?.user?.role && (
                 <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 rounded-md">
-                  {session.user.role}
+                  {formatRoleLabel(session.user.role)}
                 </span>
               )}
             </div>

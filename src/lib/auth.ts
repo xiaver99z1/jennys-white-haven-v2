@@ -10,6 +10,10 @@ const ac = createAccessControl({
   user: ['create', 'list', 'set-role', 'ban'],
 })
 
+const superAdminRole = ac.newRole({
+  user: ['create', 'list', 'set-role', 'ban'],
+})
+
 const ownerRole = ac.newRole({
   user: ['create', 'list', 'set-role', 'ban'],
 })
@@ -55,6 +59,7 @@ export const auth = betterAuth({
     admin({
       defaultRole: 'receptionist',
       roles: {
+        super_admin: superAdminRole,
         owner: ownerRole,
         manager: managerRole,
         receptionist: receptionistRole,

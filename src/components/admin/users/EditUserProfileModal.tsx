@@ -172,6 +172,7 @@ export function EditUserProfileModal({
               <option value="RECEPTIONIST">Receptionist</option>
               <option value="MANAGER">Manager</option>
               <option value="OWNER">Owner</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
             </select>
           </div>
 

@@ -2,16 +2,18 @@
 
 - `src/routes/` — file-based routes (TanStack Router)
 - `src/routes/admin/` — Admin section
+  - `setup.tsx` → Initial Super Admin setup page (no sidebar; active only when 0 users exist)
   - `login.tsx` → Login page (no sidebar)
-  - `route.tsx` → Protected layout + sidebar
+  - `route.tsx` → Protected layout + sidebar + initial-setup guard
   - `index.tsx` → Dashboard
-  - `bookings.tsx`, `rooms.tsx`, `guests.tsx`, `users.tsx`, `profile.tsx` → Admin modules
+  - `bookings.tsx`, `rooms.tsx`, `guests.tsx`, `users.tsx`, `settings.tsx`, `profile.tsx` → Admin modules
 - `src/types/index.ts` — centralized shared TypeScript types (`RoomItem`, `GuestItem`, `BookingItem`, `DashboardStats`, `User`, `AdminRouter`, domain unions)
 - `src/lib/auth.ts` — Better Auth server instance
 - `src/lib/auth-client.ts` — Better Auth client
+- `src/lib/email.ts` — Resend verification email helper and SHA-256 activation token utilities
 - `src/lib/prisma.ts` — Prisma client
 - `src/lib/permissions.ts` — RBAC `ROLES` and `hasPermission()`
-- `src/lib/formatters.ts` — reusable formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `getErrorMessage`) and status/role badge lookups
+- `src/lib/formatters.ts` — reusable formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `formatRoleLabel`, `getErrorMessage`) and status/role badge lookups
 - `src/lib/constants/labels.ts` — centralized UI labels (`ADMIN_LABELS`) and status/role badge metadata
 - `src/lib/constants/rooms.ts` — domain option presets (`ROOM_TYPES`, `BOOKING_STATUSES`, `PAYMENT_STATUSES`, `GUEST_ID_TYPES`, `RESORT_AMENITY_CATEGORIES`)
 - `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `Panel`, `StatCard`, `StatusBadge`)

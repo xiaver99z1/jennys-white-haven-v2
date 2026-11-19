@@ -23,8 +23,8 @@
 - `pnpm exec prisma db push` — push schema changes (development)
 - `pnpm exec prisma migrate dev` — create and apply migration
 - `pnpm exec prisma studio` — open Prisma Studio
-- `pnpm seed` — run database seed (create admin user)
 
 ## Auth related
 
 - After changing Better Auth config or schema → run `pnpm exec prisma generate` and `pnpm exec prisma db push`
+- Initial Super Admin creation is handled via `/admin/setup` on first visit when no users exist in the database (`prisma/seed.ts` was removed so no default password exists in code)

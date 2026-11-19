@@ -5,6 +5,7 @@ import {
   formatFullName,
   formatLocalDate,
   formatPeso,
+  formatRoleLabel,
   formatShortDate,
   getBookingStatusMeta,
   getErrorMessage,
@@ -45,9 +46,15 @@ describe('formatters', () => {
     expect(getRoomStatusMeta('AVAILABLE').label).toBe('Available')
     expect(getRoomStatusMeta('OTHER').label).toBe('OTHER')
 
+    expect(getRoleBadgeClass('SUPER_ADMIN')).toContain('purple')
     expect(getRoleBadgeClass('OWNER')).toContain('amber')
     expect(getRoleBadgeClass('unknown')).toContain('stone')
     expect(getRoleBadgeClass(null)).toContain('stone')
+
+    expect(formatRoleLabel('super_admin')).toBe('super admin')
+    expect(formatRoleLabel('OWNER')).toBe('OWNER')
+    expect(formatRoleLabel(null, 'Unassigned')).toBe('Unassigned')
+    expect(formatRoleLabel(undefined)).toBe('')
   })
 
   it('extracts error messages safely', () => {

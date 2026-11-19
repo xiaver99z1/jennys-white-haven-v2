@@ -10,9 +10,10 @@
 
 ## Admin specific
 
-- `/admin/login` must never show the sidebar.
-- After login/logout always use `window.location.replace()` (not `navigate`).
-- Protect all `/admin/*` routes (except login).
+- `/admin/login` and `/admin/setup` must never show the sidebar.
+- After login, initial setup, or logout always use `window.location.replace()` (not `navigate`).
+- Protect all `/admin/*` routes (except `/admin/login`, and `/admin/setup` only when 0 users exist).
+- Never store hardcoded admin passwords or seeders in code; first-time Super Admin provisioning happens exclusively through `/admin/setup`.
 - Client pages: large imagery, restrained text, subtle booking CTA, generous whitespace.
 - Admin pages: clear sidebar, metric cards, simple charts, low visual noise.
 
