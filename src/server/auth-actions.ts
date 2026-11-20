@@ -1,15 +1,19 @@
 import { createServerFn } from '@tanstack/react-start'
+import { hashPassword } from 'better-auth/crypto'
 import { logActivity } from '#/lib/logger'
 import { authSession, getServerHeaders } from '#/lib/auth-helpers'
 import {
   generateActivationToken,
   hashActivationToken,
+  sendPasswordResetEmail,
   sendVerificationEmail,
 } from '#/lib/email'
 import { prisma } from '#/lib/prisma'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const VERIFICATION_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000 // 30 minutes
+const PASSWORD_RESET_PREFIX = 'password-reset:'
 const RESEND_COOLDOWN_MS = 60 * 1000 // 1 minute
 const DAY_WINDOW_MS = 24 * 60 * 60 * 1000
 const MAX_VERIFICATION_EMAILS_PER_DAY = 3
@@ -285,3 +289,229 @@ export async function logUserLogoutHandler() {
 export const logUserLogout = createServerFn({ method: 'POST' }).handler(
   logUserLogoutHandler,
 )
+
+export async function requestPasswordResetHandler() {
+  const session = await authSession(
+    'Unauthorized: You must be logged in to request a password reset.',
+  )
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+  })
+
+  if (!user) {
+    throw new Error('User account not found.')
+  }
+
+  const identifier = `${PASSWORD_RESET_PREFIX}${user.id}`
+  const now = new Date()
+  const cooldownCutoff = new Date(now.getTime() - RESEND_COOLDOWN_MS)
+  const { rawToken, tokenHash } = generateActivationToken()
+  const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MS)
+
+  // Atomically replace an existing reset record only when its 60-second cooldown has elapsed
+  const rotated = await prisma.verification.updateMany({
+    where: {
+      identifier,
+      createdAt: { lte: cooldownCutoff },
+    },
+    data: {
+      value: tokenHash,
+      expiresAt,
+      createdAt: now,
+    },
+  })
+
+  if (rotated.count === 0) {
+    const existingReset = await prisma.verification.findFirst({
+      where: { identifier },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (existingReset) {
+      throw new Error(
+        'Please wait a minute before requesting another password reset email.',
+      )
+    }
+
+    try {
+      await prisma.verification.create({
+        data: {
+          id: identifier,
+          identifier,
+          value: tokenHash,
+          expiresAt,
+          createdAt: now,
+        },
+      })
+    } catch {
+      throw new Error(
+        'Please wait a minute before requesting another password reset email.',
+      )
+    }
+  }
+
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      rawToken,
+      expiresInMinutes: 30,
+    })
+  } catch (error: unknown) {
+    try {
+      await prisma.verification.deleteMany({
+        where: { identifier, value: tokenHash },
+      })
+    } catch {
+      // Preserve original email error
+    }
+
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : 'Failed to send password reset email.',
+    )
+  }
+
+  await logActivity({
+    userId: user.id,
+    action: 'PASSWORD_RESET_REQUESTED',
+    description: `Requested password reset link via account profile (${user.email})`,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
+  })
+
+  return {
+    success: true,
+    message: `Password reset link sent to ${user.email}. Please check your inbox.`,
+  }
+}
+
+export const requestPasswordReset = createServerFn({ method: 'POST' }).handler(
+  requestPasswordResetHandler,
+)
+
+export interface ResetPasswordWithTokenInput {
+  token: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export function validateResetPasswordWithToken(
+  data: ResetPasswordWithTokenInput,
+) {
+  return data
+}
+
+export async function resetPasswordWithTokenHandler({
+  data,
+}: {
+  data: ResetPasswordWithTokenInput
+}) {
+  const token = data.token.trim()
+  if (!token) {
+    throw new Error('Password reset token is missing.')
+  }
+
+  const { newPassword, confirmPassword } = data
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    throw new Error('Password must be between 8 and 128 characters long.')
+  }
+
+  if (
+    !/[A-Z]/.test(newPassword) ||
+    !/[a-z]/.test(newPassword) ||
+    !/[0-9]/.test(newPassword) ||
+    !/[^A-Za-z0-9]/.test(newPassword)
+  ) {
+    throw new Error(
+      'Password must include uppercase, lowercase, a number, and a special character.',
+    )
+  }
+
+  if (newPassword !== confirmPassword) {
+    throw new Error('Passwords do not match.')
+  }
+
+  const now = new Date()
+  const tokenHash = hashActivationToken(token)
+
+  const verification = await prisma.verification.findFirst({
+    where: {
+      value: tokenHash,
+      expiresAt: { gte: now },
+      identifier: { startsWith: PASSWORD_RESET_PREFIX },
+    },
+  })
+
+  if (!verification) {
+    throw new Error(
+      'This password reset link is invalid or has already been used.',
+    )
+  }
+
+  const userId = verification.identifier.slice(PASSWORD_RESET_PREFIX.length)
+  const hashedPassword = await hashPassword(newPassword)
+
+  const headers = getServerHeaders()
+  const ipAddress =
+    headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
+  const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+
+  await prisma.$transaction(async (tx) => {
+    const consumedAt = new Date()
+    const consumed = await tx.verification.deleteMany({
+      where: {
+        id: verification.id,
+        value: tokenHash,
+        expiresAt: { gte: consumedAt },
+      },
+    })
+
+    if (consumed.count !== 1) {
+      throw new Error(
+        'This password reset link is invalid or has already been used.',
+      )
+    }
+
+    const updatedAccounts = await tx.account.updateMany({
+      where: {
+        userId,
+        providerId: 'credential',
+      },
+      data: {
+        password: hashedPassword,
+      },
+    })
+
+    if (updatedAccounts.count === 0) {
+      throw new Error('User credential account not found.')
+    }
+
+    await tx.session.deleteMany({
+      where: { userId },
+    })
+
+    await tx.activityLog.create({
+      data: {
+        userId,
+        action: 'PASSWORD_RESET_COMPLETED',
+        description:
+          'Reset account password via email verification link and revoked active sessions',
+        ipAddress,
+        userAgent,
+      },
+    })
+  })
+
+  return {
+    success: true,
+    message:
+      'Your password has been reset successfully. Please sign in with your new password.',
+  }
+}
+
+export const resetPasswordWithToken = createServerFn({ method: 'POST' })
+  .validator(validateResetPasswordWithToken)
+  .handler(resetPasswordWithTokenHandler)

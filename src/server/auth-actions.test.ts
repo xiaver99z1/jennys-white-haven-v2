@@ -6,13 +6,18 @@ import {
   resendVerificationByEmailHandler,
   logUserLoginHandler,
   logUserLogoutHandler,
+  requestPasswordResetHandler,
+  validateResetPasswordWithToken,
+  resetPasswordWithTokenHandler,
 } from './auth-actions'
 import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession, getServerHeaders } from '#/lib/auth-helpers'
+import { hashPassword } from 'better-auth/crypto'
 import {
   generateActivationToken,
   hashActivationToken,
+  sendPasswordResetEmail,
   sendVerificationEmail,
 } from '#/lib/email'
 
@@ -24,7 +29,18 @@ vi.mock('#/lib/prisma', () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    verification: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    $transaction: vi.fn(),
   },
+}))
+
+vi.mock('better-auth/crypto', () => ({
+  hashPassword: vi.fn().mockResolvedValue('hashed-reset-password'),
 }))
 
 vi.mock('#/lib/logger', () => ({
@@ -39,6 +55,7 @@ vi.mock('#/lib/auth-helpers', () => ({
 vi.mock('#/lib/email', () => ({
   generateActivationToken: vi.fn(),
   hashActivationToken: vi.fn((t: string) => `hash:${t}`),
+  sendPasswordResetEmail: vi.fn(),
   sendVerificationEmail: vi.fn(),
 }))
 
@@ -675,6 +692,385 @@ describe('auth-actions handlers and validators', () => {
 
       expect(result).toEqual({ success: false, error: 'Logout log failed' })
       expect(consoleSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('requestPasswordReset', () => {
+    const mockSession = {
+      user: { id: 'u1', email: 'jenny@resort.com' },
+      session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
+    }
+
+    it('throws when user account is not found, cooldown is active, or concurrent create races', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'User account not found.',
+      )
+
+      // Active cooldown: updateMany returns 0 and findFirst finds the recent record
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'raw-cooldown',
+        tokenHash: 'hash-cooldown',
+      })
+      vi.mocked(prisma.verification.updateMany).mockResolvedValueOnce({
+        count: 0,
+      })
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce({
+        id: 'password-reset:u1',
+        createdAt: new Date(Date.now() - 10_000),
+      } as any)
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'Please wait a minute before requesting another password reset email.',
+      )
+
+      // Concurrent initial create conflict (primary key collision on id: identifier)
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'raw-race',
+        tokenHash: 'hash-race',
+      })
+      vi.mocked(prisma.verification.updateMany).mockResolvedValueOnce({
+        count: 0,
+      })
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce(null)
+      vi.mocked(prisma.verification.create).mockRejectedValueOnce(
+        new Error('Unique constraint failed on the fields: (`id`)'),
+      )
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'Please wait a minute before requesting another password reset email.',
+      )
+    })
+
+    it('creates hashed verification token, sends reset email, and logs activity', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce({
+        user: { id: 'u1', email: 'jenny@resort.com' },
+        session: { ipAddress: null, userAgent: null },
+      } as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny Admin',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'raw-reset-1',
+        tokenHash: 'hash-reset-1',
+      })
+      vi.mocked(prisma.verification.updateMany).mockResolvedValueOnce({
+        count: 0,
+      })
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce(null)
+      vi.mocked(prisma.verification.create).mockResolvedValueOnce({} as any)
+      vi.mocked(sendPasswordResetEmail).mockResolvedValueOnce({} as any)
+      vi.mocked(logActivity).mockResolvedValueOnce({} as any)
+
+      const res = await requestPasswordResetHandler()
+
+      expect(res).toEqual({
+        success: true,
+        message:
+          'Password reset link sent to jenny@resort.com. Please check your inbox.',
+      })
+      expect(prisma.verification.create).toHaveBeenCalledWith({
+        data: {
+          id: 'password-reset:u1',
+          identifier: 'password-reset:u1',
+          value: 'hash-reset-1',
+          expiresAt: expect.any(Date),
+          createdAt: expect.any(Date),
+        },
+      })
+      expect(sendPasswordResetEmail).toHaveBeenCalledWith({
+        to: 'jenny@resort.com',
+        name: 'Jenny Admin',
+        rawToken: 'raw-reset-1',
+        expiresInMinutes: 30,
+      })
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PASSWORD_RESET_REQUESTED',
+          userId: 'u1',
+          ipAddress: null,
+          userAgent: null,
+        }),
+      )
+    })
+
+    it('atomically rotates existing token after cooldown, and cleans up verification token when sending reset email fails', async () => {
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny Admin',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'raw-reset-2',
+        tokenHash: 'hash-reset-2',
+      })
+      vi.mocked(prisma.verification.updateMany).mockResolvedValueOnce({
+        count: 1,
+      })
+      vi.mocked(prisma.verification.deleteMany).mockResolvedValueOnce({
+        count: 1,
+      })
+      vi.mocked(sendPasswordResetEmail).mockRejectedValueOnce(
+        new Error('SMTP offline'),
+      )
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'SMTP offline',
+      )
+
+      expect(prisma.verification.deleteMany).toHaveBeenCalledWith({
+        where: {
+          identifier: 'password-reset:u1',
+          value: 'hash-reset-2',
+        },
+      })
+
+      // Non-Error email failure + cleanup deleteMany failure
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny Admin',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'raw-reset-3',
+        tokenHash: 'hash-reset-3',
+      })
+      vi.mocked(prisma.verification.updateMany).mockResolvedValueOnce({
+        count: 1,
+      })
+      vi.mocked(prisma.verification.deleteMany).mockRejectedValueOnce(
+        new Error('cleanup db fail'),
+      )
+      vi.mocked(sendPasswordResetEmail).mockRejectedValueOnce('raw-fail')
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'Failed to send password reset email.',
+      )
+    })
+  })
+
+  describe('resetPasswordWithToken', () => {
+    const validResetData = {
+      token: '  reset-token-abc  ',
+      newPassword: 'NewStrongPassword!123',
+      confirmPassword: 'NewStrongPassword!123',
+    }
+
+    it('validates input and rejects invalid token or password constraints', async () => {
+      expect(validateResetPasswordWithToken(validResetData)).toEqual(
+        validResetData,
+      )
+
+      await expect(
+        resetPasswordWithTokenHandler({
+          data: { ...validResetData, token: '   ' },
+        }),
+      ).rejects.toThrow('Password reset token is missing.')
+
+      await expect(
+        resetPasswordWithTokenHandler({
+          data: {
+            ...validResetData,
+            newPassword: 'Aa1!',
+            confirmPassword: 'Aa1!',
+          },
+        }),
+      ).rejects.toThrow('Password must be between 8 and 128 characters long.')
+
+      const tooLong = `Aa1!${'x'.repeat(125)}`
+      await expect(
+        resetPasswordWithTokenHandler({
+          data: {
+            ...validResetData,
+            newPassword: tooLong,
+            confirmPassword: tooLong,
+          },
+        }),
+      ).rejects.toThrow('Password must be between 8 and 128 characters long.')
+
+      await expect(
+        resetPasswordWithTokenHandler({
+          data: {
+            ...validResetData,
+            newPassword: 'NoSpecialChar123',
+            confirmPassword: 'NoSpecialChar123',
+          },
+        }),
+      ).rejects.toThrow(
+        'Password must include uppercase, lowercase, a number, and a special character.',
+      )
+
+      await expect(
+        resetPasswordWithTokenHandler({
+          data: { ...validResetData, confirmPassword: 'DifferentPassword!1' },
+        }),
+      ).rejects.toThrow('Passwords do not match.')
+    })
+
+    it('rejects when verification record is missing, already consumed, or credential account is missing', async () => {
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce(null)
+
+      await expect(
+        resetPasswordWithTokenHandler({ data: validResetData }),
+      ).rejects.toThrow(
+        'This password reset link is invalid or has already been used.',
+      )
+
+      // Concurrent consumption inside transaction (deleteMany count === 0)
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce({
+        id: 'v1',
+        identifier: 'password-reset:u1',
+        value: 'hash:reset-token-abc',
+      } as any)
+      vi.mocked(getServerHeaders).mockReturnValueOnce({ get: () => null } as any)
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) =>
+        cb({
+          verification: {
+            deleteMany: vi.fn().mockResolvedValueOnce({ count: 0 }),
+          },
+        }),
+      )
+
+      await expect(
+        resetPasswordWithTokenHandler({ data: validResetData }),
+      ).rejects.toThrow(
+        'This password reset link is invalid or has already been used.',
+      )
+
+      // Credential account missing (updateMany count === 0)
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce({
+        id: 'v1',
+        identifier: 'password-reset:u1',
+        value: 'hash:reset-token-abc',
+      } as any)
+      vi.mocked(getServerHeaders).mockReturnValueOnce({ get: () => null } as any)
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) =>
+        cb({
+          verification: {
+            deleteMany: vi.fn().mockResolvedValueOnce({ count: 1 }),
+          },
+          account: {
+            updateMany: vi.fn().mockResolvedValueOnce({ count: 0 }),
+          },
+        }),
+      )
+
+      await expect(
+        resetPasswordWithTokenHandler({ data: validResetData }),
+      ).rejects.toThrow('User credential account not found.')
+    })
+
+    it('atomically consumes token, updates password, revokes sessions, and logs activity with header fallbacks', async () => {
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce({
+        id: 'v1',
+        identifier: 'password-reset:u1',
+        value: 'hash:reset-token-abc',
+      } as any)
+      vi.mocked(getServerHeaders).mockReturnValueOnce({
+        get: (k: string) =>
+          k === 'x-forwarded-for'
+            ? '198.51.100.2'
+            : k === 'user-agent'
+              ? 'ResetBrowser'
+              : null,
+      } as any)
+
+      const mockTx = {
+        verification: {
+          deleteMany: vi.fn().mockResolvedValueOnce({ count: 1 }),
+        },
+        account: {
+          updateMany: vi.fn().mockResolvedValueOnce({ count: 1 }),
+        },
+        session: {
+          deleteMany: vi.fn().mockResolvedValueOnce({ count: 2 }),
+        },
+        activityLog: {
+          create: vi.fn().mockResolvedValueOnce({}),
+        },
+      }
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) =>
+        cb(mockTx),
+      )
+
+      const res = await resetPasswordWithTokenHandler({ data: validResetData })
+
+      expect(res).toEqual({
+        success: true,
+        message:
+          'Your password has been reset successfully. Please sign in with your new password.',
+      })
+      expect(hashPassword).toHaveBeenCalledWith('NewStrongPassword!123')
+      expect(mockTx.account.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', providerId: 'credential' },
+        data: { password: 'hashed-reset-password' },
+      })
+      expect(mockTx.session.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'u1' },
+      })
+      expect(mockTx.activityLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'u1',
+          action: 'PASSWORD_RESET_COMPLETED',
+          description:
+            'Reset account password via email verification link and revoked active sessions',
+          ipAddress: '198.51.100.2',
+          userAgent: 'ResetBrowser',
+        },
+      })
+
+      // Also cover x-real-ip fallback
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce({
+        id: 'v2',
+        identifier: 'password-reset:u2',
+        value: 'hash:reset-token-abc',
+      } as any)
+      vi.mocked(getServerHeaders).mockReturnValueOnce({
+        get: (k: string) => (k === 'x-real-ip' ? '10.0.0.8' : null),
+      } as any)
+      const mockTx2 = {
+        verification: {
+          deleteMany: vi.fn().mockResolvedValueOnce({ count: 1 }),
+        },
+        account: {
+          updateMany: vi.fn().mockResolvedValueOnce({ count: 1 }),
+        },
+        session: {
+          deleteMany: vi.fn().mockResolvedValueOnce({ count: 1 }),
+        },
+        activityLog: {
+          create: vi.fn().mockResolvedValueOnce({}),
+        },
+      }
+      vi.mocked(prisma.$transaction).mockImplementationOnce(async (cb: any) =>
+        cb(mockTx2),
+      )
+
+      await resetPasswordWithTokenHandler({ data: validResetData })
+      expect(mockTx2.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          ipAddress: '10.0.0.8',
+          userAgent: 'Unknown User-Agent',
+        }),
+      })
     })
   })
 })

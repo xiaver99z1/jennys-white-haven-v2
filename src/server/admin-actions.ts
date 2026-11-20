@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { prisma } from '#/lib/prisma'
 import crypto from 'node:crypto'
-import { hashPassword } from 'better-auth/crypto'
+import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 
@@ -95,11 +95,16 @@ export const createAdminUser = createServerFn({ method: 'POST' })
   .validator(validateCreateAdminUser)
   .handler(createAdminUserHandler)
 
+const ADMIN_REAUTH_PREFIX = 'admin-reauth-fail:'
+const MAX_ADMIN_REAUTH_ATTEMPTS = 5
+const ADMIN_REAUTH_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
+
 // --- 2. UPDATE ADMIN USER ---
 export function validateUpdateAdminUser(data: {
   userId: string
   name: string
   password?: string
+  adminPassword?: string
   role: ResortRole
 }) {
   return data
@@ -112,6 +117,7 @@ export async function updateAdminUserHandler({
     userId: string
     name: string
     password?: string
+    adminPassword?: string
     role: ResortRole
   }
 }) {
@@ -134,6 +140,64 @@ export async function updateAdminUserHandler({
       throw new Error('Target user not found.')
     }
 
+    const isPasswordUpdated = Boolean(
+      data.password && data.password.trim() !== '',
+    )
+
+    if (isPasswordUpdated) {
+      if (!data.adminPassword || data.adminPassword.trim() === '') {
+        throw new Error(
+          'Administrator password is required to change a user password.',
+        )
+      }
+
+      const reauthIdentifier = `${ADMIN_REAUTH_PREFIX}${session.user.id}`
+      const now = new Date()
+      const failedAttempts = await prisma.verification.count({
+        where: {
+          identifier: reauthIdentifier,
+          expiresAt: { gte: now },
+        },
+      })
+
+      if (failedAttempts >= MAX_ADMIN_REAUTH_ATTEMPTS) {
+        throw new Error(
+          'Too many failed administrator password attempts. Please try again in 15 minutes.',
+        )
+      }
+
+      const adminAccount = await prisma.account.findFirst({
+        where: {
+          userId: session.user.id,
+          providerId: 'credential',
+        },
+      })
+
+      if (!adminAccount?.password) {
+        throw new Error('Administrator credential account not found.')
+      }
+
+      const isValidAdminPassword = await verifyPassword({
+        hash: adminAccount.password,
+        password: data.adminPassword,
+      })
+
+      if (!isValidAdminPassword) {
+        await prisma.verification.create({
+          data: {
+            identifier: reauthIdentifier,
+            value: String(failedAttempts + 1),
+            expiresAt: new Date(now.getTime() + ADMIN_REAUTH_WINDOW_MS),
+          },
+        })
+        throw new Error('Incorrect administrator password.')
+      }
+
+      await prisma.verification.deleteMany({
+        where: { identifier: reauthIdentifier },
+      })
+    }
+
     const changes: string[] = []
 
     if (existingUser.name !== data.name) {
@@ -147,7 +211,6 @@ export async function updateAdminUserHandler({
       )
     }
 
-    const isPasswordUpdated = data.password && data.password.trim() !== ''
     if (isPasswordUpdated) {
       changes.push('password')
     }

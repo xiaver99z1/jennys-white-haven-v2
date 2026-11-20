@@ -243,6 +243,7 @@ describe('EditUserProfileModal', () => {
         userId: 'user-123',
         name: 'Alice Johnson',
         password: undefined,
+        adminPassword: undefined,
         role: 'OWNER',
       },
     })
@@ -259,7 +260,7 @@ describe('EditUserProfileModal', () => {
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('executes successful profile update with a valid new password', async () => {
+  it('requires administrator password authentication modal when changing user password and allows canceling', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     vi.mocked(updateAdminUser).mockResolvedValueOnce({
       success: true,
@@ -273,14 +274,65 @@ describe('EditUserProfileModal', () => {
 
     await user.type(pwdInput, 'ValidPass1!')
     await user.type(confirmInput, 'ValidPass1!')
-    await user.click(screen.getByRole('button', { name: /save changes/i }))
-    await user.click(screen.getByRole('button', { name: /yes, save changes/i }))
+    const saveBtn = screen.getByRole('button', { name: /save changes/i })
+    saveBtn.focus()
+    await user.click(saveBtn)
+
+    const dialog = screen.getByRole('dialog', {
+      name: /authenticate password change/i,
+    })
+    expect(dialog).toBeInTheDocument()
+    const adminPwdInput = screen.getByLabelText(/your administrator password/i)
+    expect(adminPwdInput).toHaveFocus()
+
+    const verifyBtn = screen.getByRole('button', {
+      name: /verify & save changes/i,
+    })
+    expect(verifyBtn).toBeDisabled()
+
+    // Test Shift+Tab wrap from first focusable (input) to last focusable (Cancel button while Verify is disabled)
+    const cancelBtns = screen.getAllByRole('button', { name: 'Cancel' })
+    const modalCancelBtn = cancelBtns[cancelBtns.length - 1]
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(modalCancelBtn).toHaveFocus()
+
+    // Test Tab wrap from last focusable back to first focusable (input)
+    await user.keyboard('{Tab}')
+    expect(adminPwdInput).toHaveFocus()
+
+    // Test Escape key closes the authentication modal and restores focus to Save Changes
+    await user.keyboard('{Escape}')
+    expect(
+      screen.queryByRole('dialog', { name: /authenticate password change/i }),
+    ).not.toBeInTheDocument()
+    expect(saveBtn).toHaveFocus()
+
+    // Re-open authentication modal and cancel via button click
+    await user.click(saveBtn)
+    const reopenedCancelBtns = screen.getAllByRole('button', { name: 'Cancel' })
+    await user.click(reopenedCancelBtns[reopenedCancelBtns.length - 1])
+    expect(
+      screen.queryByText('Authenticate Password Change'),
+    ).not.toBeInTheDocument()
+
+    // Re-open authentication modal, enter admin password, Tab through controls, and submit
+    await user.click(saveBtn)
+    await user.type(
+      screen.getByLabelText(/your administrator password/i),
+      'MyAdminSecret!1',
+    )
+    // Normal Tab moves from input -> Cancel (neither wrap branch matches when Tab is pressed on input)
+    await user.keyboard('{Tab}')
+    await user.click(
+      screen.getByRole('button', { name: /verify & save changes/i }),
+    )
 
     expect(updateAdminUser).toHaveBeenCalledWith({
       data: {
         userId: 'user-123',
         name: 'Alice Johnson',
         password: 'ValidPass1!',
+        adminPassword: 'MyAdminSecret!1',
         role: 'MANAGER',
       },
     })

@@ -14,7 +14,7 @@ import {
 import { prisma } from '#/lib/prisma'
 import { auth } from '#/lib/auth'
 import { logActivity } from '#/lib/logger'
-import { hashPassword } from 'better-auth/crypto'
+import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { authSession } from '#/lib/auth-helpers'
 
 vi.mock('#/lib/prisma', () => ({
@@ -26,9 +26,15 @@ vi.mock('#/lib/prisma', () => ({
       update: vi.fn(),
     },
     account: {
+      findFirst: vi.fn(),
       updateMany: vi.fn(),
     },
     session: {
+      deleteMany: vi.fn(),
+    },
+    verification: {
+      count: vi.fn(),
+      create: vi.fn(),
       deleteMany: vi.fn(),
     },
   },
@@ -44,6 +50,7 @@ vi.mock('#/lib/auth', () => ({
 
 vi.mock('better-auth/crypto', () => ({
   hashPassword: vi.fn().mockResolvedValue('hashed-password'),
+  verifyPassword: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('#/lib/logger', () => ({
@@ -214,6 +221,15 @@ describe('admin-actions handlers and validators', () => {
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(currentAdmin as any)
         .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(1)
+      vi.mocked(prisma.account.findFirst).mockResolvedValueOnce({
+        id: 'acc-admin',
+        password: 'admin-hashed-password',
+      } as any)
+      vi.mocked(verifyPassword).mockResolvedValueOnce(true)
+      vi.mocked(prisma.verification.deleteMany).mockResolvedValueOnce({
+        count: 1,
+      })
 
       vi.mocked(prisma.user.update).mockResolvedValueOnce({
         ...targetUser,
@@ -228,11 +244,19 @@ describe('admin-actions handlers and validators', () => {
           userId: 'user-1',
           name: 'New Name',
           password: 'newpassword123',
+          adminPassword: 'AdminCurrentPassword!1',
           role: 'MANAGER',
         },
       })
 
       expect(result.success).toBe(true)
+      expect(verifyPassword).toHaveBeenCalledWith({
+        hash: 'admin-hashed-password',
+        password: 'AdminCurrentPassword!1',
+      })
+      expect(prisma.verification.deleteMany).toHaveBeenCalledWith({
+        where: { identifier: 'admin-reauth-fail:admin-1' },
+      })
       expect(hashPassword).toHaveBeenCalledWith('newpassword123')
       expect(prisma.account.updateMany).toHaveBeenCalledWith({
         where: { userId: 'user-1', providerId: 'credential' },
@@ -241,6 +265,104 @@ describe('admin-actions handlers and validators', () => {
       expect(logActivity).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'USER_UPDATED' }),
       )
+    })
+
+    it('rejects password update when adminPassword is missing, credential account is missing, or adminPassword is incorrect', async () => {
+      const targetUser = {
+        id: 'user-1',
+        name: 'Staff',
+        email: 'staff@resort.com',
+        role: 'RECEPTIONIST',
+      }
+
+      // 1. Missing adminPassword
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(mockAdminUser as any)
+        .mockResolvedValueOnce(targetUser as any)
+
+      await expect(
+        updateAdminUserHandler({
+          data: {
+            userId: 'user-1',
+            name: 'Staff',
+            password: 'NewPassword!123',
+            role: 'RECEPTIONIST',
+          },
+        }),
+      ).rejects.toThrow(
+        'Administrator password is required to change a user password.',
+      )
+
+      // 2. Rate-limit exceeded (5 failed attempts within window)
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(mockAdminUser as any)
+        .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(5)
+
+      await expect(
+        updateAdminUserHandler({
+          data: {
+            userId: 'user-1',
+            name: 'Staff',
+            password: 'NewPassword!123',
+            adminPassword: 'AdminPassword!1',
+            role: 'RECEPTIONIST',
+          },
+        }),
+      ).rejects.toThrow(
+        'Too many failed administrator password attempts. Please try again in 15 minutes.',
+      )
+      expect(verifyPassword).not.toHaveBeenCalled()
+
+      // 3. Admin credential account not found
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(mockAdminUser as any)
+        .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(0)
+      vi.mocked(prisma.account.findFirst).mockResolvedValueOnce(null)
+
+      await expect(
+        updateAdminUserHandler({
+          data: {
+            userId: 'user-1',
+            name: 'Staff',
+            password: 'NewPassword!123',
+            adminPassword: 'AdminPassword!1',
+            role: 'RECEPTIONIST',
+          },
+        }),
+      ).rejects.toThrow('Administrator credential account not found.')
+
+      // 4. Incorrect admin password records failure attempt
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(mockAdminUser as any)
+        .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(2)
+      vi.mocked(prisma.account.findFirst).mockResolvedValueOnce({
+        id: 'acc-admin',
+        password: 'admin-hashed-password',
+      } as any)
+      vi.mocked(verifyPassword).mockResolvedValueOnce(false)
+      vi.mocked(prisma.verification.create).mockResolvedValueOnce({} as any)
+
+      await expect(
+        updateAdminUserHandler({
+          data: {
+            userId: 'user-1',
+            name: 'Staff',
+            password: 'NewPassword!123',
+            adminPassword: 'WrongAdminPassword!',
+            role: 'RECEPTIONIST',
+          },
+        }),
+      ).rejects.toThrow('Incorrect administrator password.')
+      expect(prisma.verification.create).toHaveBeenCalledWith({
+        data: {
+          identifier: 'admin-reauth-fail:admin-1',
+          value: '3',
+          expiresAt: expect.any(Date),
+        },
+      })
     })
 
     it('formats a single change, falls back to name or defaults when emails/roles are missing, and handles null session metadata', async () => {

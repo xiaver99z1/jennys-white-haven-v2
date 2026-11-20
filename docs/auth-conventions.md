@@ -17,6 +17,12 @@ We use **Better Auth** for authentication.
 - Logout → `window.location.replace("/admin/login")`
 - All `/admin/*` routes (except `/admin/login` and `/admin/setup`) are protected
 - Roles: `super_admin` | `owner` | `manager` | `receptionist`
+- Step-up re-authentication for staff password changes:
+  - Changing another user's password in User Management (`EditUserProfileModal` -> `updateAdminUser`) opens an accessible administrator password re-authentication dialog (`role="dialog"`, `aria-modal="true"`, focus containment and restoration) and verifies the logged-in admin's credential password on the server (`verifyPassword` from `better-auth/crypto`).
+  - Failed administrator password checks are tracked in `Verification` (`admin-reauth-fail:<userId>`) and rate-limited to 5 failed attempts per 15-minute window, resetting on successful verification.
+- Forgot password from Profile (`/admin/profile` -> `/reset-password`):
+  - Clicking **Forgot password?** in Account Settings sends a 30-minute one-time reset link (SHA-256 hashed token atomically stored/rotated in `Verification` with identifier `password-reset:<userId>`, 60s cooldown) via Resend.
+  - `/reset-password` strips `?token=` from browser history, validates password complexity, atomically consumes the token, updates the credential password, and revokes active sessions.
 
 ### Protection Rules
 
