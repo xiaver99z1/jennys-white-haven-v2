@@ -1,5 +1,25 @@
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+
+export function useCooldown(initialSeconds = 0) {
+  const [cooldown, setCooldown] = useState(initialSeconds)
+  const isCoolingDown = cooldown > 0
+
+  useEffect(() => {
+    if (!isCoolingDown) return
+    const timer = setInterval(() => {
+      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [isCoolingDown])
+
+  return {
+    cooldown,
+    isCoolingDown,
+    startCooldown: setCooldown,
+  }
+}
 
 interface AuthPageShellProps {
   children: ReactNode

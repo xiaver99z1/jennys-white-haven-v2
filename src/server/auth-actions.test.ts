@@ -30,6 +30,7 @@ vi.mock('#/lib/prisma', () => ({
       updateMany: vi.fn(),
     },
     verification: {
+      count: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
       updateMany: vi.fn(),
@@ -305,17 +306,17 @@ describe('auth-actions handlers and validators', () => {
       expect(sendVerificationEmail).not.toHaveBeenCalled()
     })
 
-    it('enforces 60-second cooldown, 3-per-day rate limit, and concurrent reservation race with generic response', async () => {
+    it('enforces 5-minute cooldown, 3-per-day rate limit, and concurrent reservation race with generic response', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      // 1. Cooldown active
+      // 1. Cooldown active (within 5 minutes)
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         email: 'admin@resort.com',
         emailVerified: false,
         banned: false,
         activationEmailCount: 1,
-        lastActivationEmailSentAt: new Date(Date.now() - 10_000),
+        lastActivationEmailSentAt: new Date(Date.now() - 2 * 60 * 1000),
       } as any)
 
       await expect(
@@ -324,14 +325,14 @@ describe('auth-actions handlers and validators', () => {
         }),
       ).resolves.toEqual({ success: true, message: genericMsg })
 
-      // 2. Daily limit reached
+      // 2. Daily limit reached (after 5-minute cooldown)
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         email: 'admin@resort.com',
         emailVerified: false,
         banned: false,
         activationEmailCount: 3,
-        lastActivationEmailSentAt: new Date(Date.now() - 5 * 60 * 1000),
+        lastActivationEmailSentAt: new Date(Date.now() - 10 * 60 * 1000),
       } as any)
 
       await expect(
@@ -348,7 +349,7 @@ describe('auth-actions handlers and validators', () => {
         banned: false,
         activationToken: 'old-hash',
         activationEmailCount: 1,
-        lastActivationEmailSentAt: new Date(Date.now() - 5 * 60 * 1000),
+        lastActivationEmailSentAt: new Date(Date.now() - 10 * 60 * 1000),
       } as any)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'race-raw',
@@ -701,7 +702,7 @@ describe('auth-actions handlers and validators', () => {
       session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
     }
 
-    it('throws when user account is not found, cooldown is active, or concurrent create races', async () => {
+    it('throws when user account is not found, daily 3-email limit is reached, 5-minute cooldown is active, or concurrent create races', async () => {
       vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
 
@@ -709,13 +710,27 @@ describe('auth-actions handlers and validators', () => {
         'User account not found.',
       )
 
-      // Active cooldown: updateMany returns 0 and findFirst finds the recent record
+      // Daily limit reached (3 requests in 24h)
       vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         name: 'Jenny',
         email: 'jenny@resort.com',
       } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(3)
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'Maximum limit reached. You can only request up to 3 password reset emails per day.',
+      )
+
+      // Active 5-minute cooldown: updateMany returns 0 and findFirst finds the recent record (plural minutes)
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(1)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'raw-cooldown',
         tokenHash: 'hash-cooldown',
@@ -729,7 +744,31 @@ describe('auth-actions handlers and validators', () => {
       } as any)
 
       await expect(requestPasswordResetHandler()).rejects.toThrow(
-        'Please wait a minute before requesting another password reset email.',
+        'Please wait 5 minutes before requesting another password reset email.',
+      )
+
+      // Active cooldown with < 1 minute remaining (singular 'minute')
+      vi.mocked(authSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        name: 'Jenny',
+        email: 'jenny@resort.com',
+      } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(1)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'raw-cooldown-1m',
+        tokenHash: 'hash-cooldown-1m',
+      })
+      vi.mocked(prisma.verification.updateMany).mockResolvedValueOnce({
+        count: 0,
+      })
+      vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce({
+        id: 'password-reset:u1',
+        createdAt: new Date(Date.now() - 4.5 * 60_000),
+      } as any)
+
+      await expect(requestPasswordResetHandler()).rejects.toThrow(
+        'Please wait 1 minute before requesting another password reset email.',
       )
 
       // Concurrent initial create conflict (primary key collision on id: identifier)
@@ -739,6 +778,7 @@ describe('auth-actions handlers and validators', () => {
         name: 'Jenny',
         email: 'jenny@resort.com',
       } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(0)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'raw-race',
         tokenHash: 'hash-race',
@@ -752,11 +792,11 @@ describe('auth-actions handlers and validators', () => {
       )
 
       await expect(requestPasswordResetHandler()).rejects.toThrow(
-        'Please wait a minute before requesting another password reset email.',
+        'Please wait 5 minutes before requesting another password reset email.',
       )
     })
 
-    it('creates hashed verification token, sends reset email, and logs activity', async () => {
+    it('creates hashed verification token, sends reset email, records daily quota, and logs activity', async () => {
       vi.mocked(authSession).mockResolvedValueOnce({
         user: { id: 'u1', email: 'jenny@resort.com' },
         session: { ipAddress: null, userAgent: null },
@@ -766,6 +806,7 @@ describe('auth-actions handlers and validators', () => {
         name: 'Jenny Admin',
         email: 'jenny@resort.com',
       } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(0)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'raw-reset-1',
         tokenHash: 'hash-reset-1',
@@ -774,7 +815,9 @@ describe('auth-actions handlers and validators', () => {
         count: 0,
       })
       vi.mocked(prisma.verification.findFirst).mockResolvedValueOnce(null)
-      vi.mocked(prisma.verification.create).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.verification.create)
+        .mockResolvedValueOnce({} as any)
+        .mockResolvedValueOnce({} as any)
       vi.mocked(sendPasswordResetEmail).mockResolvedValueOnce({} as any)
       vi.mocked(logActivity).mockResolvedValueOnce({} as any)
 
@@ -782,16 +825,26 @@ describe('auth-actions handlers and validators', () => {
 
       expect(res).toEqual({
         success: true,
+        cooldownSeconds: 300,
+        count: 1,
+        max: 3,
         message:
           'Password reset link sent to jenny@resort.com. Please check your inbox.',
       })
-      expect(prisma.verification.create).toHaveBeenCalledWith({
+      expect(prisma.verification.create).toHaveBeenNthCalledWith(1, {
         data: {
           id: 'password-reset:u1',
           identifier: 'password-reset:u1',
           value: 'hash-reset-1',
           expiresAt: expect.any(Date),
           createdAt: expect.any(Date),
+        },
+      })
+      expect(prisma.verification.create).toHaveBeenNthCalledWith(2, {
+        data: {
+          identifier: 'password-reset-quota:u1',
+          value: '1',
+          expiresAt: expect.any(Date),
         },
       })
       expect(sendPasswordResetEmail).toHaveBeenCalledWith({
@@ -817,6 +870,7 @@ describe('auth-actions handlers and validators', () => {
         name: 'Jenny Admin',
         email: 'jenny@resort.com',
       } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(1)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'raw-reset-2',
         tokenHash: 'hash-reset-2',
@@ -849,6 +903,7 @@ describe('auth-actions handlers and validators', () => {
         name: 'Jenny Admin',
         email: 'jenny@resort.com',
       } as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(1)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'raw-reset-3',
         tokenHash: 'hash-reset-3',

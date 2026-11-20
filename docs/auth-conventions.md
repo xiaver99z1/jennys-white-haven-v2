@@ -9,7 +9,7 @@ We use **Better Auth** for authentication.
   - Allows creating the first `super_admin` account (Name, Email, Password) via a serializable transaction (`src/server/setup-actions.ts`)—no database seeder or hardcoded credentials in code.
   - Requires **email verification** before sign-in: generates a 256-bit random token, stores only its SHA-256 hash (`activationToken`) with a 1-hour expiry, sends a verification link via Resend (`src/lib/email.ts`), and rolls back the unverified account if initial email delivery fails.
   - Activation page (`/verify-activation`) sets `Referrer-Policy: no-referrer`, strips `?token=` from browser history on load, requires an explicit button click (`POST`) to prevent email-scanner prefetch consumption, and atomically verifies the account once.
-  - Rate-limited, anti-enumeration resend (`resendVerificationByEmail`: 60s cooldown, max 3/24h, token rotation) is available on both `/admin/setup` (post-registration) and `/admin/login` (when unverified).
+  - Rate-limited, anti-enumeration resend (`resendVerificationByEmail`: 5-minute cooldown, max 3/24h, token rotation) is available on both `/admin/setup` (post-registration) and `/admin/login` (when unverified).
   - Once at least 1 user exists, `/admin/setup` is permanently locked and redirects to `/admin` (authenticated) or `/admin/login` (unauthenticated).
 - Login page: `/admin/login` (full page, **no sidebar**)
 - Method: Email + Password only
@@ -21,7 +21,7 @@ We use **Better Auth** for authentication.
   - Changing another user's password in User Management (`EditUserProfileModal` -> `updateAdminUser`) opens an accessible administrator password re-authentication dialog (`role="dialog"`, `aria-modal="true"`, focus containment and restoration) and verifies the logged-in admin's credential password on the server (`verifyPassword` from `better-auth/crypto`).
   - Failed administrator password checks are tracked in `Verification` (`admin-reauth-fail:<userId>`) and rate-limited to 5 failed attempts per 15-minute window, resetting on successful verification.
 - Forgot password from Profile (`/admin/profile` -> `/reset-password`):
-  - Clicking **Forgot password?** in Account Settings sends a 30-minute one-time reset link (SHA-256 hashed token atomically stored/rotated in `Verification` with identifier `password-reset:<userId>`, 60s cooldown) via Resend.
+  - Clicking **Forgot password?** in Account Settings sends a 30-minute one-time reset link (SHA-256 hashed token atomically stored/rotated in `Verification` with identifier `password-reset:<userId>`, 5-minute cooldown and max 3/24h quota tracked via `password-reset-quota:<userId>`, enforced on both server and client UI countdown) via Resend.
   - `/reset-password` strips `?token=` from browser history, validates password complexity, atomically consumes the token, updates the credential password, and revokes active sessions.
 
 ### Protection Rules

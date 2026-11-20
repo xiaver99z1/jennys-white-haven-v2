@@ -21,11 +21,26 @@ export const PASSWORD_RESET_EXPIRES_MINUTES = 30
 export const PASSWORD_RESET_TTL_MS =
   PASSWORD_RESET_EXPIRES_MINUTES * 60 * 1000 // 30 minutes
 export const PASSWORD_RESET_PREFIX = 'password-reset:'
+export const PASSWORD_RESET_QUOTA_PREFIX = 'password-reset-quota:'
 
-export const RESEND_COOLDOWN_SECONDS = 60
-export const RESEND_COOLDOWN_MS = RESEND_COOLDOWN_SECONDS * 1000 // 1 minute
+export const AUTH_EMAIL_COOLDOWN_MINUTES = 5
+export const AUTH_EMAIL_COOLDOWN_SECONDS =
+  AUTH_EMAIL_COOLDOWN_MINUTES * 60 // 300 seconds (5 minutes)
+export const AUTH_EMAIL_COOLDOWN_MS =
+  AUTH_EMAIL_COOLDOWN_SECONDS * 1000 // 5 minutes
+
+export const RESEND_COOLDOWN_MINUTES = AUTH_EMAIL_COOLDOWN_MINUTES
+export const RESEND_COOLDOWN_SECONDS = AUTH_EMAIL_COOLDOWN_SECONDS
+export const RESEND_COOLDOWN_MS = AUTH_EMAIL_COOLDOWN_MS
+
+export const PASSWORD_RESET_COOLDOWN_MINUTES = AUTH_EMAIL_COOLDOWN_MINUTES
+export const PASSWORD_RESET_COOLDOWN_SECONDS = AUTH_EMAIL_COOLDOWN_SECONDS
+export const PASSWORD_RESET_COOLDOWN_MS = AUTH_EMAIL_COOLDOWN_MS
+
 export const DAY_WINDOW_MS = 24 * 60 * 60 * 1000 // 24 hours
-export const MAX_VERIFICATION_EMAILS_PER_DAY = 3
+export const MAX_AUTH_EMAILS_PER_DAY = 3
+export const MAX_VERIFICATION_EMAILS_PER_DAY = MAX_AUTH_EMAILS_PER_DAY
+export const MAX_PASSWORD_RESET_EMAILS_PER_DAY = MAX_AUTH_EMAILS_PER_DAY
 
 export const ADMIN_REAUTH_PREFIX = 'admin-reauth-fail:'
 export const MAX_ADMIN_REAUTH_ATTEMPTS = 5
@@ -119,4 +134,14 @@ export function resolveUserDisplayIdentifier(
   fallback: string,
 ): string {
   return user?.email || user?.name || fallback
+}
+
+/**
+ * Formats remaining cooldown seconds as "Xm YYs" (or "Ys" when < 60s).
+ */
+export function formatCooldownDuration(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes === 0) return `${seconds}s`
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`
 }
