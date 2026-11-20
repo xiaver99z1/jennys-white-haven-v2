@@ -22,7 +22,9 @@ export function AdminLoginForm() {
   const [needsVerification, setNeedsVerification] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendStatus, setResendStatus] = useState<StatusMessage | null>(null)
-  const { cooldown, isCoolingDown, startCooldown } = useCooldown()
+  const normalizedEmail = email.trim().toLowerCase()
+  const { cooldown, isCoolingDown, startCooldown } =
+    useCooldown(normalizedEmail)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,15 +64,17 @@ export function AdminLoginForm() {
   }
 
   const handleResendVerification = async () => {
+    const requestedEmail = email.trim()
+    const requestedKey = requestedEmail.toLowerCase()
     setResending(true)
     setResendStatus(null)
 
     try {
       const res = await resendVerificationByEmail({
-        data: { email: email.trim() },
+        data: { email: requestedEmail },
       })
       setResendStatus({ type: 'success', text: res.message })
-      startCooldown(RESEND_COOLDOWN_SECONDS)
+      startCooldown(RESEND_COOLDOWN_SECONDS, requestedKey)
     } catch (err: unknown) {
       setResendStatus({
         type: 'error',

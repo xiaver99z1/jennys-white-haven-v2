@@ -161,6 +161,22 @@ describe('AdminLoginForm', () => {
     })
     expect(cooldownBtn).toBeDisabled()
 
+    // Switching email to a different address does not inherit the previous email's cooldown
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'other-user@resort.com' },
+    })
+    expect(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    ).not.toBeDisabled()
+
+    // Switching back to original email restores its active cooldown
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'unverified@resort.com' },
+    })
+    expect(
+      screen.getByRole('button', { name: 'Wait 5m 00s to resend' }),
+    ).toBeDisabled()
+
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300_000)
     })
