@@ -8,6 +8,13 @@ vi.mock('#/server/room-actions', () => ({
   deleteRoom: vi.fn(),
 }))
 
+vi.mock('#/lib/image-compress', () => ({
+  compressImageForUpload: vi.fn(async (file: File) => file),
+  IMAGE_UPLOAD_PRESETS: {
+    room: { maxDimension: 1440, quality: 0.82 },
+  },
+}))
+
 // Mock child modals to easily trigger their exact callbacks (onClose, onSave, onConfirm)
 vi.mock('#/components/admin/rooms/AmenitySelectorModal', () => ({
   AmenitySelectorModal: ({ isOpen, onClose, onSave }: any) =>
@@ -247,7 +254,9 @@ describe('EditRoomModal', () => {
     fireEvent.change(fileInput, { target: { files: [validFile] } })
 
     const saveBtn = screen.getByRole('button', { name: /save changes/i })
-    expect(saveBtn).not.toBeDisabled()
+    await waitFor(() => {
+      expect(saveBtn).not.toBeDisabled()
+    })
 
     vi.unstubAllGlobals()
   })

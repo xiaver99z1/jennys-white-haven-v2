@@ -13,6 +13,10 @@ import { ROOM_TYPES, ROOM_STATUSES } from '#/lib/constants/rooms'
 import type { RoomStatus, RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from '#/components/admin/rooms/AmenitySelectorModal'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import {
+  compressImageForUpload,
+  IMAGE_UPLOAD_PRESETS,
+} from '#/lib/image-compress'
 
 interface EditRoomModalProps {
   isOpen: boolean
@@ -123,14 +127,20 @@ export function EditRoomModal({
         return
       }
 
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setFormData((prev) => ({
-          ...prev,
-          images: [...prev.images, reader.result as string],
-        }))
-      }
-      reader.readAsDataURL(file)
+      void compressImageForUpload(
+        file,
+        IMAGE_UPLOAD_PRESETS.room.maxDimension,
+        IMAGE_UPLOAD_PRESETS.room.quality,
+      ).then((compressedFile) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setFormData((prev) => ({
+            ...prev,
+            images: [...prev.images, reader.result as string],
+          }))
+        }
+        reader.readAsDataURL(compressedFile)
+      })
     })
     e.target.value = ''
   }

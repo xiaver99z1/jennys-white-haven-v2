@@ -266,6 +266,9 @@ export async function putR2Object(params: {
       Key: params.objectKey,
       Body: params.body,
       ContentType: params.mimeType,
+      CacheControl: params.isPrivate
+        ? 'private, no-store'
+        : 'public, max-age=31536000, immutable',
     }),
   )
   return true

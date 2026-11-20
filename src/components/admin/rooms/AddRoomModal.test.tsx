@@ -16,6 +16,13 @@ vi.mock('#/server/room-actions', () => ({
   createRoom: vi.fn(),
 }))
 
+vi.mock('#/lib/image-compress', () => ({
+  compressImageForUpload: vi.fn(async (file: File) => file),
+  IMAGE_UPLOAD_PRESETS: {
+    room: { maxDimension: 1440, quality: 0.82 },
+  },
+}))
+
 vi.mock('#/components/admin/rooms/AmenitySelectorModal', () => ({
   AmenitySelectorModal: ({ isOpen, onClose, onSave }: any) => {
     if (!isOpen) return null
