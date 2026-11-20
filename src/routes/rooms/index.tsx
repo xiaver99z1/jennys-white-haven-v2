@@ -230,6 +230,8 @@ function PublicRoomsPage() {
                     <img
                       src={room.images[0]}
                       alt={room.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
                   ) : (

@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
 import { ROOM_TYPES } from '#/lib/constants/rooms'
 import type { RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
+import {
+  compressImageForUpload,
+  IMAGE_UPLOAD_PRESETS,
+} from '#/lib/image-compress'
 
 interface AddRoomModalProps {
   isOpen: boolean
@@ -17,6 +21,8 @@ export function AddRoomModal({
   onSuccess,
 }: AddRoomModalProps) {
   const [loading, setLoading] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState(0)
+  const draftEpochRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
   const [selectedImagePreview, setSelectedImagePreview] = useState<
     string | null
@@ -56,14 +62,26 @@ export function AddRoomModal({
         return
       }
 
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setFormData((prev) => ({
-          ...prev,
-          images: [...prev.images, reader.result as string],
-        }))
-      }
-      reader.readAsDataURL(file)
+      const uploadEpoch = draftEpochRef.current
+      setPendingUploads((count) => count + 1)
+
+      void compressImageForUpload(
+        file,
+        IMAGE_UPLOAD_PRESETS.room.maxDimension,
+        IMAGE_UPLOAD_PRESETS.room.quality,
+      ).then((compressedFile) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          if (draftEpochRef.current === uploadEpoch) {
+            setFormData((prev) => ({
+              ...prev,
+              images: [...prev.images, reader.result as string],
+            }))
+            setPendingUploads((count) => Math.max(0, count - 1))
+          }
+        }
+        reader.readAsDataURL(compressedFile)
+      })
     })
     e.target.value = ''
   }
@@ -94,6 +112,8 @@ export function AddRoomModal({
         },
       })
 
+      draftEpochRef.current += 1
+      setPendingUploads(0)
       setFormData({
         roomNumber: '',
         name: '',
@@ -384,7 +404,7 @@ export function AddRoomModal({
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || pendingUploads > 0}
                 className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 text-xs"
               >
                 {loading ? 'Creating...' : 'Create Room'}

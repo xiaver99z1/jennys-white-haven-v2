@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { updateRoom, deleteRoom } from '#/server/room-actions'
 import {
   X,
@@ -13,6 +13,10 @@ import { ROOM_TYPES, ROOM_STATUSES } from '#/lib/constants/rooms'
 import type { RoomStatus, RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from '#/components/admin/rooms/AmenitySelectorModal'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import {
+  compressImageForUpload,
+  IMAGE_UPLOAD_PRESETS,
+} from '#/lib/image-compress'
 
 interface EditRoomModalProps {
   isOpen: boolean
@@ -57,6 +61,8 @@ export function EditRoomModal({
 }: EditRoomModalProps) {
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState(0)
+  const activeRoomIdRef = useRef<string | null>(room?.id ?? null)
   const [error, setError] = useState<string | null>(null)
   const [selectedImagePreview, setSelectedImagePreview] = useState<
     string | null
@@ -68,6 +74,8 @@ export function EditRoomModal({
   const [formData, setFormData] = useState(() => getInitialFormData(room))
 
   useEffect(() => {
+    activeRoomIdRef.current = room?.id ?? null
+    setPendingUploads(0)
     if (room) {
       setFormData(getInitialFormData(room))
       setError(null)
@@ -123,14 +131,26 @@ export function EditRoomModal({
         return
       }
 
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setFormData((prev) => ({
-          ...prev,
-          images: [...prev.images, reader.result as string],
-        }))
-      }
-      reader.readAsDataURL(file)
+      const targetRoomId = room.id
+      setPendingUploads((count) => count + 1)
+
+      void compressImageForUpload(
+        file,
+        IMAGE_UPLOAD_PRESETS.room.maxDimension,
+        IMAGE_UPLOAD_PRESETS.room.quality,
+      ).then((compressedFile) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          if (activeRoomIdRef.current === targetRoomId) {
+            setFormData((prev) => ({
+              ...prev,
+              images: [...prev.images, reader.result as string],
+            }))
+            setPendingUploads((count) => Math.max(0, count - 1))
+          }
+        }
+        reader.readAsDataURL(compressedFile)
+      })
     })
     e.target.value = ''
   }
@@ -483,7 +503,9 @@ export function EditRoomModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || deleting || !hasChanges}
+                  disabled={
+                    loading || deleting || !hasChanges || pendingUploads > 0
+                  }
                   className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   {loading ? 'Saving...' : 'Save Changes'}

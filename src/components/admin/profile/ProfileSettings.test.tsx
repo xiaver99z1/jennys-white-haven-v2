@@ -27,6 +27,9 @@ vi.mock('#/server/upload', () => ({
 
 vi.mock('#/lib/image-compress', () => ({
   compressImageForUpload: vi.fn(async (file: File) => file),
+  IMAGE_UPLOAD_PRESETS: {
+    avatar: { maxDimension: 400, quality: 0.82 },
+  },
 }))
 
 describe('ProfileSettings', () => {

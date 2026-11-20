@@ -17,7 +17,10 @@ import {
 } from 'lucide-react'
 import { CMS_SECTION_META } from '#/lib/constants/cms'
 import { formatShortDate, getErrorMessage } from '#/lib/formatters'
-import { compressImageForUpload } from '#/lib/image-compress'
+import {
+  compressImageForUpload,
+  getCmsUploadPreset,
+} from '#/lib/image-compress'
 import { resetCmsSection, upsertCmsSection } from '#/server/cms-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
@@ -98,7 +101,12 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       const oldImageUrl =
         targetIndex !== undefined ? images.at(targetIndex) : undefined
 
-      const compressedFile = await compressImageForUpload(file)
+      const preset = getCmsUploadPreset(current.key)
+      const compressedFile = await compressImageForUpload(
+        file,
+        preset.maxDimension,
+        preset.quality,
+      )
       const formData = new FormData()
       formData.append('file', compressedFile)
       formData.append('scope', 'cms')

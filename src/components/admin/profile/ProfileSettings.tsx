@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { authClient } from '#/lib/auth-client'
-import { compressImageForUpload } from '#/lib/image-compress'
+import {
+  compressImageForUpload,
+  IMAGE_UPLOAD_PRESETS,
+} from '#/lib/image-compress'
 import { formatRoleLabel } from '#/lib/formatters'
 import {
   logProfileActivity,
@@ -114,8 +117,8 @@ export function ProfileSettings() {
       if (pendingAvatarFile) {
         const compressed = await compressImageForUpload(
           pendingAvatarFile,
-          1024,
-          0.85,
+          IMAGE_UPLOAD_PRESETS.avatar.maxDimension,
+          IMAGE_UPLOAD_PRESETS.avatar.quality,
         )
         const formData = new FormData()
         formData.append('file', compressed)

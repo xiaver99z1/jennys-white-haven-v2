@@ -2,10 +2,18 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { EditRoomModal } from './EditRoomModal'
 import { updateRoom, deleteRoom } from '#/server/room-actions'
+import { compressImageForUpload } from '#/lib/image-compress'
 
 vi.mock('#/server/room-actions', () => ({
   updateRoom: vi.fn(),
   deleteRoom: vi.fn(),
+}))
+
+vi.mock('#/lib/image-compress', () => ({
+  compressImageForUpload: vi.fn(async (file: File) => file),
+  IMAGE_UPLOAD_PRESETS: {
+    room: { maxDimension: 1440, quality: 0.82 },
+  },
 }))
 
 // Mock child modals to easily trigger their exact callbacks (onClose, onSave, onConfirm)
@@ -247,7 +255,9 @@ describe('EditRoomModal', () => {
     fireEvent.change(fileInput, { target: { files: [validFile] } })
 
     const saveBtn = screen.getByRole('button', { name: /save changes/i })
-    expect(saveBtn).not.toBeDisabled()
+    await waitFor(() => {
+      expect(saveBtn).not.toBeDisabled()
+    })
 
     vi.unstubAllGlobals()
   })
@@ -398,5 +408,53 @@ describe('EditRoomModal', () => {
     await waitFor(() => {
       expect(screen.getByText('Failed to delete room.')).toBeInTheDocument()
     })
+  })
+
+  it('ignores completed photo uploads that started for a different room after switching rooms', async () => {
+    class MockFileReader {
+      onloadend: (() => void) | null = null
+      result = 'data:image/webp;base64,room-a-photo'
+      readAsDataURL() {
+        if (this.onloadend) this.onloadend()
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader)
+
+    let resolveRoomAUpload!: (f: File) => void
+    vi.mocked(compressImageForUpload).mockImplementationOnce(
+      () =>
+        new Promise<File>((resolve) => {
+          resolveRoomAUpload = resolve
+        }),
+    )
+
+    const { rerender } = render(<EditRoomModal {...defaultProps} />)
+
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement
+    const roomAFile = new File(['dummy'], 'room-a.png', { type: 'image/png' })
+    fireEvent.change(fileInput, { target: { files: [roomAFile] } })
+
+    // Switch modal to Room B before Room A's compression resolves
+    const roomB = {
+      ...mockRoom,
+      id: 'room-2',
+      roomNumber: '102',
+      name: 'Garden Room',
+      images: ['https://example.com/room-b.jpg'],
+    }
+    rerender(<EditRoomModal {...defaultProps} room={roomB} />)
+
+    // Now Room A's upload completes; it must NOT append to Room B's draft
+    resolveRoomAUpload(roomAFile)
+    await waitFor(() => {
+      expect(
+        screen.getByText(/room photos & gallery \(1\)/i),
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.getByRole('button', { name: /save changes/i }),
+    ).toBeDisabled()
   })
 })

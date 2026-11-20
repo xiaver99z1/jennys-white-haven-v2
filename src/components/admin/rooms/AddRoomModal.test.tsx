@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AddRoomModal } from './AddRoomModal'
 import { createRoom } from '#/server/room-actions'
+import { compressImageForUpload } from '#/lib/image-compress'
 
 class MockFileReader {
   onloadend: (() => void) | null = null
@@ -14,6 +15,13 @@ class MockFileReader {
 
 vi.mock('#/server/room-actions', () => ({
   createRoom: vi.fn(),
+}))
+
+vi.mock('#/lib/image-compress', () => ({
+  compressImageForUpload: vi.fn(async (file: File) => file),
+  IMAGE_UPLOAD_PRESETS: {
+    room: { maxDimension: 1440, quality: 0.82 },
+  },
 }))
 
 vi.mock('#/components/admin/rooms/AmenitySelectorModal', () => ({
@@ -309,5 +317,51 @@ describe('AddRoomModal', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close Amenities' }))
     expect(screen.queryByTestId('mock-amenity-modal')).not.toBeInTheDocument()
+  })
+
+  it('disables Create Room while a photo is compressing and ignores late completions from a previous draft', async () => {
+    vi.stubGlobal('FileReader', MockFileReader)
+    vi.mocked(createRoom).mockResolvedValueOnce({ success: true } as any)
+
+    let resolveLateFile!: (f: File) => void
+    vi.mocked(compressImageForUpload).mockImplementationOnce(
+      () =>
+        new Promise<File>((resolve) => {
+          resolveLateFile = resolve
+        }),
+    )
+
+    render(<AddRoomModal {...defaultProps} />)
+
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. 101/i), {
+      target: { value: '301' },
+    })
+    fireEvent.change(
+      screen.getByPlaceholderText(/e\.g\. deluxe ocean view suite/i),
+      { target: { value: 'Sunset Room' } },
+    )
+
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement
+    const slowFile = new File(['dummy'], 'slow.png', { type: 'image/png' })
+    fireEvent.change(fileInput, { target: { files: [slowFile] } })
+
+    const createBtn = screen.getByRole('button', { name: /create room/i })
+    expect(createBtn).toBeDisabled()
+
+    // Submit the form directly to advance draftEpochRef before the slow upload finishes
+    fireEvent.submit(createBtn.closest('form')!)
+    await waitFor(() => {
+      expect(createRoom).toHaveBeenCalledTimes(1)
+    })
+
+    // Resolve the late upload from the previous draft epoch; it must be ignored
+    resolveLateFile(slowFile)
+    await waitFor(() => {
+      expect(
+        screen.getByText(/room photos & gallery \(0\)/i),
+      ).toBeInTheDocument()
+    })
   })
 })

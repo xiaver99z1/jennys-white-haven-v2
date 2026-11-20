@@ -157,6 +157,9 @@ function PublicRoomDetailPage() {
                   <img
                     src={activeImage}
                     alt={room.name}
+                    fetchPriority="high"
+                    loading="eager"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -182,6 +185,8 @@ function PublicRoomDetailPage() {
                       <img
                         src={src}
                         alt={`${room.name} ${idx + 1}`}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     </button>
