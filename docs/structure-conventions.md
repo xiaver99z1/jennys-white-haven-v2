@@ -15,9 +15,10 @@
 - `src/lib/prisma.ts` — Prisma client
 - `src/lib/permissions.ts` — RBAC `ROLES` and `hasPermission()`
 - `src/lib/formatters.ts` — reusable formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `formatRoleLabel`, `getErrorMessage`) and status/role badge lookups
+- `src/lib/constants/auth.ts` — centralized auth, token TTL, rate-limit, password complexity, and staff role constants & validators (`EMAIL_REGEX`, `STAFF_ROLE_OPTIONS`, `validateStrongPassword`, `validateStaffPassword`, `extractRequestClientMeta`, `resolveUserDisplayIdentifier`)
 - `src/lib/constants/labels.ts` — centralized UI labels (`ADMIN_LABELS`) and status/role badge metadata
 - `src/lib/constants/rooms.ts` — domain option presets (`ROOM_TYPES`, `BOOKING_STATUSES`, `PAYMENT_STATUSES`, `GUEST_ID_TYPES`, `RESORT_AMENITY_CATEGORIES`)
-- `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `Panel`, `StatCard`, `StatusBadge`)
+- `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `Panel`, `PasswordChallengeModal`, `StatCard`, `StatusBadge`)
 - `src/components/admin/` — admin feature components (`auth`, `bookings`, `dashboard`, `guests`, `profile`, `rooms`, `users`)
 - `src/server/` — server functions and handlers (`*-actions.ts`, `upload.ts`)
 - `prisma/` — Prisma schema and migrations

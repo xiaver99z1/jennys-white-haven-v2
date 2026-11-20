@@ -1,18 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
-import { Lock } from 'lucide-react'
-import { updateAdminUser } from '#/server/admin-actions'
-import type { ResortRole } from '#/server/admin-actions'
+import { useState, useEffect } from 'react'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { PasswordChallengeModal } from '#/components/common/PasswordChallengeModal'
+import {
+  STAFF_ROLE_OPTIONS,
+  validateStaffPassword,
+} from '#/lib/constants/auth'
+import { updateAdminUser } from '#/server/admin-actions'
+import type { EditableStaffUser, ResortRole, StatusMessage } from '#/types'
 
 interface EditUserModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  user: {
-    id: string
-    name: string
-    role: string | null
-  } | null
+  user: EditableStaffUser | null
 }
 
 export function EditUserProfileModal({
@@ -29,24 +29,14 @@ export function EditUserProfileModal({
 
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error'
-    text: string
-  } | null>(null)
-  const adminPasswordInputRef = useRef<HTMLInputElement>(null)
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
 
-  // Initial values for dirty check
   const initialName = user?.name || ''
   const initialRole =
     (user?.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole
 
   const isPasswordEntered = password.trim() !== ''
-  const isAuthChallengeOpen = Boolean(
-    isOpen && user && showConfirm && isPasswordEntered,
-  )
 
-  // Check if any changes were made
   const hasChanges =
     name !== initialName ||
     role !== initialRole ||
@@ -65,17 +55,6 @@ export function EditUserProfileModal({
     }
   }, [user])
 
-  useEffect(() => {
-    if (!isAuthChallengeOpen) return
-
-    previousFocusRef.current = document.activeElement as HTMLElement | null
-    adminPasswordInputRef.current?.focus()
-
-    return () => {
-      previousFocusRef.current?.focus()
-    }
-  }, [isAuthChallengeOpen])
-
   if (!isOpen || !user) return null
 
   const closeAuthChallenge = () => {
@@ -83,57 +62,12 @@ export function EditUserProfileModal({
     setAdminPassword('')
   }
 
-  const handleAuthDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      closeAuthChallenge()
-      return
-    }
-
-    if (e.key !== 'Tab') return
-
-    const focusable = Array.from(
-      e.currentTarget.querySelectorAll<HTMLElement>(
-        'input:not([disabled]), button:not([disabled])',
-      ),
-    )
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
-  const validatePassword = (pwd: string) => {
-    if (pwd.length < 8 || pwd.length > 16) {
-      return 'Password must be between 8 and 16 characters long.'
-    }
-    if (!/[A-Z]/.test(pwd)) {
-      return 'Password must contain at least one uppercase letter.'
-    }
-    if (!/[a-z]/.test(pwd)) {
-      return 'Password must contain at least one lowercase letter.'
-    }
-    if (!/[0-9]/.test(pwd)) {
-      return 'Password must contain at least one number.'
-    }
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) {
-      return 'Password must contain at least one special character.'
-    }
-    return null
-  }
-
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
 
     if (password) {
-      const passwordError = validatePassword(password)
+      const passwordError = validateStaffPassword(password)
       if (passwordError) {
         setMessage({ type: 'error', text: passwordError })
         return
@@ -223,10 +157,11 @@ export function EditUserProfileModal({
               onChange={(e) => setRole(e.target.value as ResortRole)}
               className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 bg-white"
             >
-              <option value="RECEPTIONIST">Receptionist</option>
-              <option value="MANAGER">Manager</option>
-              <option value="OWNER">Owner</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
+              {STAFF_ROLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -282,80 +217,16 @@ export function EditUserProfileModal({
           </div>
         </form>
 
-        {showConfirm && isPasswordEntered ? (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="admin-auth-dialog-title"
-              aria-describedby="admin-auth-dialog-desc"
-              onKeyDown={handleAuthDialogKeyDown}
-              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-stone-200 space-y-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3
-                    id="admin-auth-dialog-title"
-                    className="text-base font-bold text-stone-900"
-                  >
-                    Authenticate Password Change
-                  </h3>
-                  <p className="text-xs text-stone-500">
-                    Security verification required
-                  </p>
-                </div>
-              </div>
-
-              <p
-                id="admin-auth-dialog-desc"
-                className="text-xs text-stone-600 leading-relaxed"
-              >
-                Enter your current administrator password to authorize changing
-                the password for <span className="font-semibold">{user.name}</span>.
-              </p>
-
-              <div>
-                <label
-                  htmlFor="admin-auth-password"
-                  className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5"
-                >
-                  Your Administrator Password
-                </label>
-                <input
-                  ref={adminPasswordInputRef}
-                  id="admin-auth-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full rounded-lg border border-stone-300 px-3.5 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={closeAuthChallenge}
-                  disabled={loading}
-                  className="px-4 py-2 text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-lg transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmedSubmit}
-                  disabled={!adminPassword.trim() || loading}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-amber-800 hover:bg-amber-900 rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  Verify &amp; Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
+        {isPasswordEntered ? (
+          <PasswordChallengeModal
+            isOpen={showConfirm}
+            targetName={user.name}
+            password={adminPassword}
+            isLoading={loading}
+            onPasswordChange={setAdminPassword}
+            onConfirm={handleConfirmedSubmit}
+            onClose={closeAuthChallenge}
+          />
         ) : (
           <ConfirmModal
             isOpen={showConfirm}

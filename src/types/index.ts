@@ -35,7 +35,106 @@ export type Role = keyof typeof ROLES
 
 export type Permission = (typeof ROLES)[Role][number]
 
-export type ResortRole = 'SUPER_ADMIN' | 'OWNER' | 'MANAGER' | 'RECEPTIONIST'
+export type ResortRole =
+  | 'SUPER_ADMIN'
+  | 'OWNER'
+  | 'MANAGER'
+  | 'RECEPTIONIST'
+  | 'super_admin'
+  | 'owner'
+  | 'manager'
+  | 'receptionist'
+
+export type StaffRoleValue = Extract<
+  ResortRole,
+  'RECEPTIONIST' | 'MANAGER' | 'OWNER' | 'SUPER_ADMIN'
+>
+
+export interface StaffRoleOption {
+  value: StaffRoleValue
+  label: string
+}
+
+export interface StatusMessage {
+  type: 'success' | 'error'
+  text: string
+}
+
+export interface RequestClientMeta {
+  ipAddress: string
+  userAgent: string
+}
+
+export interface UserDisplayTarget {
+  email?: string | null
+  name?: string | null
+}
+
+export interface EditableStaffUser {
+  id: string
+  name: string
+  role: string | null
+}
+
+export interface InitialSetupInput {
+  name: string
+  email: string
+  password: string
+  confirmPassword: string
+}
+
+export interface VerifyActivationTokenInput {
+  token: string
+}
+
+export interface ResendVerificationByEmailInput {
+  email: string
+}
+
+export interface ResetPasswordWithTokenInput {
+  token: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface CreateAdminUserInput {
+  name: string
+  email: string
+  role: ResortRole
+}
+
+export interface UpdateAdminUserInput {
+  userId: string
+  name: string
+  password?: string
+  adminPassword?: string
+  role: ResortRole
+}
+
+export interface AdminUserIdInput {
+  userId: string
+}
+
+export interface SendVerificationEmailOptions {
+  to: string
+  name: string
+  rawToken: string
+  expiresInMinutes?: number
+}
+
+export interface ActionEmailTemplate {
+  to: string
+  name: string
+  subject: string
+  heading: string
+  bodyHtml: (safeName: string, expiryLabel: string) => string
+  ctaLabel: string
+  actionUrl: string
+  footerNote: string
+  textLines: (name: string, expiryLabel: string, actionUrl: string) => string[]
+  expiresInMinutes: number
+  fallbackErrorMessage: string
+}
 
 export type ProfileActionType =
   | 'UPDATE_PROFILE'

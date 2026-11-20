@@ -21,8 +21,8 @@
 
 - **Types:** Import and define shared domain, entity, and router types in `#/types` (`src/types/index.ts`). Do not duplicate interfaces across components.
 - **Formatters:** Use `#/lib/formatters` (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `getBookingStatusMeta`, `getPaymentStatusMeta`, `getRoomStatusMeta`, `getRoleBadgeClass`, `getErrorMessage`). Do not inline currency or date formatting in UI components.
-- **Constants & Labels:** Put reusable UI strings and badge metadata in `#/lib/constants/labels.ts` (`ADMIN_LABELS`, `*_STATUS_META`), and domain option lists in `#/lib/constants/rooms.ts`.
-- **Common Components:** Reuse `#/components/common/` (`StatusBadge`, `EmptyState`, `StatCard`, `Panel`, `ConfirmModal`, `AdminDataTable`) instead of duplicating badge, card, modal, or empty-state markup.
+- **Constants & Labels:** Put auth/security constants and password validators in `#/lib/constants/auth.ts`, reusable UI strings and badge metadata in `#/lib/constants/labels.ts` (`ADMIN_LABELS`, `*_STATUS_META`), and domain option lists in `#/lib/constants/rooms.ts`.
+- **Common Components:** Reuse `#/components/common/` (`StatusBadge`, `EmptyState`, `StatCard`, `Panel`, `ConfirmModal`, `PasswordChallengeModal`, `AdminDataTable`) and `#/components/admin/auth/AuthPageShell` (`AuthPageShell`, `PasswordField`) instead of duplicating badge, card, modal, auth shell, or empty-state markup.
 - **Verification:** Before finishing changes, pass `pnpm exec tsc --noEmit`, `pnpm lint` (0 errors/warnings), and `pnpm coverage` (100% coverage on `src/components/**` and `src/server/**`).
 
 ## Media & File Storage (Cloudflare R2)

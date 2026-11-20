@@ -1,18 +1,20 @@
 import { createServerFn } from '@tanstack/react-start'
 import { hashPassword } from 'better-auth/crypto'
 import { getServerHeaders } from '#/lib/auth-helpers'
+import {
+  EMAIL_REGEX,
+  FULL_NAME_MAX_LENGTH,
+  FULL_NAME_MIN_LENGTH,
+  VERIFICATION_EXPIRES_MINUTES,
+  VERIFICATION_TOKEN_TTL_MS,
+  extractRequestClientMeta,
+  validateStrongPassword,
+} from '#/lib/constants/auth'
 import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
 import { prisma } from '#/lib/prisma'
+import type { InitialSetupInput } from '#/types'
 
-export interface InitialSetupInput {
-  name: string
-  email: string
-  password: string
-  confirmPassword: string
-}
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const VERIFICATION_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+export type { InitialSetupInput }
 
 export function validateCreateInitialSuperAdmin(data: InitialSetupInput) {
   return data
@@ -36,27 +38,22 @@ export async function createInitialSuperAdminHandler({
   const email = data.email.trim().toLowerCase()
   const { password, confirmPassword } = data
 
-  if (name.length < 2 || name.length > 100) {
-    throw new Error('Full name must be between 2 and 100 characters.')
+  if (
+    name.length < FULL_NAME_MIN_LENGTH ||
+    name.length > FULL_NAME_MAX_LENGTH
+  ) {
+    throw new Error(
+      `Full name must be between ${FULL_NAME_MIN_LENGTH} and ${FULL_NAME_MAX_LENGTH} characters.`,
+    )
   }
 
   if (!EMAIL_REGEX.test(email)) {
     throw new Error('Please enter a valid email address.')
   }
 
-  if (password.length < 8 || password.length > 128) {
-    throw new Error('Password must be between 8 and 128 characters long.')
-  }
-
-  if (
-    !/[A-Z]/.test(password) ||
-    !/[a-z]/.test(password) ||
-    !/[0-9]/.test(password) ||
-    !/[^A-Za-z0-9]/.test(password)
-  ) {
-    throw new Error(
-      'Password must include uppercase, lowercase, a number, and a special character.',
-    )
+  const passwordError = validateStrongPassword(password)
+  if (passwordError) {
+    throw new Error(passwordError)
   }
 
   if (password !== confirmPassword) {
@@ -73,11 +70,7 @@ export async function createInitialSuperAdminHandler({
   const { rawToken, tokenHash } = generateActivationToken()
   const now = new Date()
   const tokenExpires = new Date(now.getTime() + VERIFICATION_TOKEN_TTL_MS)
-
-  const headers = getServerHeaders()
-  const ipAddress =
-    headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
-  const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+  const { ipAddress, userAgent } = extractRequestClientMeta(getServerHeaders())
 
   let createdUser: {
     id: string
@@ -150,7 +143,7 @@ export async function createInitialSuperAdminHandler({
       to: createdUser.email,
       name: createdUser.name,
       rawToken,
-      expiresInMinutes: 60,
+      expiresInMinutes: VERIFICATION_EXPIRES_MINUTES,
     })
   } catch (error: unknown) {
     // Atomically delete only if the account is still in its original unverified state

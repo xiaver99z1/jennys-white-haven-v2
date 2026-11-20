@@ -4,7 +4,8 @@ import {
   compressImageForUpload,
   IMAGE_UPLOAD_PRESETS,
 } from '#/lib/image-compress'
-import { formatRoleLabel } from '#/lib/formatters'
+import { PASSWORD_MIN_LENGTH } from '#/lib/constants/auth'
+import { formatRoleLabel, getErrorMessage } from '#/lib/formatters'
 import {
   logProfileActivity,
   saveProfileAvatar,
@@ -12,6 +13,7 @@ import {
 import { requestPasswordReset } from '#/server/auth-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import type { StatusMessage } from '#/types'
 
 export function ProfileSettings() {
   const [session, setSession] = useState<any>(null)
@@ -36,10 +38,7 @@ export function ProfileSettings() {
   const [confirmAction, setConfirmAction] = useState<
     'avatar' | 'profile' | 'password' | null
   >(null)
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error'
-    text: string
-  } | null>(null)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
 
   useEffect(() => {
     authClient.getSession().then(({ data }) => {
@@ -215,10 +214,10 @@ export function ProfileSettings() {
     e.preventDefault()
     setMessage(null)
 
-    if (newPassword.length < 8) {
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
       setMessage({
         type: 'error',
-        text: 'New password must be at least 8 characters long.',
+        text: `New password must be at least ${PASSWORD_MIN_LENGTH} characters long.`,
       })
       return
     }
@@ -287,10 +286,7 @@ export function ProfileSettings() {
     } catch (err: unknown) {
       setMessage({
         type: 'error',
-        text:
-          err instanceof Error
-            ? err.message
-            : 'Failed to send password reset email.',
+        text: getErrorMessage(err, 'Failed to send password reset email.'),
       })
     } finally {
       setResetEmailLoading(false)
