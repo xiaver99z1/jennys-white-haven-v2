@@ -160,7 +160,6 @@ function PublicRoomDetailPage() {
                     fetchPriority="high"
                     loading="eager"
                     decoding="async"
-                    sizes="(min-width: 1024px) 58vw, 100vw"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -188,7 +187,6 @@ function PublicRoomDetailPage() {
                         alt={`${room.name} ${idx + 1}`}
                         loading="lazy"
                         decoding="async"
-                        sizes="120px"
                         className="w-full h-full object-cover"
                       />
                     </button>

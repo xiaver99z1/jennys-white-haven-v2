@@ -67,7 +67,6 @@ function LandingPage() {
               fetchPriority="high"
               loading="eager"
               decoding="async"
-              sizes="100vw"
               className="absolute inset-0 w-full h-full object-cover opacity-75"
             />
           )}
@@ -212,7 +211,6 @@ function LandingPage() {
                     alt={story.title}
                     loading="lazy"
                     decoding="async"
-                    sizes="(min-width: 1024px) 50vw, 100vw"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -268,7 +266,6 @@ function LandingPage() {
                           alt={room.name}
                           loading="lazy"
                           decoding="async"
-                          sizes="(min-width: 768px) 33vw, 100vw"
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                         />
                       ) : (
@@ -328,7 +325,6 @@ function LandingPage() {
                     alt={amenities.title}
                     loading="lazy"
                     decoding="async"
-                    sizes="(min-width: 1024px) 50vw, 100vw"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -399,7 +395,6 @@ function LandingPage() {
                     alt={`${gallery.title} ${idx + 1}`}
                     loading="lazy"
                     decoding="async"
-                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                     className="w-full h-full object-cover hover:scale-105 transition duration-500"
                   />
                 </div>

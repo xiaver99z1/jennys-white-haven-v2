@@ -197,7 +197,11 @@ export async function createR2PresignedUploadUrl(params: {
   mimeType: string
   isPrivate?: boolean
   expiresInSeconds?: number
-}): Promise<{ uploadUrl: string; publicUrl: string } | null> {
+}): Promise<{
+  uploadUrl: string
+  publicUrl: string
+  cacheControl: string
+} | null> {
   const config = getR2Config()
   if (!config) return null
 
@@ -205,10 +209,14 @@ export async function createR2PresignedUploadUrl(params: {
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
   const client = await getR2Client(config)
   const bucket = resolveTargetBucket(config, params.isPrivate)
+  const cacheControl = params.isPrivate
+    ? 'private, no-store'
+    : 'public, max-age=31536000, immutable'
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: params.objectKey,
     ContentType: params.mimeType,
+    CacheControl: cacheControl,
   })
 
   const uploadUrl = await getSignedUrl(client, command, {
@@ -218,7 +226,7 @@ export async function createR2PresignedUploadUrl(params: {
     ? params.objectKey
     : resolvePublicMediaUrl(params.objectKey)
 
-  return { uploadUrl, publicUrl }
+  return { uploadUrl, publicUrl, cacheControl }
 }
 
 /**

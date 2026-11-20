@@ -232,7 +232,6 @@ function PublicRoomsPage() {
                       alt={room.name}
                       loading="lazy"
                       decoding="async"
-                      sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
                   ) : (

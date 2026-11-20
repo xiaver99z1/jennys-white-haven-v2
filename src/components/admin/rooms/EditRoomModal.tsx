@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { updateRoom, deleteRoom } from '#/server/room-actions'
 import {
   X,
@@ -61,6 +61,8 @@ export function EditRoomModal({
 }: EditRoomModalProps) {
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState(0)
+  const activeRoomIdRef = useRef<string | null>(room?.id ?? null)
   const [error, setError] = useState<string | null>(null)
   const [selectedImagePreview, setSelectedImagePreview] = useState<
     string | null
@@ -72,6 +74,8 @@ export function EditRoomModal({
   const [formData, setFormData] = useState(() => getInitialFormData(room))
 
   useEffect(() => {
+    activeRoomIdRef.current = room?.id ?? null
+    setPendingUploads(0)
     if (room) {
       setFormData(getInitialFormData(room))
       setError(null)
@@ -127,6 +131,9 @@ export function EditRoomModal({
         return
       }
 
+      const targetRoomId = room.id
+      setPendingUploads((count) => count + 1)
+
       void compressImageForUpload(
         file,
         IMAGE_UPLOAD_PRESETS.room.maxDimension,
@@ -134,10 +141,13 @@ export function EditRoomModal({
       ).then((compressedFile) => {
         const reader = new FileReader()
         reader.onloadend = () => {
-          setFormData((prev) => ({
-            ...prev,
-            images: [...prev.images, reader.result as string],
-          }))
+          if (activeRoomIdRef.current === targetRoomId) {
+            setFormData((prev) => ({
+              ...prev,
+              images: [...prev.images, reader.result as string],
+            }))
+            setPendingUploads((count) => Math.max(0, count - 1))
+          }
         }
         reader.readAsDataURL(compressedFile)
       })
@@ -493,7 +503,9 @@ export function EditRoomModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || deleting || !hasChanges}
+                  disabled={
+                    loading || deleting || !hasChanges || pendingUploads > 0
+                  }
                   className="px-5 py-2 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-md cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   {loading ? 'Saving...' : 'Save Changes'}
