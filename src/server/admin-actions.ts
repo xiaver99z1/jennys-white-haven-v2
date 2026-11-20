@@ -7,7 +7,14 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 
 export type ResortRole =
-  'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'owner' | 'manager' | 'receptionist'
+  | 'SUPER_ADMIN'
+  | 'OWNER'
+  | 'MANAGER'
+  | 'RECEPTIONIST'
+  | 'super_admin'
+  | 'owner'
+  | 'manager'
+  | 'receptionist'
 
 // --- 1. CREATE ADMIN USER ---
 export function validateCreateAdminUser(data: {

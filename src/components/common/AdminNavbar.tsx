@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { hasPermission } from '#/lib/permissions'
+import { formatRoleLabel } from '#/lib/formatters'
 import type { GlobalSearchResults, NotificationsResponse } from '#/types'
 import { globalAdminSearch } from '#/server/navbar-actions'
 import {
@@ -439,7 +440,7 @@ export function AdminNavbar({
                 </p>
                 {user?.role && (
                   <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 rounded-md">
-                    {user.role}
+                    {formatRoleLabel(user.role)}
                   </span>
                 )}
               </div>

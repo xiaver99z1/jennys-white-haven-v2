@@ -8,34 +8,55 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
 import { logUserLogout } from '#/server/auth-actions'
+import { checkInitialSetupRequiredHandler } from '#/server/setup-actions'
 import { useEffect, useState, useRef } from 'react'
 import { AdminSidebar } from '#/components/common/AdminSidebar'
 import { AdminNavbar } from '#/components/common/AdminNavbar'
 import { NotFoundPage } from '#/components/common/NotFoundPage'
 
-// Get current session
-const getSession = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getRequestHeaders, setResponseHeader } =
-    await import('@tanstack/react-start/server')
+// Get current session and initial-setup status
+const getAdminAuthState = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const { getRequestHeaders, setResponseHeader } =
+      await import('@tanstack/react-start/server')
 
-  setResponseHeader(
-    'Cache-Control',
-    'no-store, no-cache, must-revalidate, proxy-revalidate',
-  )
-  setResponseHeader('Pragma', 'no-cache')
-  setResponseHeader('Expires', '0')
+    setResponseHeader(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate',
+    )
+    setResponseHeader('Pragma', 'no-cache')
+    setResponseHeader('Expires', '0')
 
-  const session = await auth.api.getSession({
-    headers: getRequestHeaders(),
-  })
-  return session
-})
+    const [{ needsSetup }, session] = await Promise.all([
+      checkInitialSetupRequiredHandler(),
+      auth.api.getSession({
+        headers: getRequestHeaders(),
+      }),
+    ])
+
+    return { session, needsSetup }
+  },
+)
 
 export const Route = createFileRoute('/admin')({
   beforeLoad: async ({ location }) => {
-    const session = await getSession()
+    const { session, needsSetup } = await getAdminAuthState()
+    const normalizedPath = location.pathname.replace(/\/+$/, '')
+    const isSetupPage = normalizedPath === '/admin/setup'
+    const isLoginPage = normalizedPath === '/admin/login'
 
-    if (location.pathname === '/admin/login') {
+    if (needsSetup) {
+      if (!isSetupPage) {
+        throw redirect({ to: '/admin/setup' })
+      }
+      return
+    }
+
+    if (isSetupPage) {
+      throw redirect({ to: session ? '/admin' : '/admin/login' })
+    }
+
+    if (isLoginPage) {
       if (session) {
         throw redirect({ to: '/admin' })
       }
@@ -59,7 +80,9 @@ export const Route = createFileRoute('/admin')({
 
 function AdminLayout() {
   const routerState = useRouterState()
-  const isLoginPage = routerState.location.pathname === '/admin/login'
+  const normalizedPath = routerState.location.pathname.replace(/\/+$/, '')
+  const isAuthPage =
+    normalizedPath === '/admin/login' || normalizedPath === '/admin/setup'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessionData, setSessionData] = useState<any>(null)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -125,7 +148,7 @@ function AdminLayout() {
 
   // Client-side session check
   useEffect(() => {
-    if (isLoginPage) return
+    if (isAuthPage) return
     authClient.getSession().then(({ data }) => {
       if (!data) {
         window.location.replace('/admin/login')
@@ -133,9 +156,9 @@ function AdminLayout() {
         setSessionData(data)
       }
     })
-  }, [isLoginPage])
+  }, [isAuthPage])
 
-  if (isLoginPage) {
+  if (isAuthPage) {
     return <Outlet />
   }
 

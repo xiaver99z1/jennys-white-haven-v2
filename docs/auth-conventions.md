@@ -4,12 +4,19 @@ We use **Better Auth** for authentication.
 
 ## Admin Auth (Current Priority)
 
+- Initial setup page: `/admin/setup` (full page, **no sidebar**)
+  - When **0 users** exist in the database, visiting `/admin`, `/admin/login`, or any `/admin/*` route automatically redirects to `/admin/setup`.
+  - Allows creating the first `super_admin` account (Name, Email, Password) via a serializable transaction (`src/server/setup-actions.ts`)—no database seeder or hardcoded credentials in code.
+  - Requires **email verification** before sign-in: generates a 256-bit random token, stores only its SHA-256 hash (`activationToken`) with a 1-hour expiry, sends a verification link via Resend (`src/lib/email.ts`), and rolls back the unverified account if initial email delivery fails.
+  - Activation page (`/verify-activation`) sets `Referrer-Policy: no-referrer`, strips `?token=` from browser history on load, requires an explicit button click (`POST`) to prevent email-scanner prefetch consumption, and atomically verifies the account once.
+  - Rate-limited, anti-enumeration resend (`resendVerificationByEmail`: 60s cooldown, max 3/24h, token rotation) is available on both `/admin/setup` (post-registration) and `/admin/login` (when unverified).
+  - Once at least 1 user exists, `/admin/setup` is permanently locked and redirects to `/admin` (authenticated) or `/admin/login` (unauthenticated).
 - Login page: `/admin/login` (full page, **no sidebar**)
 - Method: Email + Password only
-- After successful login → redirect to `/admin` using `window.location.replace()`
+- After successful login or initial setup → redirect to `/admin` using `window.location.replace()`
 - Logout → `window.location.replace("/admin/login")`
-- All `/admin/*` routes (except login) are protected
-- Roles (future): `owner` | `admin` | `staff`
+- All `/admin/*` routes (except `/admin/login` and `/admin/setup`) are protected
+- Roles: `super_admin` | `owner` | `manager` | `receptionist`
 
 ### Protection Rules
 

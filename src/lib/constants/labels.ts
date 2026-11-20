@@ -65,6 +65,7 @@ export const ROOM_STATUS_META: Record<RoomStatus, StatusMeta> = {
 }
 
 export const ROLE_BADGE_CLASSES: Record<string, string> = {
+  super_admin: 'bg-purple-100 text-purple-900 border-purple-300',
   owner: 'bg-amber-100 text-amber-900 border-amber-300',
   manager: 'bg-sky-100 text-sky-900 border-sky-300',
   receptionist: 'bg-teal-100 text-teal-900 border-teal-300',

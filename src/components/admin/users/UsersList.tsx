@@ -7,7 +7,11 @@ import { UserActionsDropdown } from '#/components/admin/users/UserActionsDropdow
 import { ResendVerificationModal } from '#/components/admin/users/ResendVerificationModal'
 
 import type { AdminRouter, User } from '#/types'
-import { formatShortDate, getRoleBadgeClass } from '#/lib/formatters'
+import {
+  formatRoleLabel,
+  formatShortDate,
+  getRoleBadgeClass,
+} from '#/lib/formatters'
 
 export type { User }
 
@@ -184,7 +188,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
                   user.role,
                 )}`}
               >
-                {user.role || 'None'}
+                {formatRoleLabel(user.role, 'None')}
               </span>
               <UserActionsDropdown
                 user={user}
@@ -225,6 +229,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
       filterType: 'select',
       filterOptions: [
         { label: 'Role...', value: 'ALL' },
+        { label: 'Super Admin', value: 'super_admin' },
         { label: 'Owner', value: 'owner' },
         { label: 'Manager', value: 'manager' },
         { label: 'Receptionist', value: 'receptionist' },
@@ -233,7 +238,7 @@ export function UsersList({ initialUsers, router }: UsersListProps) {
         <span
           className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md border ${getRoleBadgeClass(user.role)}`}
         >
-          {user.role || 'Unassigned'}
+          {formatRoleLabel(user.role, 'Unassigned')}
         </span>
       ),
     },

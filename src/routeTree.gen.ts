@@ -21,6 +21,7 @@ import { Route as AdminNotificationsRouteImport } from './routes/admin/notificat
 import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminRoomsRouteImport } from './routes/admin/rooms'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminSetupRouteImport } from './routes/admin/setup'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as RoomsIndexRouteImport } from './routes/rooms/index'
 import { Route as RoomsIdRouteImport } from './routes/rooms/$id'
@@ -92,6 +93,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminSetupRoute = AdminSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/setup': typeof AdminSetupRoute
   '/admin/users': typeof AdminUsersRoute
   '/rooms/$id': typeof RoomsIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -178,6 +185,7 @@ export interface FileRoutesByTo {
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/setup': typeof AdminSetupRoute
   '/admin/users': typeof AdminUsersRoute
   '/rooms/$id': typeof RoomsIdRoute
   '/admin': typeof AdminIndexRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/admin/profile': typeof AdminProfileRoute
   '/admin/rooms': typeof AdminRoomsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/setup': typeof AdminSetupRoute
   '/admin/users': typeof AdminUsersRoute
   '/rooms/$id': typeof RoomsIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/admin/profile'
     | '/admin/rooms'
     | '/admin/settings'
+    | '/admin/setup'
     | '/admin/users'
     | '/rooms/$id'
     | '/admin/'
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/admin/profile'
     | '/admin/rooms'
     | '/admin/settings'
+    | '/admin/setup'
     | '/admin/users'
     | '/rooms/$id'
     | '/admin'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/admin/profile'
     | '/admin/rooms'
     | '/admin/settings'
+    | '/admin/setup'
     | '/admin/users'
     | '/rooms/$id'
     | '/admin/'
@@ -386,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/setup': {
+      id: '/admin/setup'
+      path: '/setup'
+      fullPath: '/admin/setup'
+      preLoaderRoute: typeof AdminSetupRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
@@ -467,6 +486,7 @@ interface AdminRouteRouteChildren {
   AdminProfileRoute: typeof AdminProfileRoute
   AdminRoomsRoute: typeof AdminRoomsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminSetupRoute: typeof AdminSetupRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminReportsBookingsRoute: typeof AdminReportsBookingsRoute
@@ -484,6 +504,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminProfileRoute: AdminProfileRoute,
   AdminRoomsRoute: AdminRoomsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminSetupRoute: AdminSetupRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminReportsBookingsRoute: AdminReportsBookingsRoute,

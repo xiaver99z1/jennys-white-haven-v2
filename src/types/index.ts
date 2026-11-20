@@ -35,7 +35,7 @@ export type Role = keyof typeof ROLES
 
 export type Permission = (typeof ROLES)[Role][number]
 
-export type ResortRole = 'OWNER' | 'MANAGER' | 'RECEPTIONIST'
+export type ResortRole = 'SUPER_ADMIN' | 'OWNER' | 'MANAGER' | 'RECEPTIONIST'
 
 export type ProfileActionType =
   | 'UPDATE_PROFILE'
