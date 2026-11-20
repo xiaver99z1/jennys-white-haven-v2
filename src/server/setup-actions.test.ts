@@ -13,7 +13,7 @@ vi.mock('#/lib/prisma', () => ({
   prisma: {
     user: {
       count: vi.fn(),
-      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -327,7 +327,8 @@ describe('setup-actions handlers and validators', () => {
       })
     })
 
-    it('rolls back newly created unverified user if sending verification email fails', async () => {
+    it('conditionally deletes unchanged unverified user on email failure, or preserves account if it already advanced', async () => {
+      // 1. Unchanged unverified account is cleaned up (deleteMany count === 1)
       vi.mocked(prisma.user.count).mockResolvedValueOnce(0)
       vi.mocked(hashPassword).mockResolvedValueOnce('hashed-secret')
       vi.mocked(getServerHeaders).mockReturnValueOnce({ get: () => null } as any)
@@ -340,19 +341,53 @@ describe('setup-actions handlers and validators', () => {
       vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
         new Error('Invalid RESEND_API_KEY'),
       )
-      vi.mocked(prisma.user.delete).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.user.deleteMany).mockResolvedValueOnce({ count: 1 })
 
       await expect(
         createInitialSuperAdminHandler({ data: validInput }),
       ).rejects.toThrow(
-        'Failed to send verification email: Invalid RESEND_API_KEY. Please check your email configuration and try again.',
+        'Failed to send verification email: Invalid RESEND_API_KEY. Fix your email delivery configuration, then sign in and request a new verification email.',
       )
 
-      expect(prisma.user.delete).toHaveBeenCalledWith({
-        where: { id: 'super-rollback' },
+      expect(prisma.user.deleteMany).toHaveBeenCalledWith({
+        where: {
+          id: 'super-rollback',
+          emailVerified: false,
+          activationToken: 'hashed-setup-token',
+        },
       })
 
-      // Non-Error email failure + rollback delete error still throws clear message
+      // 2. Account already advanced (deleteMany count === 0): preserved and returns success
+      vi.mocked(prisma.user.count).mockResolvedValueOnce(0)
+      vi.mocked(hashPassword).mockResolvedValueOnce('hashed-secret')
+      vi.mocked(getServerHeaders).mockReturnValueOnce({ get: () => null } as any)
+      vi.mocked(prisma.$transaction).mockResolvedValueOnce({
+        id: 'super-advanced',
+        name: 'Jenny Admin',
+        email: 'admin@jennyswhitehaven.com',
+        role: 'super_admin',
+      })
+      vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
+        new Error('Late timeout'),
+      )
+      vi.mocked(prisma.user.deleteMany).mockResolvedValueOnce({ count: 0 })
+
+      await expect(
+        createInitialSuperAdminHandler({ data: validInput }),
+      ).resolves.toEqual({
+        success: true,
+        requiresVerification: true,
+        message:
+          'Super Admin account created! Please check your email to verify your account before signing in.',
+        user: {
+          id: 'super-advanced',
+          name: 'Jenny Admin',
+          email: 'admin@jennyswhitehaven.com',
+          role: 'super_admin',
+        },
+      })
+
+      // 3. Cleanup deleteMany throws + non-Error email failure still directs user to sign in and resend
       vi.mocked(prisma.user.count).mockResolvedValueOnce(0)
       vi.mocked(hashPassword).mockResolvedValueOnce('hashed-secret')
       vi.mocked(getServerHeaders).mockReturnValueOnce({ get: () => null } as any)
@@ -363,12 +398,14 @@ describe('setup-actions handlers and validators', () => {
         role: 'super_admin',
       })
       vi.mocked(sendVerificationEmail).mockRejectedValueOnce('network')
-      vi.mocked(prisma.user.delete).mockRejectedValueOnce(new Error('db fail'))
+      vi.mocked(prisma.user.deleteMany).mockRejectedValueOnce(
+        new Error('db fail'),
+      )
 
       await expect(
         createInitialSuperAdminHandler({ data: validInput }),
       ).rejects.toThrow(
-        'Failed to send verification email: Email provider error. Please check your email configuration and try again.',
+        'Failed to send verification email: Email provider error. Fix your email delivery configuration, then sign in and request a new verification email.',
       )
     })
 

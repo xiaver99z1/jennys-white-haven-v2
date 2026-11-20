@@ -153,17 +153,40 @@ export async function createInitialSuperAdminHandler({
       expiresInMinutes: 60,
     })
   } catch (error: unknown) {
-    // Roll back the unverified initial user if email delivery fails so setup is not bricked
+    // Atomically delete only if the account is still in its original unverified state
+    let accountAdvanced = false
     try {
-      await prisma.user.delete({ where: { id: createdUser.id } })
+      const deleted = await prisma.user.deleteMany({
+        where: {
+          id: createdUser.id,
+          emailVerified: false,
+          activationToken: tokenHash,
+        },
+      })
+      accountAdvanced = deleted.count === 0
     } catch {
-      // Preserve the original email delivery error
+      // Preserve the original email delivery error when cleanup fails
+    }
+
+    if (accountAdvanced) {
+      return {
+        success: true,
+        requiresVerification: true,
+        message:
+          'Super Admin account created! Please check your email to verify your account before signing in.',
+        user: {
+          id: createdUser.id,
+          name: createdUser.name,
+          email: createdUser.email,
+          role: createdUser.role,
+        },
+      }
     }
 
     const detail =
       error instanceof Error ? error.message : 'Email provider error'
     throw new Error(
-      `Failed to send verification email: ${detail}. Please check your email configuration and try again.`,
+      `Failed to send verification email: ${detail}. Fix your email delivery configuration, then sign in and request a new verification email.`,
     )
   }
 

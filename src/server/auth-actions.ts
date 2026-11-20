@@ -36,7 +36,7 @@ export async function verifyActivationTokenHandler({
   const user = await prisma.user.findFirst({
     where: {
       emailVerified: false,
-      activationToken: { in: [tokenHash, token] },
+      activationToken: tokenHash,
       activationTokenExpires: { gte: now },
     },
   })
@@ -51,7 +51,7 @@ export async function verifyActivationTokenHandler({
     where: {
       id: user.id,
       emailVerified: false,
-      activationToken: user.activationToken,
+      activationToken: tokenHash,
       activationTokenExpires: { gte: now },
     },
     data: {
@@ -122,9 +122,11 @@ export async function resendVerificationByEmailHandler({
     : null
 
   if (lastSent && now.getTime() - lastSent.getTime() < RESEND_COOLDOWN_MS) {
-    throw new Error(
-      'Please wait a minute before requesting another verification email.',
-    )
+    console.warn('Resend verification skipped: cooldown active for user', user.id)
+    return {
+      success: true,
+      message: GENERIC_RESEND_MESSAGE,
+    }
   }
 
   const isSameDayWindow =
@@ -132,17 +134,30 @@ export async function resendVerificationByEmailHandler({
   const currentCount = isSameDayWindow ? (user.activationEmailCount || 0) : 0
 
   if (currentCount >= MAX_VERIFICATION_EMAILS_PER_DAY) {
-    throw new Error(
-      'Too many verification requests. Please try again tomorrow.',
+    console.warn(
+      'Resend verification skipped: daily limit reached for user',
+      user.id,
     )
+    return {
+      success: true,
+      message: GENERIC_RESEND_MESSAGE,
+    }
   }
 
   const nextCount = currentCount + 1
   const { rawToken, tokenHash } = generateActivationToken()
   const tokenExpires = new Date(now.getTime() + VERIFICATION_TOKEN_TTL_MS)
 
-  await prisma.user.update({
-    where: { id: user.id },
+  // Atomically reserve resend eligibility against observed token and rate-limit state
+  const reserved = await prisma.user.updateMany({
+    where: {
+      id: user.id,
+      emailVerified: false,
+      banned: user.banned,
+      activationToken: user.activationToken,
+      activationEmailCount: user.activationEmailCount,
+      lastActivationEmailSentAt: user.lastActivationEmailSentAt,
+    },
     data: {
       activationToken: tokenHash,
       activationTokenExpires: tokenExpires,
@@ -150,6 +165,17 @@ export async function resendVerificationByEmailHandler({
       lastActivationEmailSentAt: now,
     },
   })
+
+  if (reserved.count !== 1) {
+    console.warn(
+      'Resend verification skipped: concurrent state change for user',
+      user.id,
+    )
+    return {
+      success: true,
+      message: GENERIC_RESEND_MESSAGE,
+    }
+  }
 
   try {
     await sendVerificationEmail({
@@ -159,9 +185,14 @@ export async function resendVerificationByEmailHandler({
       expiresInMinutes: 60,
     })
   } catch (error: unknown) {
+    // Only restore previous metadata if the stored token still matches this request's tokenHash
     try {
-      await prisma.user.update({
-        where: { id: user.id },
+      await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          emailVerified: false,
+          activationToken: tokenHash,
+        },
         data: {
           activationToken: user.activationToken,
           activationTokenExpires: user.activationTokenExpires,
@@ -170,14 +201,14 @@ export async function resendVerificationByEmailHandler({
         },
       })
     } catch {
-      // Preserve the original email delivery error
+      // Ignore rollback database failure
     }
 
-    throw new Error(
-      error instanceof Error
-        ? error.message
-        : 'Failed to send verification email.',
-    )
+    console.error('Failed to deliver verification email:', error)
+    return {
+      success: true,
+      message: GENERIC_RESEND_MESSAGE,
+    }
   }
 
   const headers = getServerHeaders()

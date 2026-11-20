@@ -74,6 +74,44 @@ describe('auth-actions handlers and validators', () => {
       )
     })
 
+    it('rejects submission of the stored token hash while accepting the raw emailed token', async () => {
+      const storedHash = 'hash:raw-emailed-token'
+
+      // Simulate DB matching only when where.activationToken === storedHash
+      vi.mocked(prisma.user.findFirst).mockImplementation((async (args: any) => {
+        if (args?.where?.activationToken === storedHash) {
+          return {
+            id: 'user-1',
+            email: 'user@resort.com',
+            activationToken: storedHash,
+          }
+        }
+        return null
+      }) as any)
+
+      // 1. Submitting the stored hash itself must fail (hashes to 'hash:hash:raw-emailed-token')
+      await expect(
+        verifyActivationTokenHandler({ data: { token: storedHash } }),
+      ).rejects.toThrow(
+        'This activation link is invalid or has already been consumed.',
+      )
+      expect(prisma.user.updateMany).not.toHaveBeenCalled()
+
+      // 2. Submitting the raw emailed token succeeds (hashes to 'hash:raw-emailed-token')
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 })
+      vi.mocked(getServerHeaders).mockReturnValueOnce({
+        get: () => null,
+      } as any)
+      vi.mocked(logActivity).mockResolvedValueOnce({} as any)
+
+      await expect(
+        verifyActivationTokenHandler({ data: { token: 'raw-emailed-token' } }),
+      ).resolves.toEqual({
+        success: true,
+        message: 'Email verified successfully!',
+      })
+    })
+
     it('throws error if atomic updateMany detects concurrent consumption', async () => {
       vi.mocked(prisma.user.findFirst).mockResolvedValueOnce({
         id: 'user-1',
@@ -119,7 +157,7 @@ describe('auth-actions handlers and validators', () => {
       expect(prisma.user.findFirst).toHaveBeenCalledWith({
         where: {
           emailVerified: false,
-          activationToken: { in: ['hash:valid-token', 'valid-token'] },
+          activationToken: 'hash:valid-token',
           activationTokenExpires: { gte: expect.any(Date) },
         },
       })
@@ -250,7 +288,10 @@ describe('auth-actions handlers and validators', () => {
       expect(sendVerificationEmail).not.toHaveBeenCalled()
     })
 
-    it('enforces 60-second cooldown and 3-per-day rate limit', async () => {
+    it('enforces 60-second cooldown, 3-per-day rate limit, and concurrent reservation race with generic response', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      // 1. Cooldown active
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         email: 'admin@resort.com',
@@ -264,10 +305,9 @@ describe('auth-actions handlers and validators', () => {
         resendVerificationByEmailHandler({
           data: { email: 'admin@resort.com' },
         }),
-      ).rejects.toThrow(
-        'Please wait a minute before requesting another verification email.',
-      )
+      ).resolves.toEqual({ success: true, message: genericMsg })
 
+      // 2. Daily limit reached
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         email: 'admin@resort.com',
@@ -281,26 +321,51 @@ describe('auth-actions handlers and validators', () => {
         resendVerificationByEmailHandler({
           data: { email: 'admin@resort.com' },
         }),
-      ).rejects.toThrow(
-        'Too many verification requests. Please try again tomorrow.',
-      )
+      ).resolves.toEqual({ success: true, message: genericMsg })
+
+      // 3. Concurrent reservation race (updateMany count === 0)
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        id: 'u1',
+        email: 'admin@resort.com',
+        emailVerified: false,
+        banned: false,
+        activationToken: 'old-hash',
+        activationEmailCount: 1,
+        lastActivationEmailSentAt: new Date(Date.now() - 5 * 60 * 1000),
+      } as any)
+      vi.mocked(generateActivationToken).mockReturnValueOnce({
+        rawToken: 'race-raw',
+        tokenHash: 'race-hash',
+      })
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 0 })
+
+      await expect(
+        resendVerificationByEmailHandler({
+          data: { email: 'admin@resort.com' },
+        }),
+      ).resolves.toEqual({ success: true, message: genericMsg })
+
+      expect(sendVerificationEmail).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledTimes(3)
     })
 
-    it('rotates token, sends verification email, logs activity, and resets count after 24h', async () => {
+    it('atomically reserves resend, rotates token, sends email, logs activity, and resets count after 24h', async () => {
+      const oldSentAt = new Date(Date.now() - 25 * 60 * 60 * 1000)
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         name: 'Jenny Admin',
         email: 'admin@resort.com',
         emailVerified: false,
         banned: false,
+        activationToken: 'prev-hash',
         activationEmailCount: 3,
-        lastActivationEmailSentAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+        lastActivationEmailSentAt: oldSentAt,
       } as any)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'new-raw-token',
         tokenHash: 'new-hash-token',
       })
-      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 })
       vi.mocked(sendVerificationEmail).mockResolvedValueOnce({} as any)
       vi.mocked(getServerHeaders).mockReturnValueOnce({
         get: (k: string) =>
@@ -313,8 +378,15 @@ describe('auth-actions handlers and validators', () => {
       })
 
       expect(res).toEqual({ success: true, message: genericMsg })
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'u1' },
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'u1',
+          emailVerified: false,
+          banned: false,
+          activationToken: 'prev-hash',
+          activationEmailCount: 3,
+          lastActivationEmailSentAt: oldSentAt,
+        },
         data: expect.objectContaining({
           activationToken: 'new-hash-token',
           activationEmailCount: 1,
@@ -337,20 +409,22 @@ describe('auth-actions handlers and validators', () => {
     })
 
     it('increments count within same 24h window and falls back headers when missing', async () => {
+      const sentAt = new Date(Date.now() - 10 * 60 * 1000)
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         name: 'Jenny Admin',
         email: 'admin@resort.com',
         emailVerified: false,
         banned: false,
+        activationToken: 'h1',
         activationEmailCount: 0,
-        lastActivationEmailSentAt: new Date(Date.now() - 10 * 60 * 1000),
+        lastActivationEmailSentAt: sentAt,
       } as any)
       vi.mocked(generateActivationToken).mockReturnValueOnce({
         rawToken: 'raw-2',
         tokenHash: 'hash-2',
       })
-      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 })
       vi.mocked(sendVerificationEmail).mockResolvedValueOnce({} as any)
       vi.mocked(getServerHeaders).mockReturnValueOnce({
         get: (k: string) => (k === 'x-real-ip' ? '10.0.0.1' : null),
@@ -361,8 +435,8 @@ describe('auth-actions handlers and validators', () => {
         data: { email: 'admin@resort.com' },
       })
 
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'u1' },
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: 'u1' }),
         data: expect.objectContaining({ activationEmailCount: 1 }),
       })
       expect(logActivity).toHaveBeenCalledWith(
@@ -379,6 +453,7 @@ describe('auth-actions handlers and validators', () => {
         email: 'admin2@resort.com',
         emailVerified: false,
         banned: false,
+        activationToken: null,
         activationEmailCount: 0,
         lastActivationEmailSentAt: null,
       } as any)
@@ -386,7 +461,7 @@ describe('auth-actions handlers and validators', () => {
         rawToken: 'raw-3',
         tokenHash: 'hash-3',
       })
-      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 })
       vi.mocked(sendVerificationEmail).mockResolvedValueOnce({} as any)
       vi.mocked(getServerHeaders).mockReturnValueOnce({
         get: () => null,
@@ -405,8 +480,10 @@ describe('auth-actions handlers and validators', () => {
       )
     })
 
-    it('restores previous token metadata when email delivery fails', async () => {
+    it('conditionally restores previous token metadata and returns generic response when email delivery fails', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const prevDate = new Date(Date.now() - 10 * 60 * 1000)
+
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         name: 'Jenny Admin',
@@ -422,9 +499,9 @@ describe('auth-actions handlers and validators', () => {
         rawToken: 'new-raw',
         tokenHash: 'new-hash',
       })
-      vi.mocked(prisma.user.update)
-        .mockResolvedValueOnce({} as any)
-        .mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.user.updateMany)
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 1 })
       vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
         new Error('Resend API down'),
       )
@@ -433,10 +510,14 @@ describe('auth-actions handlers and validators', () => {
         resendVerificationByEmailHandler({
           data: { email: 'admin@resort.com' },
         }),
-      ).rejects.toThrow('Resend API down')
+      ).resolves.toEqual({ success: true, message: genericMsg })
 
-      expect(prisma.user.update).toHaveBeenNthCalledWith(2, {
-        where: { id: 'u1' },
+      expect(prisma.user.updateMany).toHaveBeenNthCalledWith(2, {
+        where: {
+          id: 'u1',
+          emailVerified: false,
+          activationToken: 'new-hash',
+        },
         data: {
           activationToken: 'old-hash',
           activationTokenExpires: prevDate,
@@ -445,7 +526,7 @@ describe('auth-actions handlers and validators', () => {
         },
       })
 
-      // Non-Error email failure + rollback update rejection should still surface fallback message
+      // Also cover rollback updateMany throwing an error
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
         id: 'u1',
         name: 'Jenny Admin',
@@ -461,8 +542,8 @@ describe('auth-actions handlers and validators', () => {
         rawToken: 'new-raw-2',
         tokenHash: 'new-hash-2',
       })
-      vi.mocked(prisma.user.update)
-        .mockResolvedValueOnce({} as any)
+      vi.mocked(prisma.user.updateMany)
+        .mockResolvedValueOnce({ count: 1 })
         .mockRejectedValueOnce(new Error('DB rollback failed'))
       vi.mocked(sendVerificationEmail).mockRejectedValueOnce('string error')
 
@@ -470,7 +551,8 @@ describe('auth-actions handlers and validators', () => {
         resendVerificationByEmailHandler({
           data: { email: 'admin@resort.com' },
         }),
-      ).rejects.toThrow('Failed to send verification email.')
+      ).resolves.toEqual({ success: true, message: genericMsg })
+      expect(errorSpy).toHaveBeenCalledTimes(2)
     })
   })
 
