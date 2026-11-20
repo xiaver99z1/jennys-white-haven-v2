@@ -7,13 +7,21 @@ import {
   DEFAULT_USER_AGENT,
   EMAIL_REGEX,
   MAX_ADMIN_REAUTH_ATTEMPTS,
+  MAX_PASSWORD_RESET_EMAILS_PER_DAY,
   MAX_VERIFICATION_EMAILS_PER_DAY,
+  PASSWORD_RESET_COOLDOWN_MINUTES,
+  PASSWORD_RESET_COOLDOWN_MS,
+  PASSWORD_RESET_COOLDOWN_SECONDS,
   PASSWORD_RESET_PREFIX,
+  PASSWORD_RESET_QUOTA_PREFIX,
   PASSWORD_RESET_TTL_MS,
+  RESEND_COOLDOWN_MINUTES,
   RESEND_COOLDOWN_MS,
+  RESEND_COOLDOWN_SECONDS,
   STAFF_ROLE_OPTIONS,
   VERIFICATION_TOKEN_TTL_MS,
   extractRequestClientMeta,
+  formatCooldownDuration,
   resolveUserDisplayIdentifier,
   validateStaffPassword,
   validateStrongPassword,
@@ -25,12 +33,19 @@ describe('auth constants and helpers', () => {
     expect(EMAIL_REGEX.test('invalid')).toBe(false)
     expect(VERIFICATION_TOKEN_TTL_MS).toBe(3_600_000)
     expect(PASSWORD_RESET_TTL_MS).toBe(1_800_000)
-    expect(RESEND_COOLDOWN_MS).toBe(60_000)
+    expect(PASSWORD_RESET_COOLDOWN_MINUTES).toBe(5)
+    expect(PASSWORD_RESET_COOLDOWN_SECONDS).toBe(300)
+    expect(PASSWORD_RESET_COOLDOWN_MS).toBe(300_000)
+    expect(RESEND_COOLDOWN_MINUTES).toBe(5)
+    expect(RESEND_COOLDOWN_SECONDS).toBe(300)
+    expect(RESEND_COOLDOWN_MS).toBe(300_000)
     expect(DAY_WINDOW_MS).toBe(86_400_000)
     expect(MAX_VERIFICATION_EMAILS_PER_DAY).toBe(3)
+    expect(MAX_PASSWORD_RESET_EMAILS_PER_DAY).toBe(3)
     expect(MAX_ADMIN_REAUTH_ATTEMPTS).toBe(5)
     expect(ADMIN_REAUTH_WINDOW_MS).toBe(900_000)
     expect(PASSWORD_RESET_PREFIX).toBe('password-reset:')
+    expect(PASSWORD_RESET_QUOTA_PREFIX).toBe('password-reset-quota:')
     expect(ADMIN_REAUTH_PREFIX).toBe('admin-reauth-fail:')
     expect(STAFF_ROLE_OPTIONS.map((r) => r.value)).toEqual([
       'RECEPTIONIST',
@@ -118,5 +133,8 @@ describe('auth constants and helpers', () => {
       'Admin',
     )
     expect(resolveUserDisplayIdentifier(null, 'user')).toBe('user')
+    expect(formatCooldownDuration(45)).toBe('45s')
+    expect(formatCooldownDuration(1200)).toBe('20m 00s')
+    expect(formatCooldownDuration(125)).toBe('2m 05s')
   })
 })

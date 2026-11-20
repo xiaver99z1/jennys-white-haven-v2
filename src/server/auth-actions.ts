@@ -5,9 +5,14 @@ import {
   DAY_WINDOW_MS,
   EMAIL_REGEX,
   GENERIC_RESEND_MESSAGE,
+  MAX_PASSWORD_RESET_EMAILS_PER_DAY,
   MAX_VERIFICATION_EMAILS_PER_DAY,
+  PASSWORD_RESET_COOLDOWN_MINUTES,
+  PASSWORD_RESET_COOLDOWN_MS,
+  PASSWORD_RESET_COOLDOWN_SECONDS,
   PASSWORD_RESET_EXPIRES_MINUTES,
   PASSWORD_RESET_PREFIX,
+  PASSWORD_RESET_QUOTA_PREFIX,
   PASSWORD_RESET_TTL_MS,
   RESEND_COOLDOWN_MS,
   VERIFICATION_EXPIRES_MINUTES,
@@ -304,6 +309,54 @@ export const logUserLogout = createServerFn({ method: 'POST' }).handler(
   logUserLogoutHandler,
 )
 
+async function reserveDailyPasswordResetSlot(
+  quotaIdentifier: string,
+  tokenHash: string,
+  now: Date,
+): Promise<{ slot: number; slotId: string }> {
+  const quotaExpiresAt = new Date(now.getTime() + DAY_WINDOW_MS)
+
+  for (let slot = 1; slot <= MAX_PASSWORD_RESET_EMAILS_PER_DAY; slot++) {
+    const slotId = `${quotaIdentifier}:${slot}`
+
+    const reclaimed = await prisma.verification.updateMany({
+      where: {
+        id: slotId,
+        identifier: quotaIdentifier,
+        expiresAt: { lte: now },
+      },
+      data: {
+        value: tokenHash,
+        createdAt: now,
+        expiresAt: quotaExpiresAt,
+      },
+    })
+
+    if (reclaimed.count === 1) {
+      return { slot, slotId }
+    }
+
+    try {
+      await prisma.verification.create({
+        data: {
+          id: slotId,
+          identifier: quotaIdentifier,
+          value: tokenHash,
+          createdAt: now,
+          expiresAt: quotaExpiresAt,
+        },
+      })
+      return { slot, slotId }
+    } catch {
+      // Slot is already active and unexpired; try next slot
+    }
+  }
+
+  throw new Error(
+    `Maximum limit reached. You can only request up to ${MAX_PASSWORD_RESET_EMAILS_PER_DAY} password reset emails per day.`,
+  )
+}
+
 export async function requestPasswordResetHandler() {
   const session = await authSession(
     'Unauthorized: You must be logged in to request a password reset.',
@@ -318,12 +371,16 @@ export async function requestPasswordResetHandler() {
   }
 
   const identifier = `${PASSWORD_RESET_PREFIX}${user.id}`
+  const quotaIdentifier = `${PASSWORD_RESET_QUOTA_PREFIX}${user.id}`
   const now = new Date()
-  const cooldownCutoff = new Date(now.getTime() - RESEND_COOLDOWN_MS)
+  const cooldownCutoff = new Date(now.getTime() - PASSWORD_RESET_COOLDOWN_MS)
   const { rawToken, tokenHash } = generateActivationToken()
   const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MS)
 
-  // Atomically replace an existing reset record only when its 60-second cooldown has elapsed
+  const { slot: reservedSlot, slotId: reservedSlotId } =
+    await reserveDailyPasswordResetSlot(quotaIdentifier, tokenHash, now)
+
+  // Atomically replace an existing reset record only when its 5-minute cooldown has elapsed
   const rotated = await prisma.verification.updateMany({
     where: {
       identifier,
@@ -343,8 +400,17 @@ export async function requestPasswordResetHandler() {
     })
 
     if (existingReset) {
+      await prisma.verification.deleteMany({
+        where: { id: reservedSlotId, value: tokenHash },
+      })
+      const elapsedMs =
+        now.getTime() - new Date(existingReset.createdAt).getTime()
+      const remainingMinutes = Math.max(
+        1,
+        Math.ceil((PASSWORD_RESET_COOLDOWN_MS - elapsedMs) / 60_000),
+      )
       throw new Error(
-        'Please wait a minute before requesting another password reset email.',
+        `Please wait ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'} before requesting another password reset email.`,
       )
     }
 
@@ -359,8 +425,11 @@ export async function requestPasswordResetHandler() {
         },
       })
     } catch {
+      await prisma.verification.deleteMany({
+        where: { id: reservedSlotId, value: tokenHash },
+      })
       throw new Error(
-        'Please wait a minute before requesting another password reset email.',
+        `Please wait ${PASSWORD_RESET_COOLDOWN_MINUTES} minutes before requesting another password reset email.`,
       )
     }
   }
@@ -375,7 +444,10 @@ export async function requestPasswordResetHandler() {
   } catch (error: unknown) {
     try {
       await prisma.verification.deleteMany({
-        where: { identifier, value: tokenHash },
+        where: {
+          id: { in: [identifier, reservedSlotId] },
+          value: tokenHash,
+        },
       })
     } catch {
       // Preserve original email error
@@ -396,6 +468,9 @@ export async function requestPasswordResetHandler() {
 
   return {
     success: true,
+    cooldownSeconds: PASSWORD_RESET_COOLDOWN_SECONDS,
+    count: reservedSlot,
+    max: MAX_PASSWORD_RESET_EMAILS_PER_DAY,
     message: `Password reset link sent to ${user.email}. Please check your inbox.`,
   }
 }

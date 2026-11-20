@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AdminLoginForm } from './AdminLoginForm'
 import { authClient } from '#/lib/auth-client'
@@ -30,6 +30,7 @@ describe('AdminLoginForm', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: originalLocation,
@@ -110,34 +111,16 @@ describe('AdminLoginForm', () => {
       ).toBeInTheDocument()
     })
 
-    // Resend verification email succeeds
-    vi.mocked(resendVerificationByEmail).mockResolvedValueOnce({
-      success: true,
-      message: 'Fresh verification link sent.',
-    })
-    fireEvent.click(
-      screen.getByRole('button', { name: /resend verification email/i }),
-    )
-
-    await waitFor(() => {
-      expect(resendVerificationByEmail).toHaveBeenCalledWith({
-        data: { email: 'unverified@resort.com' },
-      })
-      expect(
-        screen.getByText('Fresh verification link sent.'),
-      ).toBeInTheDocument()
-    })
-
-    // Resend fails with Error
+    // Resend fails with Error first
     vi.mocked(resendVerificationByEmail).mockRejectedValueOnce(
-      new Error('Please wait a minute'),
+      new Error('Please wait 5 minutes'),
     )
     fireEvent.click(
       screen.getByRole('button', { name: /resend verification email/i }),
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Please wait a minute')).toBeInTheDocument()
+      expect(screen.getByText('Please wait 5 minutes')).toBeInTheDocument()
     })
 
     // Resend fails with non-Error fallback
@@ -153,6 +136,54 @@ describe('AdminLoginForm', () => {
         ),
       ).toBeInTheDocument()
     })
+
+    // Resend verification email succeeds and triggers 5-minute cooldown countdown
+    vi.useFakeTimers()
+    vi.mocked(resendVerificationByEmail).mockResolvedValueOnce({
+      success: true,
+      message: 'Fresh verification link sent.',
+    })
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: /resend verification email/i }),
+      )
+    })
+
+    expect(resendVerificationByEmail).toHaveBeenCalledWith({
+      data: { email: 'unverified@resort.com' },
+    })
+    expect(
+      screen.getByText('Fresh verification link sent.'),
+    ).toBeInTheDocument()
+
+    const cooldownBtn = screen.getByRole('button', {
+      name: 'Wait 5m 00s to resend',
+    })
+    expect(cooldownBtn).toBeDisabled()
+
+    // Switching email to a different address does not inherit the previous email's cooldown
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'other-user@resort.com' },
+    })
+    expect(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    ).not.toBeDisabled()
+
+    // Switching back to original email restores its active cooldown
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'unverified@resort.com' },
+    })
+    expect(
+      screen.getByRole('button', { name: 'Wait 5m 00s to resend' }),
+    ).toBeDisabled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000)
+    })
+    expect(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    ).not.toBeDisabled()
+    vi.useRealTimers()
 
     // 2. Trigger via error.message containing 'verify'
     vi.mocked(authClient.signIn.email).mockResolvedValueOnce({

@@ -192,15 +192,15 @@ describe('AdminSetupForm', () => {
     })
     expect(screen.getByText('admin@jennyswhitehaven.com')).toBeInTheDocument()
 
-    // Resend button disabled during 60s cooldown
+    // Resend button disabled during 5m cooldown
     const cooldownBtn = screen.getByRole('button', {
-      name: /resend email in 60s/i,
+      name: /resend email in 5m 00s/i,
     })
     expect(cooldownBtn).toBeDisabled()
 
-    // Advance 60 seconds so cooldown finishes
+    // Advance 5 minutes so cooldown finishes
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(300_000)
     })
 
     const resendBtn = screen.getByRole('button', {
@@ -226,7 +226,7 @@ describe('AdminSetupForm', () => {
 
     // Advance cooldown again for error branch
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(300_000)
     })
 
     // 2. Resend failure with Error

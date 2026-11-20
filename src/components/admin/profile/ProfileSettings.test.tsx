@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ProfileSettings } from './ProfileSettings'
 import { authClient } from '#/lib/auth-client'
@@ -58,6 +58,7 @@ describe('ProfileSettings', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -383,25 +384,13 @@ describe('ProfileSettings', () => {
       })
     })
 
-    // 7. Forgot password email request (success, Error, and fallback)
-    vi.mocked(requestPasswordReset).mockResolvedValueOnce({
-      success: true,
-      message: 'Password reset link sent to jenny@resort.com.',
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
-    await waitFor(() => {
-      expect(requestPasswordReset).toHaveBeenCalledTimes(1)
-      expect(
-        screen.getByText('Password reset link sent to jenny@resort.com.'),
-      ).toBeInTheDocument()
-    })
-
+    // 7. Forgot password email request (Error, fallback, and success with 5-minute cooldown countdown)
     vi.mocked(requestPasswordReset).mockRejectedValueOnce(
-      new Error('Please wait a minute'),
+      new Error('Please wait 5 minutes'),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
     await waitFor(() => {
-      expect(screen.getByText('Please wait a minute')).toBeInTheDocument()
+      expect(screen.getByText('Please wait 5 minutes')).toBeInTheDocument()
     })
 
     vi.mocked(requestPasswordReset).mockRejectedValueOnce('unknown')
@@ -411,5 +400,34 @@ describe('ProfileSettings', () => {
         screen.getByText('Failed to send password reset email.'),
       ).toBeInTheDocument()
     })
+
+    vi.useFakeTimers()
+    vi.mocked(requestPasswordReset).mockResolvedValueOnce({
+      success: true,
+      cooldownSeconds: 300,
+      count: 1,
+      max: 3,
+      message: 'Password reset link sent to jenny@resort.com.',
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    })
+    expect(requestPasswordReset).toHaveBeenCalledTimes(3)
+    expect(
+      screen.getByText('Password reset link sent to jenny@resort.com.'),
+    ).toBeInTheDocument()
+
+    const cooldownBtn = screen.getByRole('button', {
+      name: 'Wait 5m 00s to resend',
+    })
+    expect(cooldownBtn).toBeDisabled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000)
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'Forgot password?' }),
+    ).not.toBeDisabled()
   })
 })

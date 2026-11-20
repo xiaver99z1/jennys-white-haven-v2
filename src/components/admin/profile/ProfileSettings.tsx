@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useCooldown } from '#/components/admin/auth/AuthPageShell'
 import { authClient } from '#/lib/auth-client'
 import {
   compressImageForUpload,
   IMAGE_UPLOAD_PRESETS,
 } from '#/lib/image-compress'
-import { PASSWORD_MIN_LENGTH } from '#/lib/constants/auth'
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RESET_COOLDOWN_SECONDS,
+  formatCooldownDuration,
+} from '#/lib/constants/auth'
 import { formatRoleLabel, getErrorMessage } from '#/lib/formatters'
 import {
   logProfileActivity,
@@ -35,6 +40,11 @@ export function ProfileSettings() {
   const [avatarLoading, setAvatarLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [resetEmailLoading, setResetEmailLoading] = useState(false)
+  const {
+    cooldown: resetCooldown,
+    isCoolingDown: isResetCoolingDown,
+    startCooldown: startResetCooldown,
+  } = useCooldown()
   const [confirmAction, setConfirmAction] = useState<
     'avatar' | 'profile' | 'password' | null
   >(null)
@@ -279,6 +289,7 @@ export function ProfileSettings() {
 
     try {
       const res = await requestPasswordReset()
+      startResetCooldown(PASSWORD_RESET_COOLDOWN_SECONDS)
       setMessage({
         type: 'success',
         text: res.message,
@@ -473,10 +484,14 @@ export function ProfileSettings() {
           <button
             type="button"
             onClick={handleForgotPassword}
-            disabled={resetEmailLoading}
-            className="text-xs font-semibold text-amber-800 hover:text-amber-900 underline self-start sm:self-auto disabled:opacity-50 cursor-pointer"
+            disabled={resetEmailLoading || isResetCoolingDown}
+            className="text-xs font-semibold text-amber-800 hover:text-amber-900 underline self-start sm:self-auto disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
           >
-            {resetEmailLoading ? 'Sending reset link...' : 'Forgot password?'}
+            {resetEmailLoading
+              ? 'Sending reset link...'
+              : isResetCoolingDown
+                ? `Wait ${formatCooldownDuration(resetCooldown)} to resend`
+                : 'Forgot password?'}
           </button>
         </div>
 

@@ -1,5 +1,51 @@
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+
+export function useCooldown(activeKey = 'default') {
+  const [expiries, setExpiries] = useState<Record<string, number>>({})
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  const normalizedActiveKey = activeKey.trim().toLowerCase() || 'default'
+  const activeExpiry = expiries[normalizedActiveKey] ?? 0
+  const cooldown =
+    activeExpiry > nowMs ? Math.ceil((activeExpiry - nowMs) / 1000) : 0
+  const isCoolingDown = cooldown > 0
+
+  useEffect(() => {
+    if (!isCoolingDown) return
+
+    const syncNow = () => setNowMs(Date.now())
+    const timer = setInterval(syncNow, 1000)
+    window.addEventListener('focus', syncNow)
+    document.addEventListener('visibilitychange', syncNow)
+
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', syncNow)
+      document.removeEventListener('visibilitychange', syncNow)
+    }
+  }, [isCoolingDown])
+
+  const startCooldown = (
+    durationSeconds: number,
+    key: string = normalizedActiveKey,
+  ) => {
+    const targetKey = key.trim().toLowerCase()
+    const currentNow = Date.now()
+    setNowMs(currentNow)
+    setExpiries((prev) => ({
+      ...prev,
+      [targetKey]: currentNow + durationSeconds * 1000,
+    }))
+  }
+
+  return {
+    cooldown,
+    isCoolingDown,
+    startCooldown,
+  }
+}
 
 interface AuthPageShellProps {
   children: ReactNode

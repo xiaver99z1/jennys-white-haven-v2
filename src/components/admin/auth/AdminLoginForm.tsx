@@ -2,8 +2,13 @@ import { useState } from 'react'
 import {
   AuthPageShell,
   PasswordField,
+  useCooldown,
 } from '#/components/admin/auth/AuthPageShell'
 import { authClient } from '#/lib/auth-client'
+import {
+  RESEND_COOLDOWN_SECONDS,
+  formatCooldownDuration,
+} from '#/lib/constants/auth'
 import { getErrorMessage } from '#/lib/formatters'
 import { logUserLogin, resendVerificationByEmail } from '#/server/auth-actions'
 import type { StatusMessage } from '#/types'
@@ -17,6 +22,9 @@ export function AdminLoginForm() {
   const [needsVerification, setNeedsVerification] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendStatus, setResendStatus] = useState<StatusMessage | null>(null)
+  const normalizedEmail = email.trim().toLowerCase()
+  const { cooldown, isCoolingDown, startCooldown } =
+    useCooldown(normalizedEmail)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,14 +64,17 @@ export function AdminLoginForm() {
   }
 
   const handleResendVerification = async () => {
+    const requestedEmail = email.trim()
+    const requestedKey = requestedEmail.toLowerCase()
     setResending(true)
     setResendStatus(null)
 
     try {
       const res = await resendVerificationByEmail({
-        data: { email: email.trim() },
+        data: { email: requestedEmail },
       })
       setResendStatus({ type: 'success', text: res.message })
+      startCooldown(RESEND_COOLDOWN_SECONDS, requestedKey)
     } catch (err: unknown) {
       setResendStatus({
         type: 'error',
@@ -119,12 +130,14 @@ export function AdminLoginForm() {
               <button
                 type="button"
                 onClick={handleResendVerification}
-                disabled={resending || !email.trim()}
-                className="text-xs font-semibold text-amber-800 hover:text-amber-900 underline disabled:opacity-60 cursor-pointer"
+                disabled={resending || isCoolingDown || !email.trim()}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-900 underline disabled:opacity-60 disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
               >
                 {resending
                   ? 'Sending verification email...'
-                  : 'Resend verification email'}
+                  : isCoolingDown
+                    ? `Wait ${formatCooldownDuration(cooldown)} to resend`
+                    : 'Resend verification email'}
               </button>
             )}
           </div>

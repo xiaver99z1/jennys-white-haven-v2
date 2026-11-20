@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { MailCheck, ShieldCheck } from 'lucide-react'
 import {
   AuthPageShell,
   PasswordField,
+  useCooldown,
 } from '#/components/admin/auth/AuthPageShell'
 import {
   EMAIL_REGEX,
   FULL_NAME_MAX_LENGTH,
   FULL_NAME_MIN_LENGTH,
   RESEND_COOLDOWN_SECONDS,
+  formatCooldownDuration,
   validateStrongPassword,
 } from '#/lib/constants/auth'
 import { getErrorMessage } from '#/lib/formatters'
@@ -27,19 +29,9 @@ export function AdminSetupForm() {
   const [loading, setLoading] = useState(false)
 
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
-  const [cooldown, setCooldown] = useState(0)
+  const { cooldown, isCoolingDown, startCooldown } = useCooldown()
   const [resending, setResending] = useState(false)
   const [resendMessage, setResendMessage] = useState<StatusMessage | null>(null)
-
-  const isCoolingDown = cooldown > 0
-
-  useEffect(() => {
-    if (!isCoolingDown) return
-    const timer = setInterval(() => {
-      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [isCoolingDown])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -89,7 +81,7 @@ export function AdminSetupForm() {
       setPassword('')
       setConfirmPassword('')
       setRegisteredEmail(trimmedEmail)
-      setCooldown(RESEND_COOLDOWN_SECONDS)
+      startCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err: unknown) {
       setError(
         getErrorMessage(
@@ -111,7 +103,7 @@ export function AdminSetupForm() {
         data: { email: registeredEmail! },
       })
       setResendMessage({ type: 'success', text: res.message })
-      setCooldown(RESEND_COOLDOWN_SECONDS)
+      startCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err: unknown) {
       setResendMessage({
         type: 'error',
@@ -171,13 +163,13 @@ export function AdminSetupForm() {
           <button
             type="button"
             onClick={handleResend}
-            disabled={resending || cooldown > 0}
+            disabled={resending || isCoolingDown}
             className="w-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
             {resending
               ? 'Sending verification email...'
-              : cooldown > 0
-                ? `Resend email in ${cooldown}s`
+              : isCoolingDown
+                ? `Resend email in ${formatCooldownDuration(cooldown)}`
                 : 'Resend Verification Email'}
           </button>
         </div>
