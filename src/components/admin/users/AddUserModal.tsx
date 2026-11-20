@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { STAFF_ROLE_OPTIONS } from '#/lib/constants/auth'
 import { createAdminUser } from '#/server/admin-actions'
-import type { ResortRole } from '#/server/admin-actions'
+import type { ResortRole, StatusMessage } from '#/types'
 
 interface AddUserModalProps {
   isOpen: boolean
@@ -17,10 +18,7 @@ export function AddUserModal({
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<ResortRole>('RECEPTIONIST')
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error'
-    text: string
-  } | null>(null)
+  const [message, setMessage] = useState<StatusMessage | null>(null)
 
   if (!isOpen) return null
 
@@ -46,23 +44,19 @@ export function AddUserModal({
         },
       })
 
-      // Show success message
       setMessage({
         type: 'success',
         text: res.message,
       })
 
-      // Reset form fields immediately
       setName('')
       setEmail('')
       setRole('RECEPTIONIST')
 
-      // Trigger table refresh/refetch immediately
       if (onSuccess) {
         onSuccess()
       }
 
-      // Auto-close modal after 1.5 seconds so admin reads the confirmation
       setTimeout(() => {
         handleClose()
       }, 1500)
@@ -83,7 +77,6 @@ export function AddUserModal({
           Add New Resort Staff
         </h2>
 
-        {/* Dynamic Alert Banner */}
         {message && (
           <div
             className={`p-3.5 rounded-xl text-sm mb-5 border leading-relaxed ${
@@ -97,7 +90,6 @@ export function AddUserModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Full Name Input */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Full Name
@@ -113,7 +105,6 @@ export function AddUserModal({
             />
           </div>
 
-          {/* Email Address Input */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Email Address
@@ -129,7 +120,6 @@ export function AddUserModal({
             />
           </div>
 
-          {/* Resort Role Selection */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Role
@@ -140,14 +130,14 @@ export function AddUserModal({
               onChange={(e) => setRole(e.target.value as ResortRole)}
               className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600 transition bg-white disabled:bg-stone-100 disabled:cursor-not-allowed"
             >
-              <option value="RECEPTIONIST">Receptionist</option>
-              <option value="MANAGER">Manager</option>
-              <option value="OWNER">Owner</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
+              {STAFF_ROLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Modal Action Buttons */}
           <div className="mt-6 flex justify-end space-x-3 pt-2">
             <button
               type="button"

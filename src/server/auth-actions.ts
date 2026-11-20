@@ -1,33 +1,51 @@
 import { createServerFn } from '@tanstack/react-start'
 import { hashPassword } from 'better-auth/crypto'
-import { logActivity } from '#/lib/logger'
 import { authSession, getServerHeaders } from '#/lib/auth-helpers'
+import {
+  DAY_WINDOW_MS,
+  EMAIL_REGEX,
+  GENERIC_RESEND_MESSAGE,
+  MAX_VERIFICATION_EMAILS_PER_DAY,
+  PASSWORD_RESET_EXPIRES_MINUTES,
+  PASSWORD_RESET_PREFIX,
+  PASSWORD_RESET_TTL_MS,
+  RESEND_COOLDOWN_MS,
+  VERIFICATION_EXPIRES_MINUTES,
+  VERIFICATION_TOKEN_TTL_MS,
+  extractRequestClientMeta,
+  validateStrongPassword,
+} from '#/lib/constants/auth'
 import {
   generateActivationToken,
   hashActivationToken,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '#/lib/email'
+import { getErrorMessage } from '#/lib/formatters'
+import { logActivity } from '#/lib/logger'
 import { prisma } from '#/lib/prisma'
+import type {
+  ResendVerificationByEmailInput,
+  ResetPasswordWithTokenInput,
+  VerifyActivationTokenInput,
+} from '#/types'
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const VERIFICATION_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
-const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000 // 30 minutes
-const PASSWORD_RESET_PREFIX = 'password-reset:'
-const RESEND_COOLDOWN_MS = 60 * 1000 // 1 minute
-const DAY_WINDOW_MS = 24 * 60 * 60 * 1000
-const MAX_VERIFICATION_EMAILS_PER_DAY = 3
-const GENERIC_RESEND_MESSAGE =
-  'If an unverified account exists for this email, a fresh verification link has been sent.'
+export type {
+  ResendVerificationByEmailInput,
+  ResetPasswordWithTokenInput,
+  VerifyActivationTokenInput,
+}
 
-export function validateVerifyActivationToken(data: { token: string }) {
+export function validateVerifyActivationToken(
+  data: VerifyActivationTokenInput,
+) {
   return data
 }
 
 export async function verifyActivationTokenHandler({
   data,
 }: {
-  data: { token: string }
+  data: VerifyActivationTokenInput
 }) {
   const token = data.token.trim()
   if (!token) {
@@ -71,10 +89,7 @@ export async function verifyActivationTokenHandler({
     )
   }
 
-  const headers = getServerHeaders()
-  const ipAddress =
-    headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
-  const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+  const { ipAddress, userAgent } = extractRequestClientMeta(getServerHeaders())
 
   await logActivity({
     userId: user.id,
@@ -94,14 +109,16 @@ export const verifyActivationToken = createServerFn({ method: 'POST' })
   .validator(validateVerifyActivationToken)
   .handler(verifyActivationTokenHandler)
 
-export function validateResendVerificationByEmail(data: { email: string }) {
+export function validateResendVerificationByEmail(
+  data: ResendVerificationByEmailInput,
+) {
   return data
 }
 
 export async function resendVerificationByEmailHandler({
   data,
 }: {
-  data: { email: string }
+  data: ResendVerificationByEmailInput
 }) {
   const email = data.email.trim().toLowerCase()
   if (!EMAIL_REGEX.test(email)) {
@@ -186,7 +203,7 @@ export async function resendVerificationByEmailHandler({
       to: user.email,
       name: user.name,
       rawToken,
-      expiresInMinutes: 60,
+      expiresInMinutes: VERIFICATION_EXPIRES_MINUTES,
     })
   } catch (error: unknown) {
     // Only restore previous metadata if the stored token still matches this request's tokenHash
@@ -215,10 +232,7 @@ export async function resendVerificationByEmailHandler({
     }
   }
 
-  const headers = getServerHeaders()
-  const ipAddress =
-    headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
-  const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+  const { ipAddress, userAgent } = extractRequestClientMeta(getServerHeaders())
 
   await logActivity({
     userId: user.id,
@@ -356,7 +370,7 @@ export async function requestPasswordResetHandler() {
       to: user.email,
       name: user.name,
       rawToken,
-      expiresInMinutes: 30,
+      expiresInMinutes: PASSWORD_RESET_EXPIRES_MINUTES,
     })
   } catch (error: unknown) {
     try {
@@ -368,9 +382,7 @@ export async function requestPasswordResetHandler() {
     }
 
     throw new Error(
-      error instanceof Error
-        ? error.message
-        : 'Failed to send password reset email.',
+      getErrorMessage(error, 'Failed to send password reset email.'),
     )
   }
 
@@ -392,12 +404,6 @@ export const requestPasswordReset = createServerFn({ method: 'POST' }).handler(
   requestPasswordResetHandler,
 )
 
-export interface ResetPasswordWithTokenInput {
-  token: string
-  newPassword: string
-  confirmPassword: string
-}
-
 export function validateResetPasswordWithToken(
   data: ResetPasswordWithTokenInput,
 ) {
@@ -415,19 +421,9 @@ export async function resetPasswordWithTokenHandler({
   }
 
   const { newPassword, confirmPassword } = data
-  if (newPassword.length < 8 || newPassword.length > 128) {
-    throw new Error('Password must be between 8 and 128 characters long.')
-  }
-
-  if (
-    !/[A-Z]/.test(newPassword) ||
-    !/[a-z]/.test(newPassword) ||
-    !/[0-9]/.test(newPassword) ||
-    !/[^A-Za-z0-9]/.test(newPassword)
-  ) {
-    throw new Error(
-      'Password must include uppercase, lowercase, a number, and a special character.',
-    )
+  const passwordError = validateStrongPassword(newPassword)
+  if (passwordError) {
+    throw new Error(passwordError)
   }
 
   if (newPassword !== confirmPassword) {
@@ -453,11 +449,7 @@ export async function resetPasswordWithTokenHandler({
 
   const userId = verification.identifier.slice(PASSWORD_RESET_PREFIX.length)
   const hashedPassword = await hashPassword(newPassword)
-
-  const headers = getServerHeaders()
-  const ipAddress =
-    headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1'
-  const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
+  const { ipAddress, userAgent } = extractRequestClientMeta(getServerHeaders())
 
   await prisma.$transaction(async (tx) => {
     const consumedAt = new Date()

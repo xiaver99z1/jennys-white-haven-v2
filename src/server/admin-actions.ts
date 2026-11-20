@@ -1,34 +1,43 @@
 import { createServerFn } from '@tanstack/react-start'
-import { auth } from '#/lib/auth'
-import { prisma } from '#/lib/prisma'
 import crypto from 'node:crypto'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
-import { logActivity } from '#/lib/logger'
+import { auth } from '#/lib/auth'
 import { authSession } from '#/lib/auth-helpers'
+import {
+  ADMIN_REAUTH_PREFIX,
+  ADMIN_REAUTH_WINDOW_MS,
+  DAY_WINDOW_MS,
+  DEFAULT_TEMP_STAFF_PASSWORD,
+  MAX_ADMIN_REAUTH_ATTEMPTS,
+  MAX_VERIFICATION_EMAILS_PER_DAY,
+  STAFF_INVITE_TOKEN_TTL_MS,
+  resolveUserDisplayIdentifier,
+} from '#/lib/constants/auth'
+import { logActivity } from '#/lib/logger'
+import { prisma } from '#/lib/prisma'
+import type {
+  AdminUserIdInput,
+  CreateAdminUserInput,
+  ResortRole,
+  UpdateAdminUserInput,
+} from '#/types'
 
-export type ResortRole =
-  | 'SUPER_ADMIN'
-  | 'OWNER'
-  | 'MANAGER'
-  | 'RECEPTIONIST'
-  | 'super_admin'
-  | 'owner'
-  | 'manager'
-  | 'receptionist'
+export type {
+  AdminUserIdInput,
+  CreateAdminUserInput,
+  ResortRole,
+  UpdateAdminUserInput,
+}
 
 // --- 1. CREATE ADMIN USER ---
-export function validateCreateAdminUser(data: {
-  name: string
-  email: string
-  role: ResortRole
-}) {
+export function validateCreateAdminUser(data: CreateAdminUserInput) {
   return data
 }
 
 export async function createAdminUserHandler({
   data,
 }: {
-  data: { name: string; email: string; role: ResortRole }
+  data: CreateAdminUserInput
 }) {
   const normalizedRole = data.role.toLowerCase()
   const now = new Date()
@@ -43,12 +52,10 @@ export async function createAdminUserHandler({
       throw new Error('This email address is already registered.')
     }
 
-    const tempPassword = `Password!123`
-
     const newUser = (await auth.api.createUser({
       body: {
         email: data.email,
-        password: tempPassword,
+        password: DEFAULT_TEMP_STAFF_PASSWORD,
         name: data.name,
         role: normalizedRole as any,
       },
@@ -59,7 +66,7 @@ export async function createAdminUserHandler({
     }
 
     const token = crypto.randomBytes(32).toString('hex')
-    const tokenExpires = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+    const tokenExpires = new Date(now.getTime() + STAFF_INVITE_TOKEN_TTL_MS)
 
     await prisma.user.update({
       where: { id: newUser.user.id },
@@ -95,31 +102,15 @@ export const createAdminUser = createServerFn({ method: 'POST' })
   .validator(validateCreateAdminUser)
   .handler(createAdminUserHandler)
 
-const ADMIN_REAUTH_PREFIX = 'admin-reauth-fail:'
-const MAX_ADMIN_REAUTH_ATTEMPTS = 5
-const ADMIN_REAUTH_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
-
 // --- 2. UPDATE ADMIN USER ---
-export function validateUpdateAdminUser(data: {
-  userId: string
-  name: string
-  password?: string
-  adminPassword?: string
-  role: ResortRole
-}) {
+export function validateUpdateAdminUser(data: UpdateAdminUserInput) {
   return data
 }
 
 export async function updateAdminUserHandler({
   data,
 }: {
-  data: {
-    userId: string
-    name: string
-    password?: string
-    adminPassword?: string
-    role: ResortRole
-  }
+  data: UpdateAdminUserInput
 }) {
   const normalizedRole = data.role.toLowerCase()
 
@@ -244,9 +235,14 @@ export async function updateAdminUserHandler({
             ' and ' +
             changes[changes.length - 1]
 
-      const adminIdentifier =
-        currentAdmin?.email || currentAdmin?.name || 'Admin'
-      const targetIdentifier = existingUser.email || existingUser.name || 'user'
+      const adminIdentifier = resolveUserDisplayIdentifier(
+        currentAdmin,
+        'Admin',
+      )
+      const targetIdentifier = resolveUserDisplayIdentifier(
+        existingUser,
+        'user',
+      )
 
       const description = `${adminIdentifier} updated ${targetIdentifier} ${formattedChanges}`
 
@@ -275,14 +271,14 @@ export const updateAdminUser = createServerFn({ method: 'POST' })
   .handler(updateAdminUserHandler)
 
 // --- 3. BLOCK ADMIN USER ---
-export function validateBlockAdminUser(data: { userId: string }) {
+export function validateBlockAdminUser(data: AdminUserIdInput) {
   return data
 }
 
 export async function blockAdminUserHandler({
   data,
 }: {
-  data: { userId: string }
+  data: AdminUserIdInput
 }) {
   try {
     const session = await authSession()
@@ -307,8 +303,8 @@ export async function blockAdminUserHandler({
       where: { userId: data.userId },
     })
 
-    const adminIdentifier = currentAdmin?.email || currentAdmin?.name || 'Admin'
-    const targetIdentifier = targetUser.email || targetUser.name || 'user'
+    const adminIdentifier = resolveUserDisplayIdentifier(currentAdmin, 'Admin')
+    const targetIdentifier = resolveUserDisplayIdentifier(targetUser, 'user')
 
     await logActivity({
       userId: session.user.id,
@@ -330,14 +326,14 @@ export const blockAdminUser = createServerFn({ method: 'POST' })
   .handler(blockAdminUserHandler)
 
 // --- 4. UNBLOCK ADMIN USER ---
-export function validateUnblockAdminUser(data: { userId: string }) {
+export function validateUnblockAdminUser(data: AdminUserIdInput) {
   return data
 }
 
 export async function unblockAdminUserHandler({
   data,
 }: {
-  data: { userId: string }
+  data: AdminUserIdInput
 }) {
   try {
     const session = await authSession()
@@ -358,8 +354,8 @@ export async function unblockAdminUserHandler({
       },
     })
 
-    const adminIdentifier = currentAdmin?.email || currentAdmin?.name || 'Admin'
-    const targetIdentifier = targetUser.email || targetUser.name || 'user'
+    const adminIdentifier = resolveUserDisplayIdentifier(currentAdmin, 'Admin')
+    const targetIdentifier = resolveUserDisplayIdentifier(targetUser, 'user')
 
     await logActivity({
       userId: session.user.id,
@@ -381,17 +377,16 @@ export const unblockAdminUser = createServerFn({ method: 'POST' })
   .handler(unblockAdminUserHandler)
 
 // --- 5. RESEND VERIFICATION EMAIL ---
-export function validateResendVerificationEmail(data: { userId: string }) {
+export function validateResendVerificationEmail(data: AdminUserIdInput) {
   return data
 }
 
 export async function resendVerificationEmailHandler({
   data,
 }: {
-  data: { userId: string }
+  data: AdminUserIdInput
 }) {
   const now = new Date()
-  const MAX_EMAILS_PER_DAY = 3
   const session = await authSession()
 
   try {
@@ -412,12 +407,12 @@ export async function resendVerificationEmailHandler({
 
     const isSameWindow =
       lastSent &&
-      now.getTime() - new Date(lastSent).getTime() < 24 * 60 * 60 * 1000
+      now.getTime() - new Date(lastSent).getTime() < DAY_WINDOW_MS
 
     if (isSameWindow) {
-      if (currentCount >= MAX_EMAILS_PER_DAY) {
+      if (currentCount >= MAX_VERIFICATION_EMAILS_PER_DAY) {
         throw new Error(
-          `Maximum limit reached. You can only resend up to ${MAX_EMAILS_PER_DAY} verification emails per day for this user.`,
+          `Maximum limit reached. You can only resend up to ${MAX_VERIFICATION_EMAILS_PER_DAY} verification emails per day for this user.`,
         )
       }
       currentCount += 1
@@ -436,8 +431,8 @@ export async function resendVerificationEmailHandler({
     return {
       success: true,
       count: currentCount,
-      max: MAX_EMAILS_PER_DAY,
-      message: `Verification link successfully sent to ${user.email} (${currentCount}/${MAX_EMAILS_PER_DAY} emails sent today).`,
+      max: MAX_VERIFICATION_EMAILS_PER_DAY,
+      message: `Verification link successfully sent to ${user.email} (${currentCount}/${MAX_VERIFICATION_EMAILS_PER_DAY} emails sent today).`,
     }
   } catch (error: any) {
     console.error('Error resending verification email:', error)
