@@ -9,6 +9,7 @@ import {
   logProfileActivity,
   saveProfileAvatar,
 } from '#/server/profile-actions'
+import { requestPasswordReset } from '#/server/auth-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
 
@@ -31,6 +32,7 @@ export function ProfileSettings() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [avatarLoading, setAvatarLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const [resetEmailLoading, setResetEmailLoading] = useState(false)
   const [confirmAction, setConfirmAction] = useState<
     'avatar' | 'profile' | 'password' | null
   >(null)
@@ -272,6 +274,29 @@ export function ProfileSettings() {
     }
   }
 
+  const handleForgotPassword = async () => {
+    setResetEmailLoading(true)
+    setMessage(null)
+
+    try {
+      const res = await requestPasswordReset()
+      setMessage({
+        type: 'success',
+        text: res.message,
+      })
+    } catch (err: unknown) {
+      setMessage({
+        type: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : 'Failed to send password reset email.',
+      })
+    } finally {
+      setResetEmailLoading(false)
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -440,13 +465,23 @@ export function ProfileSettings() {
         onSubmit={handlePreSavePassword}
         className="bg-white p-6 rounded-2xl shadow-xs border border-stone-200 space-y-4"
       >
-        <div>
-          <h3 className="text-base font-semibold text-stone-900">
-            Security & Password
-          </h3>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Update your password to keep your admin account safe.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold text-stone-900">
+              Security &amp; Password
+            </h3>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Update your password to keep your admin account safe.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={resetEmailLoading}
+            className="text-xs font-semibold text-amber-800 hover:text-amber-900 underline self-start sm:self-auto disabled:opacity-50 cursor-pointer"
+          >
+            {resetEmailLoading ? 'Sending reset link...' : 'Forgot password?'}
+          </button>
         </div>
 
         <div className="space-y-1">

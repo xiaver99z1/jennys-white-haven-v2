@@ -243,6 +243,7 @@ describe('EditUserProfileModal', () => {
         userId: 'user-123',
         name: 'Alice Johnson',
         password: undefined,
+        adminPassword: undefined,
         role: 'OWNER',
       },
     })
@@ -259,7 +260,7 @@ describe('EditUserProfileModal', () => {
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('executes successful profile update with a valid new password', async () => {
+  it('requires administrator password authentication modal when changing user password and allows canceling', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     vi.mocked(updateAdminUser).mockResolvedValueOnce({
       success: true,
@@ -274,13 +275,38 @@ describe('EditUserProfileModal', () => {
     await user.type(pwdInput, 'ValidPass1!')
     await user.type(confirmInput, 'ValidPass1!')
     await user.click(screen.getByRole('button', { name: /save changes/i }))
-    await user.click(screen.getByRole('button', { name: /yes, save changes/i }))
+
+    expect(
+      screen.getByText('Authenticate Password Change'),
+    ).toBeInTheDocument()
+    const verifyBtn = screen.getByRole('button', {
+      name: /verify & save changes/i,
+    })
+    expect(verifyBtn).toBeDisabled()
+
+    // Cancel authentication modal first
+    const cancelBtns = screen.getAllByRole('button', { name: 'Cancel' })
+    await user.click(cancelBtns[cancelBtns.length - 1])
+    expect(
+      screen.queryByText('Authenticate Password Change'),
+    ).not.toBeInTheDocument()
+
+    // Re-open authentication modal, enter admin password, and submit
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    await user.type(
+      screen.getByLabelText(/your administrator password/i),
+      'MyAdminSecret!1',
+    )
+    await user.click(
+      screen.getByRole('button', { name: /verify & save changes/i }),
+    )
 
     expect(updateAdminUser).toHaveBeenCalledWith({
       data: {
         userId: 'user-123',
         name: 'Alice Johnson',
         password: 'ValidPass1!',
+        adminPassword: 'MyAdminSecret!1',
         role: 'MANAGER',
       },
     })

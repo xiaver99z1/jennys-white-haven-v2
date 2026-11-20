@@ -6,6 +6,7 @@ import {
   logProfileActivity,
   saveProfileAvatar,
 } from '#/server/profile-actions'
+import { requestPasswordReset } from '#/server/auth-actions'
 import { uploadAvatar } from '#/server/upload'
 
 vi.mock('#/lib/auth-client', () => ({
@@ -19,6 +20,10 @@ vi.mock('#/lib/auth-client', () => ({
 vi.mock('#/server/profile-actions', () => ({
   logProfileActivity: vi.fn(),
   saveProfileAvatar: vi.fn(),
+}))
+
+vi.mock('#/server/auth-actions', () => ({
+  requestPasswordReset: vi.fn(),
 }))
 
 vi.mock('#/server/upload', () => ({
@@ -131,6 +136,15 @@ describe('ProfileSettings', () => {
 
     // 1. Guard when no file is selected
     fireEvent.change(fileInput, { target: { files: [] } })
+
+    // 1b. Non-image file error
+    const pdfFile = new File(['dummy'], 'doc.pdf', { type: 'application/pdf' })
+    fireEvent.change(fileInput, { target: { files: [pdfFile] } })
+    expect(
+      screen.getByText(
+        'Please select a valid image file (JPG, PNG, WEBP, GIF).',
+      ),
+    ).toBeInTheDocument()
 
     // 2. File > 5MB error
     const largeFile = new File(['dummy'], 'large.png', { type: 'image/png' })
@@ -367,6 +381,35 @@ describe('ProfileSettings', () => {
           description: 'Changed account password and revoked other sessions',
         },
       })
+    })
+
+    // 7. Forgot password email request (success, Error, and fallback)
+    vi.mocked(requestPasswordReset).mockResolvedValueOnce({
+      success: true,
+      message: 'Password reset link sent to jenny@resort.com.',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await waitFor(() => {
+      expect(requestPasswordReset).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByText('Password reset link sent to jenny@resort.com.'),
+      ).toBeInTheDocument()
+    })
+
+    vi.mocked(requestPasswordReset).mockRejectedValueOnce(
+      new Error('Please wait a minute'),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await waitFor(() => {
+      expect(screen.getByText('Please wait a minute')).toBeInTheDocument()
+    })
+
+    vi.mocked(requestPasswordReset).mockRejectedValueOnce('unknown')
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await waitFor(() => {
+      expect(
+        screen.getByText('Failed to send password reset email.'),
+      ).toBeInTheDocument()
     })
   })
 })

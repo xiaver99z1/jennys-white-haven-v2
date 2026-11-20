@@ -1,6 +1,7 @@
 # Structure conventions
 
 - `src/routes/` — file-based routes (TanStack Router)
+  - `verify-activation.tsx`, `reset-password.tsx` → Email activation and password reset pages
 - `src/routes/admin/` — Admin section
   - `setup.tsx` → Initial Super Admin setup page (no sidebar; active only when 0 users exist)
   - `login.tsx` → Login page (no sidebar)

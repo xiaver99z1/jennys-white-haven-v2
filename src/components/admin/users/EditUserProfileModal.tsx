@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Lock } from 'lucide-react'
 import { updateAdminUser } from '#/server/admin-actions'
 import type { ResortRole } from '#/server/admin-actions'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
@@ -24,6 +25,7 @@ export function EditUserProfileModal({
   const [role, setRole] = useState<ResortRole>('RECEPTIONIST')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -37,11 +39,13 @@ export function EditUserProfileModal({
   const initialRole =
     (user?.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole
 
+  const isPasswordEntered = password.trim() !== ''
+
   // Check if any changes were made
   const hasChanges =
     name !== initialName ||
     role !== initialRole ||
-    password.trim() !== '' ||
+    isPasswordEntered ||
     confirmPassword.trim() !== ''
 
   useEffect(() => {
@@ -50,6 +54,7 @@ export function EditUserProfileModal({
       setRole((user.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole)
       setPassword('')
       setConfirmPassword('')
+      setAdminPassword('')
       setMessage(null)
       setShowConfirm(false)
     }
@@ -92,7 +97,7 @@ export function EditUserProfileModal({
       }
     }
 
-    // Trigger confirmation popup
+    setAdminPassword('')
     setShowConfirm(true)
   }
 
@@ -107,11 +112,13 @@ export function EditUserProfileModal({
           userId: user.id,
           name,
           password: password ? password : undefined,
+          adminPassword: password ? adminPassword : undefined,
           role,
         },
       })
 
       setMessage({ type: 'success', text: res.message })
+      setAdminPassword('')
       onSuccess()
 
       setTimeout(() => {
@@ -228,17 +235,82 @@ export function EditUserProfileModal({
           </div>
         </form>
 
-        <ConfirmModal
-          isOpen={showConfirm}
-          variant="amber"
-          title="Are you sure?"
-          description={`You are about to update profile details for ${user.name}.`}
-          confirmText="Yes, Save Changes"
-          cancelText="Cancel"
-          isLoading={loading}
-          onConfirm={handleConfirmedSubmit}
-          onClose={() => setShowConfirm(false)}
-        />
+        {showConfirm && isPasswordEntered ? (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-stone-200 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-stone-900">
+                    Authenticate Password Change
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Security verification required
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Enter your current administrator password to authorize changing
+                the password for <span className="font-semibold">{user.name}</span>.
+              </p>
+
+              <div>
+                <label
+                  htmlFor="admin-auth-password"
+                  className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5"
+                >
+                  Your Administrator Password
+                </label>
+                <input
+                  id="admin-auth-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full rounded-lg border border-stone-300 px-3.5 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConfirm(false)
+                    setAdminPassword('')
+                  }}
+                  disabled={loading}
+                  className="px-4 py-2 text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-lg transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmedSubmit}
+                  disabled={!adminPassword.trim() || loading}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-amber-800 hover:bg-amber-900 rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Verify &amp; Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <ConfirmModal
+            isOpen={showConfirm}
+            variant="amber"
+            title="Are you sure?"
+            description={`You are about to update profile details for ${user.name}.`}
+            confirmText="Yes, Save Changes"
+            cancelText="Cancel"
+            isLoading={loading}
+            onConfirm={handleConfirmedSubmit}
+            onClose={() => setShowConfirm(false)}
+          />
+        )}
       </div>
     </div>
   )

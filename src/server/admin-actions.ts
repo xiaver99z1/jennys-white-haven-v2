@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { prisma } from '#/lib/prisma'
 import crypto from 'node:crypto'
-import { hashPassword } from 'better-auth/crypto'
+import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 
@@ -100,6 +100,7 @@ export function validateUpdateAdminUser(data: {
   userId: string
   name: string
   password?: string
+  adminPassword?: string
   role: ResortRole
 }) {
   return data
@@ -112,6 +113,7 @@ export async function updateAdminUserHandler({
     userId: string
     name: string
     password?: string
+    adminPassword?: string
     role: ResortRole
   }
 }) {
@@ -134,6 +136,38 @@ export async function updateAdminUserHandler({
       throw new Error('Target user not found.')
     }
 
+    const isPasswordUpdated = Boolean(
+      data.password && data.password.trim() !== '',
+    )
+
+    if (isPasswordUpdated) {
+      if (!data.adminPassword || data.adminPassword.trim() === '') {
+        throw new Error(
+          'Administrator password is required to change a user password.',
+        )
+      }
+
+      const adminAccount = await prisma.account.findFirst({
+        where: {
+          userId: session.user.id,
+          providerId: 'credential',
+        },
+      })
+
+      if (!adminAccount?.password) {
+        throw new Error('Administrator credential account not found.')
+      }
+
+      const isValidAdminPassword = await verifyPassword({
+        hash: adminAccount.password,
+        password: data.adminPassword,
+      })
+
+      if (!isValidAdminPassword) {
+        throw new Error('Incorrect administrator password.')
+      }
+    }
+
     const changes: string[] = []
 
     if (existingUser.name !== data.name) {
@@ -147,7 +181,6 @@ export async function updateAdminUserHandler({
       )
     }
 
-    const isPasswordUpdated = data.password && data.password.trim() !== ''
     if (isPasswordUpdated) {
       changes.push('password')
     }

@@ -4,6 +4,7 @@ import {
   generateActivationToken,
   getAppBaseUrl,
   hashActivationToken,
+  sendPasswordResetEmail,
   sendVerificationEmail,
 } from './email'
 
@@ -130,5 +131,67 @@ describe('email helpers', () => {
         rawToken: 'tok',
       }),
     ).rejects.toThrow('Failed to send verification email.')
+  })
+
+  it('sends password reset email and handles missing API key or Resend errors', async () => {
+    delete process.env.RESEND_API_KEY
+    await expect(
+      sendPasswordResetEmail({
+        to: 'admin@example.com',
+        name: 'Jenny',
+        rawToken: 'reset-tok',
+      }),
+    ).rejects.toThrow(
+      'Email service is not configured. Please set RESEND_API_KEY.',
+    )
+
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.BETTER_AUTH_URL = 'https://jennyswhitehaven.com'
+    mockEmailsSend.mockResolvedValueOnce({
+      data: { id: 'reset-1' },
+      error: null,
+    })
+
+    await sendPasswordResetEmail({
+      to: 'admin@jennyswhitehaven.com',
+      name: 'Jenny <Admin>',
+      rawToken: 'reset-tok',
+      expiresInMinutes: 60,
+    })
+
+    expect(mockEmailsSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ['admin@jennyswhitehaven.com'],
+        subject: "Reset Your Password — Jenny's White Haven",
+        html: expect.stringContaining('Jenny &lt;Admin&gt;'),
+        text: expect.stringContaining(
+          'https://jennyswhitehaven.com/reset-password?token=reset-tok',
+        ),
+      }),
+    )
+
+    mockEmailsSend.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Rate limit exceeded' },
+    })
+    await expect(
+      sendPasswordResetEmail({
+        to: 'admin@jennyswhitehaven.com',
+        name: 'Jenny',
+        rawToken: 'reset-tok',
+      }),
+    ).rejects.toThrow('Rate limit exceeded')
+
+    mockEmailsSend.mockResolvedValueOnce({
+      data: null,
+      error: {},
+    })
+    await expect(
+      sendPasswordResetEmail({
+        to: 'admin@jennyswhitehaven.com',
+        name: 'Jenny',
+        rawToken: 'reset-tok',
+      }),
+    ).rejects.toThrow('Failed to send password reset email.')
   })
 })
