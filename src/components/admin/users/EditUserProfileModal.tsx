@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Lock } from 'lucide-react'
 import { updateAdminUser } from '#/server/admin-actions'
 import type { ResortRole } from '#/server/admin-actions'
@@ -33,6 +33,8 @@ export function EditUserProfileModal({
     type: 'success' | 'error'
     text: string
   } | null>(null)
+  const adminPasswordInputRef = useRef<HTMLInputElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   // Initial values for dirty check
   const initialName = user?.name || ''
@@ -40,6 +42,9 @@ export function EditUserProfileModal({
     (user?.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole
 
   const isPasswordEntered = password.trim() !== ''
+  const isAuthChallengeOpen = Boolean(
+    isOpen && user && showConfirm && isPasswordEntered,
+  )
 
   // Check if any changes were made
   const hasChanges =
@@ -60,7 +65,49 @@ export function EditUserProfileModal({
     }
   }, [user])
 
+  useEffect(() => {
+    if (!isAuthChallengeOpen) return
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null
+    adminPasswordInputRef.current?.focus()
+
+    return () => {
+      previousFocusRef.current?.focus()
+    }
+  }, [isAuthChallengeOpen])
+
   if (!isOpen || !user) return null
+
+  const closeAuthChallenge = () => {
+    setShowConfirm(false)
+    setAdminPassword('')
+  }
+
+  const handleAuthDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeAuthChallenge()
+      return
+    }
+
+    if (e.key !== 'Tab') return
+
+    const focusable = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), button:not([disabled])',
+      ),
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8 || pwd.length > 16) {
@@ -237,13 +284,23 @@ export function EditUserProfileModal({
 
         {showConfirm && isPasswordEntered ? (
           <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-stone-200 space-y-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="admin-auth-dialog-title"
+              aria-describedby="admin-auth-dialog-desc"
+              onKeyDown={handleAuthDialogKeyDown}
+              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-stone-200 space-y-4"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
                   <Lock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-stone-900">
+                  <h3
+                    id="admin-auth-dialog-title"
+                    className="text-base font-bold text-stone-900"
+                  >
                     Authenticate Password Change
                   </h3>
                   <p className="text-xs text-stone-500">
@@ -252,7 +309,10 @@ export function EditUserProfileModal({
                 </div>
               </div>
 
-              <p className="text-xs text-stone-600 leading-relaxed">
+              <p
+                id="admin-auth-dialog-desc"
+                className="text-xs text-stone-600 leading-relaxed"
+              >
                 Enter your current administrator password to authorize changing
                 the password for <span className="font-semibold">{user.name}</span>.
               </p>
@@ -265,6 +325,7 @@ export function EditUserProfileModal({
                   Your Administrator Password
                 </label>
                 <input
+                  ref={adminPasswordInputRef}
                   id="admin-auth-password"
                   type="password"
                   autoComplete="current-password"
@@ -278,10 +339,7 @@ export function EditUserProfileModal({
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowConfirm(false)
-                    setAdminPassword('')
-                  }}
+                  onClick={closeAuthChallenge}
                   disabled={loading}
                   className="px-4 py-2 text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-lg transition cursor-pointer"
                 >

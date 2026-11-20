@@ -305,33 +305,51 @@ export async function requestPasswordResetHandler() {
 
   const identifier = `${PASSWORD_RESET_PREFIX}${user.id}`
   const now = new Date()
-
-  const latestReset = await prisma.verification.findFirst({
-    where: { identifier },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  if (
-    latestReset &&
-    now.getTime() - new Date(latestReset.createdAt).getTime() <
-      RESEND_COOLDOWN_MS
-  ) {
-    throw new Error(
-      'Please wait a minute before requesting another password reset email.',
-    )
-  }
-
+  const cooldownCutoff = new Date(now.getTime() - RESEND_COOLDOWN_MS)
   const { rawToken, tokenHash } = generateActivationToken()
   const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MS)
 
-  await prisma.verification.deleteMany({ where: { identifier } })
-  await prisma.verification.create({
-    data: {
+  // Atomically replace an existing reset record only when its 60-second cooldown has elapsed
+  const rotated = await prisma.verification.updateMany({
+    where: {
       identifier,
+      createdAt: { lte: cooldownCutoff },
+    },
+    data: {
       value: tokenHash,
       expiresAt,
+      createdAt: now,
     },
   })
+
+  if (rotated.count === 0) {
+    const existingReset = await prisma.verification.findFirst({
+      where: { identifier },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (existingReset) {
+      throw new Error(
+        'Please wait a minute before requesting another password reset email.',
+      )
+    }
+
+    try {
+      await prisma.verification.create({
+        data: {
+          id: identifier,
+          identifier,
+          value: tokenHash,
+          expiresAt,
+          createdAt: now,
+        },
+      })
+    } catch {
+      throw new Error(
+        'Please wait a minute before requesting another password reset email.',
+      )
+    }
+  }
 
   try {
     await sendPasswordResetEmail({
@@ -442,11 +460,12 @@ export async function resetPasswordWithTokenHandler({
   const userAgent = headers.get('user-agent') || 'Unknown User-Agent'
 
   await prisma.$transaction(async (tx) => {
+    const consumedAt = new Date()
     const consumed = await tx.verification.deleteMany({
       where: {
         id: verification.id,
         value: tokenHash,
-        expiresAt: { gte: now },
+        expiresAt: { gte: consumedAt },
       },
     })
 

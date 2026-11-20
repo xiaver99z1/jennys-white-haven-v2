@@ -32,6 +32,11 @@ vi.mock('#/lib/prisma', () => ({
     session: {
       deleteMany: vi.fn(),
     },
+    verification: {
+      count: vi.fn(),
+      create: vi.fn(),
+      deleteMany: vi.fn(),
+    },
   },
 }))
 
@@ -216,11 +221,15 @@ describe('admin-actions handlers and validators', () => {
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(currentAdmin as any)
         .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(1)
       vi.mocked(prisma.account.findFirst).mockResolvedValueOnce({
         id: 'acc-admin',
         password: 'admin-hashed-password',
       } as any)
       vi.mocked(verifyPassword).mockResolvedValueOnce(true)
+      vi.mocked(prisma.verification.deleteMany).mockResolvedValueOnce({
+        count: 1,
+      })
 
       vi.mocked(prisma.user.update).mockResolvedValueOnce({
         ...targetUser,
@@ -244,6 +253,9 @@ describe('admin-actions handlers and validators', () => {
       expect(verifyPassword).toHaveBeenCalledWith({
         hash: 'admin-hashed-password',
         password: 'AdminCurrentPassword!1',
+      })
+      expect(prisma.verification.deleteMany).toHaveBeenCalledWith({
+        where: { identifier: 'admin-reauth-fail:admin-1' },
       })
       expect(hashPassword).toHaveBeenCalledWith('newpassword123')
       expect(prisma.account.updateMany).toHaveBeenCalledWith({
@@ -281,10 +293,32 @@ describe('admin-actions handlers and validators', () => {
         'Administrator password is required to change a user password.',
       )
 
-      // 2. Admin credential account not found
+      // 2. Rate-limit exceeded (5 failed attempts within window)
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(mockAdminUser as any)
         .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(5)
+
+      await expect(
+        updateAdminUserHandler({
+          data: {
+            userId: 'user-1',
+            name: 'Staff',
+            password: 'NewPassword!123',
+            adminPassword: 'AdminPassword!1',
+            role: 'RECEPTIONIST',
+          },
+        }),
+      ).rejects.toThrow(
+        'Too many failed administrator password attempts. Please try again in 15 minutes.',
+      )
+      expect(verifyPassword).not.toHaveBeenCalled()
+
+      // 3. Admin credential account not found
+      vi.mocked(prisma.user.findUnique)
+        .mockResolvedValueOnce(mockAdminUser as any)
+        .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(0)
       vi.mocked(prisma.account.findFirst).mockResolvedValueOnce(null)
 
       await expect(
@@ -299,15 +333,17 @@ describe('admin-actions handlers and validators', () => {
         }),
       ).rejects.toThrow('Administrator credential account not found.')
 
-      // 3. Incorrect admin password
+      // 4. Incorrect admin password records failure attempt
       vi.mocked(prisma.user.findUnique)
         .mockResolvedValueOnce(mockAdminUser as any)
         .mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.verification.count).mockResolvedValueOnce(2)
       vi.mocked(prisma.account.findFirst).mockResolvedValueOnce({
         id: 'acc-admin',
         password: 'admin-hashed-password',
       } as any)
       vi.mocked(verifyPassword).mockResolvedValueOnce(false)
+      vi.mocked(prisma.verification.create).mockResolvedValueOnce({} as any)
 
       await expect(
         updateAdminUserHandler({
@@ -320,6 +356,13 @@ describe('admin-actions handlers and validators', () => {
           },
         }),
       ).rejects.toThrow('Incorrect administrator password.')
+      expect(prisma.verification.create).toHaveBeenCalledWith({
+        data: {
+          identifier: 'admin-reauth-fail:admin-1',
+          value: '3',
+          expiresAt: expect.any(Date),
+        },
+      })
     })
 
     it('formats a single change, falls back to name or defaults when emails/roles are missing, and handles null session metadata', async () => {

@@ -95,6 +95,10 @@ export const createAdminUser = createServerFn({ method: 'POST' })
   .validator(validateCreateAdminUser)
   .handler(createAdminUserHandler)
 
+const ADMIN_REAUTH_PREFIX = 'admin-reauth-fail:'
+const MAX_ADMIN_REAUTH_ATTEMPTS = 5
+const ADMIN_REAUTH_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
+
 // --- 2. UPDATE ADMIN USER ---
 export function validateUpdateAdminUser(data: {
   userId: string
@@ -147,6 +151,21 @@ export async function updateAdminUserHandler({
         )
       }
 
+      const reauthIdentifier = `${ADMIN_REAUTH_PREFIX}${session.user.id}`
+      const now = new Date()
+      const failedAttempts = await prisma.verification.count({
+        where: {
+          identifier: reauthIdentifier,
+          expiresAt: { gte: now },
+        },
+      })
+
+      if (failedAttempts >= MAX_ADMIN_REAUTH_ATTEMPTS) {
+        throw new Error(
+          'Too many failed administrator password attempts. Please try again in 15 minutes.',
+        )
+      }
+
       const adminAccount = await prisma.account.findFirst({
         where: {
           userId: session.user.id,
@@ -164,8 +183,19 @@ export async function updateAdminUserHandler({
       })
 
       if (!isValidAdminPassword) {
+        await prisma.verification.create({
+          data: {
+            identifier: reauthIdentifier,
+            value: String(failedAttempts + 1),
+            expiresAt: new Date(now.getTime() + ADMIN_REAUTH_WINDOW_MS),
+          },
+        })
         throw new Error('Incorrect administrator password.')
       }
+
+      await prisma.verification.deleteMany({
+        where: { identifier: reauthIdentifier },
+      })
     }
 
     const changes: string[] = []
