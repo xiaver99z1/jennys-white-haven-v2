@@ -5,6 +5,7 @@ import { logActivity } from '#/lib/logger'
 import { requirePermission } from '#/server/room-actions'
 import {
   DEFAULT_CMS_SECTIONS,
+  getSpotImages,
   parseHeroConfig,
   parseTouristSpots,
   serializeHeroConfig,
@@ -13,9 +14,13 @@ import {
 import {
   extractObjectKey,
   isBase64DataUrl,
+  isR2ManagedObjectKey,
   resolvePublicMediaUrl,
 } from '#/lib/r2'
-import { purgeReplacedR2Objects } from '#/server/upload'
+import {
+  normalizeImageMimeType,
+  purgeReplacedR2Objects,
+} from '#/server/upload'
 import type { CmsSectionData, CmsSectionKey } from '#/types'
 
 const VALID_KEYS = new Set<string>(DEFAULT_CMS_SECTIONS.map((s) => s.key))
@@ -45,13 +50,17 @@ function resolveExploreMetadata(
   metadata: Record<string, string>,
 ): Record<string, string> {
   if (!metadata.spotsJson) return metadata
-  const spots = parseTouristSpots(metadata.spotsJson).map((spot) => ({
-    ...spot,
-    image:
-      spot.image && !isBase64DataUrl(spot.image)
-        ? resolvePublicMediaUrl(spot.image)
-        : '',
-  }))
+  const spots = parseTouristSpots(metadata.spotsJson).map((spot) => {
+    const resolvedImages = getSpotImages(spot)
+      .filter((img) => !isBase64DataUrl(img) && isR2ManagedObjectKey(img))
+      .map((img) => resolvePublicMediaUrl(img))
+      .filter(Boolean)
+    return {
+      ...spot,
+      image: resolvedImages[0] ?? '',
+      images: resolvedImages,
+    }
+  })
   return {
     ...metadata,
     spotsJson: serializeTouristSpots(spots),
@@ -92,7 +101,8 @@ function extractSpotImageKeys(metadata: unknown): string[] {
   const record = toStringRecord(metadata)
   if (!record.spotsJson) return []
   return parseTouristSpots(record.spotsJson)
-    .map((spot) => extractObjectKey(spot.image))
+    .flatMap((spot) => getSpotImages(spot))
+    .map((img) => extractObjectKey(img))
     .filter(Boolean)
 }
 
@@ -249,15 +259,38 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
 
     if (data.key === 'explore' && cleanMeta.spotsJson) {
       const parsedSpots = parseTouristSpots(cleanMeta.spotsJson)
-      if (parsedSpots.some((spot) => isBase64DataUrl(spot.image))) {
+      if (
+        parsedSpots.some((spot) =>
+          getSpotImages(spot).some((img) => isBase64DataUrl(img)),
+        )
+      ) {
         throw new Error(
           'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
         )
       }
+      if (
+        parsedSpots.some((spot) =>
+          getSpotImages(spot).some((img) => !isR2ManagedObjectKey(img)),
+        )
+      ) {
+        throw new Error(
+          'External image URLs are not allowed for tourist spots. Upload photos via Cloudflare R2 instead.',
+        )
+      }
       const normalizedSpots = parsedSpots.map((spot) => {
-        const key = extractObjectKey(spot.image)
-        if (key) extraMediaKeys.push(key)
-        return { ...spot, image: key }
+        const keys = Array.from(
+          new Set(
+            getSpotImages(spot)
+              .map((img) => extractObjectKey(img))
+              .filter(Boolean),
+          ),
+        )
+        for (const key of keys) extraMediaKeys.push(key)
+        return {
+          ...spot,
+          image: keys[0] ?? '',
+          images: keys,
+        }
       })
       cleanMeta.spotsJson = serializeTouristSpots(normalizedSpots)
     }
@@ -316,7 +349,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
           create: {
             objectKey,
             bucket: 'public',
-            mimeType: 'image/webp',
+            mimeType: normalizeImageMimeType('', objectKey) || 'image/webp',
             status: 'READY',
             uploadedById: admin.id,
           },

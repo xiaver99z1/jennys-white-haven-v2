@@ -31,6 +31,7 @@ vi.mock('#/server/upload', () => ({
 vi.mock('#/lib/image-compress', () => ({
   compressImageForUpload: vi.fn(async (file: File) => file),
   getCmsUploadPreset: vi.fn(() => ({ maxDimension: 1280, quality: 0.82 })),
+  isSupportedImageFile: vi.fn((file: File) => file.type.startsWith('image/')),
   IMAGE_UPLOAD_PRESETS: {
     hero: { maxDimension: 1920, quality: 0.82 },
     editorial: { maxDimension: 1280, quality: 0.82 },
@@ -190,11 +191,12 @@ describe('CmsSettings', () => {
     ).toBeInTheDocument()
     expect(mockUpsertCmsSection).not.toHaveBeenCalled()
 
-    // Restore valid name + set a relative uploaded photo URL, then save
+    // Restore valid name + add a relative uploaded photo URL, then save
     fireEvent.change(firstSpotName, { target: { value: 'Santiago Bay Beach' } })
     fireEvent.change(screen.getByLabelText('Spot 1 image URL'), {
       target: { value: '/api/media/view?key=cms%2Fsantiago.webp' },
     })
+    fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
 
     fireEvent.click(screen.getByRole('button', { name: /Save Changes/i }))
 
