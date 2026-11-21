@@ -15,7 +15,11 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
-import { CMS_SECTION_META } from '#/lib/constants/cms'
+import {
+  CMS_SECTION_META,
+  parseTouristSpots,
+  serializeTouristSpots,
+} from '#/lib/constants/cms'
 import { formatShortDate, getErrorMessage } from '#/lib/formatters'
 import {
   compressImageForUpload,
@@ -24,6 +28,7 @@ import {
 import { resetCmsSection, upsertCmsSection } from '#/server/cms-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { TouristSpotsEditor } from '#/components/admin/settings/TouristSpotsEditor'
 import type { CmsSectionData, CmsSectionKey } from '#/types'
 
 interface CmsSettingsProps {
@@ -94,7 +99,8 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       const isSingleImageSection =
         current.key === 'hero' ||
         current.key === 'story' ||
-        current.key === 'amenities'
+        current.key === 'amenities' ||
+        current.key === 'explore'
       const targetIndex =
         replaceIndex ??
         (isSingleImageSection && images.length > 0 ? 0 : undefined)
@@ -232,13 +238,15 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
           </p>
         </div>
         <a
-          href="/"
+          href={current.key === 'explore' ? '/explore' : '/'}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50 transition self-start sm:self-auto"
         >
           <ExternalLink className="w-3.5 h-3.5" />
-          Preview Public Site
+          {current.key === 'explore'
+            ? 'Preview Explore Page'
+            : 'Preview Public Site'}
         </a>
       </div>
 
@@ -459,7 +467,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                     <div
                       key={field.key}
                       className={
-                        field.key === 'items' || field.key === 'paymentInfo'
+                        field.key === 'items' ||
+                        field.key === 'paymentInfo' ||
+                        field.key === 'travelNote'
                           ? 'sm:col-span-2'
                           : ''
                       }
@@ -487,6 +497,22 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Tourist Spots List Editor (Explore Camotes section) */}
+            {current.key === 'explore' && (
+              <TouristSpotsEditor
+                spots={parseTouristSpots(metadata.spotsJson)}
+                disabled={isSaving || isResetting}
+                onChange={(nextSpots) =>
+                  setMetadata((prev) => ({
+                    ...prev,
+                    spotsJson: serializeTouristSpots(nextSpots),
+                  }))
+                }
+                onError={setError}
+                onUploadingChange={setIsUploading}
+              />
             )}
 
             {/* Images Manager */}

@@ -522,7 +522,29 @@ export type CmsSectionKey =
   | 'rooms'
   | 'amenities'
   | 'gallery'
+  | 'explore'
   | 'contact'
+
+export type TouristSpotCategory =
+  | 'Beach'
+  | 'Cave & Lagoon'
+  | 'Lake & Nature'
+  | 'Cliff & Viewpoint'
+  | 'Heritage & Culture'
+  | 'Food & Local Life'
+
+export interface TouristSpotItem {
+  id: string
+  name: string
+  category: TouristSpotCategory
+  location: string
+  travelTime: string
+  bestTime: string
+  entranceFee: string
+  description: string
+  tips: string
+  image: string
+}
 
 export interface CmsSectionData {
   key: CmsSectionKey

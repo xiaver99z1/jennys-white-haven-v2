@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as BookingStatusRouteImport } from './routes/booking-status'
+import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyActivationRouteImport } from './routes/verify-activation'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
@@ -47,6 +48,11 @@ const AdminRouteRoute = AdminRouteRouteImport.update({
 const BookingStatusRoute = BookingStatusRouteImport.update({
   id: '/booking-status',
   path: '/booking-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/booking-status': typeof BookingStatusRoute
+  '/explore': typeof ExploreRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/booking-status': typeof BookingStatusRoute
+  '/explore': typeof ExploreRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/booking-status': typeof BookingStatusRoute
+  '/explore': typeof ExploreRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
@@ -239,6 +248,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/booking-status'
+    | '/explore'
     | '/reset-password'
     | '/verify-activation'
     | '/admin/bookings'
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/booking-status'
+    | '/explore'
     | '/reset-password'
     | '/verify-activation'
     | '/admin/bookings'
@@ -290,6 +301,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/booking-status'
+    | '/explore'
     | '/reset-password'
     | '/verify-activation'
     | '/admin/bookings'
@@ -317,6 +329,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   BookingStatusRoute: typeof BookingStatusRoute
+  ExploreRoute: typeof ExploreRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyActivationRoute: typeof VerifyActivationRoute
   RoomsIdRoute: typeof RoomsIdRoute
@@ -346,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/booking-status'
       fullPath: '/booking-status'
       preLoaderRoute: typeof BookingStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -542,6 +562,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
   BookingStatusRoute: BookingStatusRoute,
+  ExploreRoute: ExploreRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyActivationRoute: VerifyActivationRoute,
   RoomsIdRoute: RoomsIdRoute,

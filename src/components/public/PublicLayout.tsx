@@ -48,6 +48,13 @@ export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
               Rooms
             </Link>
             <Link
+              to="/explore"
+              className="hover:text-stone-900 transition"
+              activeProps={{ className: 'text-stone-950 font-semibold' }}
+            >
+              Explore Camotes
+            </Link>
+            <Link
               to="/booking-status"
               className="hover:text-stone-900 transition"
               activeProps={{ className: 'text-stone-950 font-semibold' }}
@@ -89,6 +96,13 @@ export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
               onClick={() => setMenuOpen(false)}
             >
               Rooms
+            </Link>
+            <Link
+              to="/explore"
+              className="block py-1 hover:text-stone-950"
+              onClick={() => setMenuOpen(false)}
+            >
+              Explore Camotes
             </Link>
             <Link
               to="/booking-status"
@@ -149,6 +163,9 @@ export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
             <div className="flex flex-col space-y-2 text-stone-700">
               <Link to="/rooms" className="hover:text-stone-950 transition">
                 Browse Rooms &amp; Rates
+              </Link>
+              <Link to="/explore" className="hover:text-stone-950 transition">
+                Camotes Island Guide
               </Link>
               <Link
                 to="/booking-status"

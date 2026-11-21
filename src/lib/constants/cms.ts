@@ -1,4 +1,156 @@
-import type { CmsSectionData, CmsSectionKey } from '#/types'
+import type {
+  CmsSectionData,
+  CmsSectionKey,
+  TouristSpotCategory,
+  TouristSpotItem,
+} from '#/types'
+
+export const TOURIST_SPOT_CATEGORIES: readonly TouristSpotCategory[] = [
+  'Beach',
+  'Cave & Lagoon',
+  'Lake & Nature',
+  'Cliff & Viewpoint',
+  'Heritage & Culture',
+  'Food & Local Life',
+] as const
+
+const VALID_SPOT_CATEGORIES = new Set<string>(TOURIST_SPOT_CATEGORIES)
+
+export const DEFAULT_TOURIST_SPOTS: TouristSpotItem[] = [
+  {
+    id: 'santiago-bay-beach',
+    name: 'Santiago Bay White Beach',
+    category: 'Beach',
+    location: 'Brgy. Santiago, San Francisco, Camotes',
+    travelTime: '5–10 mins from resort',
+    bestTime: 'Early morning & sunset',
+    entranceFee: 'Free public access',
+    description:
+      'A sweeping crescent of powdery white sand and calm, crystal-clear shallows that reveal a wide sandbar at low tide—ideal for unhurried swims and golden-hour walks.',
+    tips: 'Visit around 4:30 PM for calm water and sunset views, then enjoy fresh grilled seafood at the beachfront eateries nearby.',
+    image: '',
+  },
+  {
+    id: 'lake-danao-park',
+    name: 'Lake Danao Park',
+    category: 'Lake & Nature',
+    location: 'Brgy. Union & Esperanza, San Francisco',
+    travelTime: '15–20 mins from resort',
+    bestTime: 'Morning to mid-afternoon',
+    entranceFee: '₱30–₱50 entrance · boat rentals available',
+    description:
+      "Cebu's largest natural freshwater lake, shaped like a figure eight and framed by quiet hills and palms. Guests can rent kayaks, board a slow sakanaw cruise, or unwind at the lakeside pavilions.",
+    tips: 'Bring sun protection and enjoy lunch by the water—boat cruises to Lovers Islet take about 30 minutes.',
+    image: '',
+  },
+  {
+    id: 'bukilat-cave',
+    name: 'Bukilat Cave',
+    category: 'Cave & Lagoon',
+    location: 'Brgy. McArthur, Tudela, Camotes',
+    travelTime: '35–40 mins from resort',
+    bestTime: '10:00 AM – 2:00 PM (overhead light)',
+    entranceFee: '₱50 entrance',
+    description:
+      'A vast limestone cavern lit by natural skylights overhead, filled with cool, clear spring water and dramatic stalactite formations.',
+    tips: 'Midday sunlight pours directly through the ceiling openings, illuminating the turquoise cave pool for photos.',
+    image: '',
+  },
+  {
+    id: 'buho-rock',
+    name: 'Buho Rock Cliff & Viewpoint',
+    category: 'Cliff & Viewpoint',
+    location: 'Brgy. Eastern Poblacion, Poro, Camotes',
+    travelTime: '25–30 mins from resort',
+    bestTime: 'High tide afternoons',
+    entranceFee: '₱50 entrance',
+    description:
+      'A sculpted coral-rock promontory jutting into deep turquoise water, famous for panoramic sea views, coastal walkways, and cliff-diving platforms.',
+    tips: 'Check tide timing with our front desk before heading out if you plan to swim or jump from the lower decks.',
+    image: '',
+  },
+  {
+    id: 'mangodlong-rock',
+    name: 'Mangodlong Rock & Paradise Cove',
+    category: 'Beach',
+    location: 'Brgy. Heminsulan, San Francisco',
+    travelTime: '10–15 mins from resort',
+    bestTime: '8:00 AM – 11:00 AM',
+    entranceFee: '₱50–₱100 day use',
+    description:
+      'A sheltered cove with emerald waters, smooth limestone rock formations, and vibrant shallow reefs perfect for relaxed snorkeling.',
+    tips: 'Bring water shoes or snorkel gear; morning tides keep the cove glassy and clear.',
+    image: '',
+  },
+  {
+    id: 'paraiso-timubo-caves',
+    name: 'Paraiso & Timubo Caves',
+    category: 'Cave & Lagoon',
+    location: 'Brgy. Sonog & San Francisco, Camotes',
+    travelTime: '15–20 mins from resort',
+    bestTime: 'Morning to early afternoon',
+    entranceFee: '₱50–₱100 per cave',
+    description:
+      'Refreshing underground freshwater pools tucked inside serene limestone caverns—a cool midday escape after exploring the beaches.',
+    tips: 'Both caves are close to each other and pair easily into a single half-day island loop with Lake Danao.',
+    image: '',
+  },
+]
+
+export function serializeTouristSpots(spots: TouristSpotItem[]): string {
+  return JSON.stringify(spots)
+}
+
+export function parseTouristSpots(rawJson?: string | null): TouristSpotItem[] {
+  if (!rawJson || !rawJson.trim()) {
+    return DEFAULT_TOURIST_SPOTS
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(rawJson)
+    if (!Array.isArray(parsed)) return DEFAULT_TOURIST_SPOTS
+
+    return parsed
+      .filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+      )
+      .map((item, idx) => {
+        const rawCategory =
+          typeof item.category === 'string' ? item.category : 'Beach'
+        const category = VALID_SPOT_CATEGORIES.has(rawCategory)
+          ? (rawCategory as TouristSpotCategory)
+          : 'Beach'
+        return {
+          id:
+            typeof item.id === 'string' && item.id.trim()
+              ? item.id.trim()
+              : `spot-${idx + 1}`,
+          name: typeof item.name === 'string' ? item.name.trim() : '',
+          category,
+          location:
+            typeof item.location === 'string' ? item.location.trim() : '',
+          travelTime:
+            typeof item.travelTime === 'string' ? item.travelTime.trim() : '',
+          bestTime:
+            typeof item.bestTime === 'string' ? item.bestTime.trim() : '',
+          entranceFee:
+            typeof item.entranceFee === 'string'
+              ? item.entranceFee.trim()
+              : '',
+          description:
+            typeof item.description === 'string'
+              ? item.description.trim()
+              : '',
+          tips: typeof item.tips === 'string' ? item.tips.trim() : '',
+          image: typeof item.image === 'string' ? item.image.trim() : '',
+        }
+      })
+      .filter((spot) => Boolean(spot.name))
+  } catch {
+    return DEFAULT_TOURIST_SPOTS
+  }
+}
 
 export const CMS_SECTION_META: Record<
   CmsSectionKey,
@@ -66,6 +218,24 @@ export const CMS_SECTION_META: Record<
         key: 'eyebrow',
         label: 'Section Eyebrow',
         placeholder: 'Atmosphere',
+      },
+    ],
+  },
+  explore: {
+    label: 'Explore Camotes (Tourist Spots)',
+    description:
+      'Curated island destinations, photos, travel times, and local tips shown on the /explore visitor page.',
+    metadataFields: [
+      {
+        key: 'eyebrow',
+        label: 'Page Eyebrow',
+        placeholder: 'Island Guide · Camotes, Cebu',
+      },
+      {
+        key: 'travelNote',
+        label: 'Island Tour & Transport Note',
+        placeholder:
+          'Ask our front desk to arrange private multicab tours or motorbike rentals right from the resort.',
       },
     ],
   },
@@ -185,6 +355,24 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     sortOrder: 4,
   },
   {
+    key: 'explore',
+    title: 'Explore Camotes Island',
+    subtitle:
+      'White-sand coves, limestone cave pools, and tranquil freshwater lakes—all within easy reach of your stay.',
+    body: "Whether you have a quiet afternoon or a full island-hopping day, these are our favorite destinations across San Francisco, Poro, and Tudela. Ask our team anytime to arrange a local multicab driver or motorbike rental.",
+    ctaLabel: 'Browse Rooms & Rates',
+    ctaHref: '/rooms',
+    images: [],
+    metadata: {
+      eyebrow: 'Island Guide · Camotes, Cebu',
+      travelNote:
+        'Need transport? Our front desk can coordinate trusted local multicab day tours or scooter rentals straight from the resort.',
+      spotsJson: serializeTouristSpots(DEFAULT_TOURIST_SPOTS),
+    },
+    isPublished: true,
+    sortOrder: 5,
+  },
+  {
     key: 'contact',
     title: 'Plan your visit to Camotes Island.',
     subtitle:
@@ -203,6 +391,6 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
         'GCash / Bank Transfer accepted. A 50% deposit confirms your reservation.',
     },
     isPublished: true,
-    sortOrder: 5,
+    sortOrder: 6,
   },
 ]
