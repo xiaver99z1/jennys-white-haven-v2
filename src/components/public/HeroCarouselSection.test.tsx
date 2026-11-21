@@ -104,6 +104,29 @@ describe('HeroCarouselSection', () => {
     expect(screen.getByText('Slide Two Subtitle')).toBeInTheDocument()
     fireEvent.mouseLeave(section)
 
+    // Keyboard/touch Pause & Play button stops and resumes autoplay
+    const pauseBtn = screen.getByRole('button', {
+      name: 'Pause hero slideshow',
+    })
+    fireEvent.click(pauseBtn)
+    expect(pauseBtn).toHaveAttribute('aria-pressed', 'true')
+    act(() => {
+      vi.advanceTimersByTime(8000)
+    })
+    expect(screen.getByText('Slide Two Subtitle')).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Play hero slideshow' }),
+    )
+
+    // Keyboard focus inside hero also pauses autoplay
+    const checkInInput = screen.getByLabelText(/Check-in/i)
+    fireEvent.focus(checkInInput)
+    act(() => {
+      vi.advanceTimersByTime(8000)
+    })
+    expect(screen.getByText('Slide Two Subtitle')).toBeInTheDocument()
+    fireEvent.blur(checkInInput)
+
     // Dot indicator switches directly to slide 1
     fireEvent.click(screen.getByRole('tab', { name: 'Go to slide 1' }))
     expect(screen.getByText('Slide One Title')).toBeInTheDocument()

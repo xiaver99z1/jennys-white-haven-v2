@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -88,6 +92,7 @@ export function HeroCarouselEditor({
   const [previewScale, setPreviewScale] = useState(0.5)
 
   const activeUploadsRef = useRef(0)
+  const imageVersionRef = useRef<Map<string, number>>(new Map())
   const viewportRef = useRef<HTMLDivElement>(null)
   const dragStateRef = useRef<{
     target: DragTarget
@@ -183,6 +188,12 @@ export function HeroCarouselEditor({
     })
   }
 
+  function bumpSlideImageVersion(slideId: string): number {
+    const next = (imageVersionRef.current.get(slideId) ?? 0) + 1
+    imageVersionRef.current.set(slideId, next)
+    return next
+  }
+
   async function handleUploadSlideImage(slideId: string, file?: File) {
     if (!file) return
     if (!file.type.startsWith('image/')) {
@@ -190,6 +201,7 @@ export function HeroCarouselEditor({
       return
     }
 
+    const uploadVersion = bumpSlideImageVersion(slideId)
     activeUploadsRef.current += 1
     setUploadingSlideIds((prev) =>
       prev.includes(slideId) ? prev : [...prev, slideId],
@@ -206,7 +218,9 @@ export function HeroCarouselEditor({
       formData.append('file', compressed)
       formData.append('scope', 'cms')
       const url = await uploadAvatar({ data: formData })
-      updateSlide(slideId, { image: url })
+      if (imageVersionRef.current.get(slideId) === uploadVersion) {
+        updateSlide(slideId, { image: url })
+      }
     } catch (err: unknown) {
       onError(getErrorMessage(err, 'Failed to upload hero slide image.'))
     } finally {
@@ -414,6 +428,91 @@ export function HeroCarouselEditor({
     }
   }
 
+  function handleNudgeTarget(
+    target: DragTarget,
+    e: ReactKeyboardEvent<HTMLDivElement>,
+  ) {
+    if (disabled) return
+    const step = e.shiftKey ? 5 : 1
+    let dx = 0
+    let dy = 0
+    if (e.key === 'ArrowLeft') dx = -step
+    else if (e.key === 'ArrowRight') dx = step
+    else if (e.key === 'ArrowUp') dy = -step
+    else if (e.key === 'ArrowDown') dy = step
+    else return
+
+    e.preventDefault()
+    const clampPct = (val: number) =>
+      Math.min(100, Math.max(0, Math.round(val * 10) / 10))
+
+    if (target === 'text') {
+      onChange((prev) => ({
+        ...prev,
+        slides: prev.slides.map((s) =>
+          s.id === activeSlide.id
+            ? {
+                ...s,
+                textPosition: {
+                  x: clampPct(s.textPosition.x + dx),
+                  y: clampPct(s.textPosition.y + dy),
+                },
+              }
+            : s,
+        ),
+      }))
+    } else if (target === 'cta') {
+      onChange((prev) => ({
+        ...prev,
+        ctaPosition: {
+          x: clampPct(prev.ctaPosition.x + dx),
+          y: clampPct(prev.ctaPosition.y + dy),
+        },
+      }))
+    } else {
+      onChange((prev) => ({
+        ...prev,
+        bookingBarPosition: {
+          x: clampPct(prev.bookingBarPosition.x + dx),
+          y: clampPct(prev.bookingBarPosition.y + dy),
+        },
+      }))
+    }
+  }
+
+  function handleKeyboardResize(
+    side: 'left' | 'right',
+    e: ReactKeyboardEvent<HTMLDivElement>,
+  ) {
+    if (disabled) return
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const step = e.shiftKey ? 5 : 2
+    const delta =
+      side === 'right'
+        ? e.key === 'ArrowRight'
+          ? step
+          : -step
+        : e.key === 'ArrowLeft'
+          ? step
+          : -step
+
+    onChange((prev) => ({
+      ...prev,
+      slides: prev.slides.map((s) => {
+        if (s.id !== activeSlide.id) return s
+        const currentWidth = s.textWidth ?? DEFAULT_HERO_TEXT_WIDTH
+        const nextWidth = Math.min(
+          MAX_HERO_TEXT_WIDTH,
+          Math.max(MIN_HERO_TEXT_WIDTH, currentWidth + delta),
+        )
+        return { ...s, textWidth: nextWidth }
+      }),
+    }))
+  }
+
   function handleResetPositions() {
     onChange((prev) => ({
       ...prev,
@@ -498,6 +597,7 @@ export function HeroCarouselEditor({
             {showPreviewText && (
               <div
                 role="group"
+                tabIndex={disabled ? -1 : 0}
                 aria-label="Draggable hero text"
                 style={{
                   ...centerAnchorStyle(activeSlide.textPosition),
@@ -506,7 +606,8 @@ export function HeroCarouselEditor({
                 onPointerDown={(e) => handleDragStart('text', e)}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
-                className={`absolute z-20 rounded-xl border-2 border-dashed transition-colors cursor-grab active:cursor-grabbing ${
+                onKeyDown={(e) => handleNudgeTarget('text', e)}
+                className={`absolute z-20 rounded-xl border-2 border-dashed transition-colors cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-amber-300 ${
                   draggingTarget === 'text' || resizingSide !== null
                     ? 'border-amber-300 bg-stone-950/35'
                     : 'border-white/40 hover:border-amber-300/80'
@@ -525,12 +626,14 @@ export function HeroCarouselEditor({
                 {/* Left Width Resize Handle */}
                 <div
                   role="separator"
+                  tabIndex={disabled ? -1 : 0}
                   aria-orientation="vertical"
                   aria-label="Resize hero text from left"
                   onPointerDown={(e) => handleResizeStart('left', e)}
                   onPointerMove={handleResizeMove}
                   onPointerUp={handleResizeEnd}
-                  className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-30"
+                  onKeyDown={(e) => handleKeyboardResize('left', e)}
+                  className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-30 focus:outline-none focus:ring-2 focus:ring-amber-300 rounded-full"
                 >
                   <span className="w-1.5 h-7 rounded-full bg-amber-300 border border-stone-900 shadow-sm" />
                 </div>
@@ -538,12 +641,14 @@ export function HeroCarouselEditor({
                 {/* Right Width Resize Handle */}
                 <div
                   role="separator"
+                  tabIndex={disabled ? -1 : 0}
                   aria-orientation="vertical"
                   aria-label="Resize hero text from right"
                   onPointerDown={(e) => handleResizeStart('right', e)}
                   onPointerMove={handleResizeMove}
                   onPointerUp={handleResizeEnd}
-                  className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-30"
+                  onKeyDown={(e) => handleKeyboardResize('right', e)}
+                  className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-30 focus:outline-none focus:ring-2 focus:ring-amber-300 rounded-full"
                 >
                   <span className="w-1.5 h-7 rounded-full bg-amber-300 border border-stone-900 shadow-sm" />
                 </div>
@@ -561,12 +666,14 @@ export function HeroCarouselEditor({
             {showPreviewCta && (
               <div
                 role="group"
+                tabIndex={disabled ? -1 : 0}
                 aria-label="Draggable Explore Rooms button"
                 style={centerAnchorStyle(config.ctaPosition)}
                 onPointerDown={(e) => handleDragStart('cta', e)}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
-                className={`absolute z-20 rounded-full border-2 border-dashed cursor-grab active:cursor-grabbing ${
+                onKeyDown={(e) => handleNudgeTarget('cta', e)}
+                className={`absolute z-20 rounded-full border-2 border-dashed cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-amber-300 ${
                   draggingTarget === 'cta'
                     ? 'border-amber-300 bg-stone-950/40'
                     : 'border-white/40 hover:border-amber-300/80'
@@ -588,12 +695,14 @@ export function HeroCarouselEditor({
             {config.showBookingBar && (
               <div
                 role="group"
+                tabIndex={disabled ? -1 : 0}
                 aria-label="Draggable check-in and check-out section"
                 style={centerAnchorStyle(config.bookingBarPosition)}
                 onPointerDown={(e) => handleDragStart('bookingBar', e)}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
-                className={`absolute z-10 w-[88%] max-w-5xl rounded-2xl border-2 border-dashed cursor-grab active:cursor-grabbing ${
+                onKeyDown={(e) => handleNudgeTarget('bookingBar', e)}
+                className={`absolute z-10 w-[88%] max-w-5xl rounded-2xl border-2 border-dashed cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-amber-300 ${
                   draggingTarget === 'bookingBar'
                     ? 'border-amber-400'
                     : 'border-white/40 hover:border-amber-300/80'
@@ -936,7 +1045,10 @@ export function HeroCarouselEditor({
                   <button
                     type="button"
                     disabled={disabled || isUploadingActive}
-                    onClick={() => updateSlide(activeSlide.id, { image: '' })}
+                    onClick={() => {
+                      bumpSlideImageVersion(activeSlide.id)
+                      updateSlide(activeSlide.id, { image: '' })
+                    }}
                     className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 cursor-pointer"
                   >
                     Remove Photo
@@ -949,12 +1061,14 @@ export function HeroCarouselEditor({
               type="text"
               inputMode="url"
               aria-label="Slide background image URL"
+              disabled={disabled || isUploadingActive}
               value={activeSlide.image}
-              onChange={(e) =>
+              onChange={(e) => {
+                bumpSlideImageVersion(activeSlide.id)
                 updateSlide(activeSlide.id, { image: e.target.value })
-              }
+              }}
               placeholder="https://... or upload an image above"
-              className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+              className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10 disabled:opacity-60"
             />
           </div>
 

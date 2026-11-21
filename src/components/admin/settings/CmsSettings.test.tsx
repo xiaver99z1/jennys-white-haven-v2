@@ -28,6 +28,15 @@ vi.mock('#/server/upload', () => ({
   uploadAvatar: mockUploadAvatar,
 }))
 
+vi.mock('#/lib/image-compress', () => ({
+  compressImageForUpload: vi.fn(async (file: File) => file),
+  getCmsUploadPreset: vi.fn(() => ({ maxDimension: 1280, quality: 0.82 })),
+  IMAGE_UPLOAD_PRESETS: {
+    hero: { maxDimension: 1920, quality: 0.82 },
+    editorial: { maxDimension: 1280, quality: 0.82 },
+  },
+}))
+
 describe('CmsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -107,6 +116,44 @@ describe('CmsSettings', () => {
       expect(mockResetCmsSection).toHaveBeenCalledWith({
         data: { key: 'story' },
       })
+    })
+  })
+
+  it('disables Reset to Defaults and Save Changes while a hero slide upload is active', async () => {
+    let resolveHeroUpload!: (url: string) => void
+    mockUploadAvatar.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveHeroUpload = resolve
+        }),
+    )
+
+    const { container } = render(
+      <CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />,
+    )
+
+    const heroFileInput = container.querySelector<HTMLInputElement>(
+      'input[type="file"]',
+    )!
+    const file = new File(['img'], 'slide.jpg', { type: 'image/jpeg' })
+    fireEvent.change(heroFileInput, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(mockUploadAvatar).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByRole('button', { name: /Reset to Defaults/i }),
+      ).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: /Save Changes/i }),
+      ).toBeDisabled()
+    })
+
+    resolveHeroUpload('/api/media/view?key=cms/slide.webp')
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Reset to Defaults/i }),
+      ).not.toBeDisabled()
     })
   })
 

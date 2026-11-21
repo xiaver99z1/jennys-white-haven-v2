@@ -196,6 +196,25 @@ describe('HeroCarouselEditor', () => {
       resizedRight.slides[0].textWidth ?? 0,
     )
 
+    // Keyboard nudging and keyboard resizing work for accessible control
+    const textBox = screen.getByLabelText('Draggable hero text')
+    fireEvent.keyDown(textBox, { key: 'ArrowRight', shiftKey: true })
+    fireEvent.keyDown(textBox, { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByLabelText('Draggable Explore Rooms button'), {
+      key: 'ArrowLeft',
+    })
+    fireEvent.keyDown(
+      screen.getByLabelText('Draggable check-in and check-out section'),
+      { key: 'ArrowUp' },
+    )
+    fireEvent.keyDown(rightHandle, { key: 'ArrowLeft', shiftKey: true })
+    fireEvent.keyDown(leftHandle, { key: 'ArrowLeft' })
+
+    const afterKeyboard = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(afterKeyboard.slides[0].textPosition.y).toBe(51)
+    expect(afterKeyboard.ctaPosition.x).toBe(24)
+    expect(afterKeyboard.bookingBarPosition.y).toBe(79)
+
     // Reset positions snaps back to defaults including textWidth
     fireEvent.click(screen.getByRole('button', { name: /Reset Positions/i }))
     const reset = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
@@ -230,14 +249,28 @@ describe('HeroCarouselEditor', () => {
       'Please select a valid image file (JPG, PNG, WEBP, GIF).',
     )
 
-    // Upload valid photo
-    mockUploadAvatar.mockResolvedValueOnce('/api/media/view?key=cms/hero1.webp')
+    // Upload valid photo (URL input locks during upload so it cannot be overwritten)
+    let resolveUpload!: (url: string) => void
+    mockUploadAvatar.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveUpload = resolve
+        }),
+    )
     const imgFile = new File(['img'], 'hero.jpg', { type: 'image/jpeg' })
     fireEvent.change(fileInput, { target: { files: [imgFile] } })
 
     await waitFor(() => {
+      expect(mockUploadAvatar).toHaveBeenCalledTimes(1)
+      expect(urlInput).toBeDisabled()
+    })
+
+    resolveUpload('/api/media/view?key=cms/hero1.webp')
+
+    await waitFor(() => {
       expect(mockCompressImage).toHaveBeenCalledWith(imgFile, 1920, 0.82)
       expect(urlInput).toHaveValue('/api/media/view?key=cms/hero1.webp')
+      expect(urlInput).not.toBeDisabled()
     })
     expect(onUploadingChange).toHaveBeenCalledWith(true)
     expect(onUploadingChange).toHaveBeenCalledWith(false)

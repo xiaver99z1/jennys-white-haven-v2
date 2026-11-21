@@ -38,6 +38,13 @@ export function TouristSpotsEditor({
 }: TouristSpotsEditorProps) {
   const [uploadingSpotIds, setUploadingSpotIds] = useState<string[]>([])
   const activeUploadsRef = useRef(0)
+  const imageVersionRef = useRef<Map<string, number>>(new Map())
+
+  const bumpSpotImageVersion = (spotId: string): number => {
+    const next = (imageVersionRef.current.get(spotId) ?? 0) + 1
+    imageVersionRef.current.set(spotId, next)
+    return next
+  }
 
   const handleAddSpot = () => {
     const nextId = `spot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -90,6 +97,7 @@ export function TouristSpotsEditor({
       return
     }
 
+    const uploadVersion = bumpSpotImageVersion(spotId)
     activeUploadsRef.current += 1
     setUploadingSpotIds((prev) =>
       prev.includes(spotId) ? prev : [...prev, spotId],
@@ -106,7 +114,9 @@ export function TouristSpotsEditor({
       formData.append('file', compressed)
       formData.append('scope', 'cms')
       const url = await uploadAvatar({ data: formData })
-      handleUpdateSpot(spotId, { image: url })
+      if (imageVersionRef.current.get(spotId) === uploadVersion) {
+        handleUpdateSpot(spotId, { image: url })
+      }
     } catch (err: unknown) {
       onError(getErrorMessage(err, 'Failed to upload tourist spot image.'))
     } finally {
@@ -242,9 +252,10 @@ export function TouristSpotsEditor({
                         <button
                           type="button"
                           disabled={disabled || isUploadingThis}
-                          onClick={() =>
+                          onClick={() => {
+                            bumpSpotImageVersion(spot.id)
                             handleUpdateSpot(spot.id, { image: '' })
-                          }
+                          }}
                           className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                         >
                           Remove Photo
@@ -255,12 +266,14 @@ export function TouristSpotsEditor({
                       type="text"
                       inputMode="url"
                       aria-label={`Spot ${idx + 1} image URL`}
+                      disabled={disabled || isUploadingThis}
                       value={spot.image}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        bumpSpotImageVersion(spot.id)
                         handleUpdateSpot(spot.id, { image: e.target.value })
-                      }
+                      }}
                       placeholder="https://... or upload an image above"
-                      className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                      className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10 disabled:opacity-60"
                     />
                   </div>
                 </div>

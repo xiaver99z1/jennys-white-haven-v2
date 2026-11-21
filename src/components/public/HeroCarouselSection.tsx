@@ -6,6 +6,8 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Pause,
+  Play,
   Users,
 } from 'lucide-react'
 import {
@@ -51,7 +53,10 @@ export function HeroCarouselSection({
   )
 
   const [activeIndex, setActiveIndex] = useState(0)
-  const [isPaused, setIsPaused] = useState(false)
+  const [isHoverPaused, setIsHoverPaused] = useState(false)
+  const [isFocusPaused, setIsFocusPaused] = useState(false)
+  const [isManuallyPaused, setIsManuallyPaused] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
   const [guests, setGuests] = useState(2)
@@ -61,12 +66,30 @@ export function HeroCarouselSection({
   const activeSlide = config.slides[safeIndex]
 
   useEffect(() => {
-    if (slideCount <= 1 || !config.autoplay || isPaused) return
+    if (
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return
+    }
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setPrefersReducedMotion(mq.matches)
+    const onChange = (e: MediaQueryListEvent) =>
+      setPrefersReducedMotion(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  const isAutoplayPaused =
+    isHoverPaused || isFocusPaused || isManuallyPaused || prefersReducedMotion
+
+  useEffect(() => {
+    if (slideCount <= 1 || !config.autoplay || isAutoplayPaused) return
     const timer = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % slideCount)
     }, config.intervalMs)
     return () => clearInterval(timer)
-  }, [slideCount, config.autoplay, config.intervalMs, isPaused])
+  }, [slideCount, config.autoplay, config.intervalMs, isAutoplayPaused])
 
   function handleFormSubmit(e: FormEvent) {
     e.preventDefault()
@@ -92,8 +115,14 @@ export function HeroCarouselSection({
   return (
     <section
       aria-label="Hero showcase"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onMouseEnter={() => setIsHoverPaused(true)}
+      onMouseLeave={() => setIsHoverPaused(false)}
+      onFocusCapture={() => setIsFocusPaused(true)}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setIsFocusPaused(false)
+        }
+      }}
       className="relative min-h-[76vh] md:min-h-0 md:h-[clamp(540px,82vh,720px)] flex flex-col justify-end overflow-hidden bg-stone-900"
     >
       {/* Background Carousel Slides */}
@@ -157,7 +186,7 @@ export function HeroCarouselSection({
               activeSlide.textPosition,
               activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH,
             )}
-            className="w-full md:w-[var(--hw)] text-[#FAF8F4] md:absolute md:z-20 md:left-[var(--hx)] md:top-[var(--hy)] md:-translate-x-1/2 md:-translate-y-1/2"
+            className="w-full md:w-[var(--hw)] text-[#FAF8F4] md:absolute md:z-20 md:left-[clamp(calc(var(--hw)/2),var(--hx),calc(100%-var(--hw)/2))] md:top-[clamp(3rem,var(--hy),calc(100%-3rem))] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <HeroRichTextContent
               html={activeSlide.contentHtml}
@@ -170,7 +199,7 @@ export function HeroCarouselSection({
         {showCta && (
           <div
             style={positionVars(config.ctaPosition)}
-            className="md:absolute md:z-20 md:left-[var(--hx)] md:top-[var(--hy)] md:-translate-x-1/2 md:-translate-y-1/2"
+            className="md:absolute md:z-20 md:left-[clamp(8rem,var(--hx),calc(100%-8rem))] md:top-[clamp(2.5rem,var(--hy),calc(100%-3.5rem))] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <Link
               to={hero.ctaHref || '/rooms'}
@@ -186,7 +215,7 @@ export function HeroCarouselSection({
         {config.showBookingBar && (
           <div
             style={positionVars(config.bookingBarPosition)}
-            className="w-full md:w-[88%] md:max-w-5xl md:absolute md:z-10 md:left-[var(--hx)] md:top-[var(--hy)] md:-translate-x-1/2 md:-translate-y-1/2"
+            className="w-full md:w-[88%] md:max-w-5xl md:absolute md:z-10 md:left-[clamp(44%,var(--hx),56%)] md:top-[clamp(4.5rem,var(--hy),calc(100%-4.5rem))] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <form
               onSubmit={handleFormSubmit}
@@ -260,31 +289,52 @@ export function HeroCarouselSection({
         )}
       </div>
 
-      {/* Carousel Slide Indicators */}
+      {/* Carousel Slide Indicators + Accessible Autoplay Pause/Play Control */}
       {slideCount > 1 && (
-        <div
-          role="tablist"
-          aria-label="Hero slides"
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
-        >
-          {config.slides.map((slide, idx) => {
-            const isActive = idx === safeIndex
-            return (
-              <button
-                key={slide.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-label={`Go to slide ${idx + 1}`}
-                onClick={() => setActiveIndex(idx)}
-                className={`h-2 rounded-full transition-all cursor-pointer ${
-                  isActive
-                    ? 'w-7 bg-[#FAF8F4]'
-                    : 'w-2 bg-white/45 hover:bg-white/75'
-                }`}
-              />
-            )
-          })}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
+          {config.autoplay && (
+            <button
+              type="button"
+              aria-pressed={isManuallyPaused}
+              aria-label={
+                isManuallyPaused
+                  ? 'Play hero slideshow'
+                  : 'Pause hero slideshow'
+              }
+              onClick={() => setIsManuallyPaused((p) => !p)}
+              className="p-1.5 rounded-full bg-stone-950/45 hover:bg-stone-950/75 text-[#FAF8F4] border border-white/15 backdrop-blur-xs transition cursor-pointer"
+            >
+              {isManuallyPaused ? (
+                <Play className="w-3 h-3" />
+              ) : (
+                <Pause className="w-3 h-3" />
+              )}
+            </button>
+          )}
+          <div
+            role="tablist"
+            aria-label="Hero slides"
+            className="flex items-center gap-2"
+          >
+            {config.slides.map((slide, idx) => {
+              const isActive = idx === safeIndex
+              return (
+                <button
+                  key={slide.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  onClick={() => setActiveIndex(idx)}
+                  className={`h-2 rounded-full transition-all cursor-pointer ${
+                    isActive
+                      ? 'w-7 bg-[#FAF8F4]'
+                      : 'w-2 bg-white/45 hover:bg-white/75'
+                  }`}
+                />
+              )
+            })}
+          </div>
         </div>
       )}
     </section>
