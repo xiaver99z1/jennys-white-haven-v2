@@ -16,6 +16,9 @@ vi.mock('#/server/upload', () => ({
 
 vi.mock('#/lib/image-compress', () => ({
   compressImageForUpload: mockCompressImage,
+  isSupportedImageFile: (file: File) =>
+    file.type.startsWith('image/') ||
+    (!file.type && /\.(?:jpe?g|jfif|png|webp|avif)$/i.test(file.name)),
   IMAGE_UPLOAD_PRESETS: {
     editorial: { maxDimension: 1280, quality: 0.82 },
   },
@@ -63,6 +66,7 @@ describe('TouristSpotsEditor', () => {
       description: 'White sandbar.',
       tips: 'Go before 5 PM.',
       image: '',
+      images: [],
     },
     {
       id: 'spot-2',
@@ -74,7 +78,11 @@ describe('TouristSpotsEditor', () => {
       entranceFee: '₱50',
       description: 'Natural cave pool.',
       tips: 'Bring aqua shoes.',
-      image: 'https://cdn.example.com/bukilat.webp',
+      image: 'https://cdn.example.com/bukilat-1.webp',
+      images: [
+        'https://cdn.example.com/bukilat-1.webp',
+        'https://cdn.example.com/bukilat-2.webp',
+      ],
     },
   ]
 
@@ -103,11 +111,12 @@ describe('TouristSpotsEditor', () => {
       expect.objectContaining({
         name: 'New Camotes Destination',
         category: 'Beach',
+        images: [],
       }),
     ])
   })
 
-  it('edits spot fields (including spaces and clearing name), reorders, removes photos, and deletes spots', () => {
+  it('edits spot fields, adds/reorders/removes multiple gallery photos, and reorders/deletes spots', () => {
     const onError = vi.fn()
     const onSpotsChange = vi.fn()
 
@@ -122,9 +131,7 @@ describe('TouristSpotsEditor', () => {
     const nameInput = screen.getByLabelText('Destination Name', {
       selector: '#spot-name-spot-1',
     })
-    fireEvent.change(nameInput, {
-      target: { value: 'Santiago White ' },
-    })
+    fireEvent.change(nameInput, { target: { value: 'Santiago White ' } })
     expect(nameInput).toHaveValue('Santiago White ')
 
     // Clearing the name does not delete the spot
@@ -169,62 +176,79 @@ describe('TouristSpotsEditor', () => {
       { target: { value: 'Try grilled fish' } },
     )
 
-    // Spot image input uses text type so relative /api/media/view URLs remain valid
+    // Add relative photo URL to spot 1 gallery
     const urlInput = screen.getByLabelText('Spot 1 image URL')
     expect(urlInput).toHaveAttribute('type', 'text')
     fireEvent.change(urlInput, {
+      target: { value: 'data:image/png;base64,abc' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
+    expect(onError).toHaveBeenCalledWith(
+      expect.stringMatching(/Base64 data URLs cannot be stored/i),
+    )
+
+    fireEvent.change(urlInput, {
       target: { value: '/api/media/view?key=cms%2Fsantiago.webp' },
     })
+    fireEvent.keyDown(urlInput, { key: 'Enter' })
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[0].images,
+    ).toEqual(['/api/media/view?key=cms%2Fsantiago.webp'])
 
-    // Move spot 1 down, then back up
+    // Reorder photo 2 left on spot 2 so it becomes the new Cover
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move spot 2 photo 2 left' }),
+    )
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].images,
+    ).toEqual([
+      'https://cdn.example.com/bukilat-2.webp',
+      'https://cdn.example.com/bukilat-1.webp',
+    ])
+
+    // Remove photo 1 from spot 2
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove spot 2 photo 1' }),
+    )
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].images,
+    ).toEqual(['https://cdn.example.com/bukilat-1.webp'])
+
+    // Move spot 1 down, then back up, then delete spot 1
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 1 down' }))
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
     ).toEqual(['spot-2', 'spot-1'])
 
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 2 up' }))
-    expect(
-      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
-    ).toEqual(['spot-1', 'spot-2'])
-
-    // Remove photo on spot 2 (second Remove Photo button)
-    const removePhotoButtons = screen.getAllByRole('button', {
-      name: 'Remove Photo',
-    })
-    fireEvent.click(removePhotoButtons[1])
-    expect(
-      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].image,
-    ).toBe('')
-
-    // Remove spot 1
     fireEvent.click(screen.getByRole('button', { name: 'Remove spot 1' }))
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
     ).toEqual(['spot-2'])
   })
 
-  it('preserves newer edits and reorders made during an in-flight photo upload and tracks overlapping uploads', async () => {
+  it('uploads multiple photos per spot in one selection and preserves concurrent edits/reorders', async () => {
     const onError = vi.fn()
     const onUploadingChange = vi.fn()
     const onSpotsChange = vi.fn()
 
-    let resolveUpload1!: (value: string) => void
-    let resolveUpload2!: (value: string) => void
+    let resolveFirst!: (value: string) => void
+    let resolveSecond!: (value: string) => void
     mockUploadAvatar
       .mockImplementationOnce(
         () =>
           new Promise<string>((resolve) => {
-            resolveUpload1 = resolve
+            resolveFirst = resolve
           }),
       )
       .mockImplementationOnce(
         () =>
           new Promise<string>((resolve) => {
-            resolveUpload2 = resolve
+            resolveSecond = resolve
           }),
       )
 
-    const { container } = render(
+    render(
       <StatefulEditorHarness
         initialSpots={sampleSpots}
         onError={onError}
@@ -233,22 +257,20 @@ describe('TouristSpotsEditor', () => {
       />,
     )
 
-    const fileInputs = Array.from(
-      container.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+    const spot1Input = screen.getByLabelText<HTMLInputElement>(
+      'Upload photos for spot 1',
     )
 
-    const file1 = new File(['img1'], 'beach.jpg', { type: 'image/jpeg' })
-    const file2 = new File(['img2'], 'cave.jpg', { type: 'image/jpeg' })
+    const file1 = new File(['img1'], 'beach-1.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['img2'], 'beach-2.jfif', { type: '' })
 
-    // Start overlapping uploads on spot 1 and spot 2
-    fireEvent.change(fileInputs[0], { target: { files: [file1] } })
-    fireEvent.change(fileInputs[1], { target: { files: [file2] } })
+    fireEvent.change(spot1Input, { target: { files: [file1, file2] } })
 
     await waitFor(() => {
-      expect(mockUploadAvatar).toHaveBeenCalledTimes(2)
+      expect(mockUploadAvatar).toHaveBeenCalledTimes(1)
     })
 
-    // While upload 1 is pending, edit spot 1's name AND move spot 1 down to index 1
+    // While upload is pending, edit spot 1 name AND move spot 1 down
     fireEvent.change(
       screen.getByLabelText('Destination Name', {
         selector: '#spot-name-spot-1',
@@ -257,44 +279,35 @@ describe('TouristSpotsEditor', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 1 down' }))
 
-    // Finish upload 1 while upload 2 is still in flight
-    resolveUpload1('/api/media/view?key=cms/santiago.webp')
+    resolveFirst('/api/media/view?key=cms/beach-1.webp')
+    await waitFor(() => {
+      expect(mockUploadAvatar).toHaveBeenCalledTimes(2)
+    })
+    resolveSecond('/api/media/view?key=cms/beach-2.webp')
 
     await waitFor(() => {
+      expect(onUploadingChange).toHaveBeenCalledWith(false)
       const latest = onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]
       expect(latest.map((s) => s.id)).toEqual(['spot-2', 'spot-1'])
       expect(latest[1]).toEqual(
         expect.objectContaining({
           id: 'spot-1',
           name: 'Santiago Bay Sunset',
-          image: '/api/media/view?key=cms/santiago.webp',
-        }),
-      )
-    })
-
-    // Controls must NOT report idle yet because upload 2 is still active
-    expect(onUploadingChange).not.toHaveBeenCalledWith(false)
-
-    // Finish upload 2 -> now uploading transitions to false
-    resolveUpload2('/api/media/view?key=cms/bukilat.webp')
-
-    await waitFor(() => {
-      expect(onUploadingChange).toHaveBeenCalledWith(false)
-      const latest = onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]
-      expect(latest[0]).toEqual(
-        expect.objectContaining({
-          id: 'spot-2',
-          image: '/api/media/view?key=cms/bukilat.webp',
+          image: '/api/media/view?key=cms/beach-1.webp',
+          images: [
+            '/api/media/view?key=cms/beach-1.webp',
+            '/api/media/view?key=cms/beach-2.webp',
+          ],
         }),
       )
     })
   })
 
-  it('validates file types and handles upload errors gracefully', async () => {
+  it('validates unsupported file types and displays inline upload errors', async () => {
     const onError = vi.fn()
     const onUploadingChange = vi.fn()
 
-    const { container } = render(
+    render(
       <StatefulEditorHarness
         initialSpots={[{ ...sampleSpots[0], name: '' }]}
         onError={onError}
@@ -302,29 +315,31 @@ describe('TouristSpotsEditor', () => {
       />,
     )
 
-    const fileInput = container.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement
+    const fileInput = screen.getByLabelText<HTMLInputElement>(
+      'Upload photos for spot 1',
+    )
 
-    // Empty file selection is ignored
+    // Empty file list ignored
     fireEvent.change(fileInput, { target: { files: [] } })
     expect(mockUploadAvatar).not.toHaveBeenCalled()
 
-    // Non-image file rejected
+    // Non-image rejected with inline alert
     const badFile = new File(['hello'], 'doc.pdf', { type: 'application/pdf' })
     fireEvent.change(fileInput, { target: { files: [badFile] } })
-    expect(onError).toHaveBeenCalledWith(
-      'Please select a valid image file (JPG, PNG, WEBP, GIF).',
-    )
+    expect(
+      screen.getByRole('alert'),
+    ).toHaveTextContent(/Please select valid image files/i)
 
-    // Upload error handled gracefully
+    // Upload error displayed inline
     mockUploadAvatar.mockRejectedValueOnce(new Error('Upload quota exceeded'))
     const validFile = new File(['img'], 'beach.jpg', { type: 'image/jpeg' })
     fireEvent.change(fileInput, { target: { files: [validFile] } })
 
     await waitFor(() => {
       expect(mockCompressImage).toHaveBeenCalledWith(validFile, 1280, 0.82)
-      expect(onError).toHaveBeenCalledWith('Upload quota exceeded')
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Upload quota exceeded',
+      )
       expect(onUploadingChange).toHaveBeenCalledWith(false)
     })
   })

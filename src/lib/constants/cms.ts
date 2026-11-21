@@ -277,6 +277,27 @@ export const DEFAULT_TOURIST_SPOTS: TouristSpotItem[] = [
   },
 ]
 
+export function getSpotImages(
+  spot: Pick<TouristSpotItem, 'image' | 'images'>,
+): string[] {
+  const combined: string[] = []
+  if (Array.isArray(spot.images)) {
+    for (const img of spot.images) {
+      if (typeof img === 'string') {
+        const trimmed = img.trim()
+        if (trimmed && !combined.includes(trimmed)) {
+          combined.push(trimmed)
+        }
+      }
+    }
+  }
+  const primary = typeof spot.image === 'string' ? spot.image.trim() : ''
+  if (primary && !combined.includes(primary)) {
+    combined.unshift(primary)
+  }
+  return combined
+}
+
 export function serializeTouristSpots(spots: TouristSpotItem[]): string {
   return JSON.stringify(spots)
 }
@@ -314,6 +335,20 @@ export function parseTouristSpots(
         const category = VALID_SPOT_CATEGORIES.has(rawCategory)
           ? (rawCategory as TouristSpotCategory)
           : 'Beach'
+        const rawImage = normalizeText(item.image)
+        const rawImagesList = Array.isArray(item.images)
+          ? item.images
+              .filter((img): img is string => typeof img === 'string')
+              .map((img) => img.trim())
+              .filter(Boolean)
+          : []
+        const dedupedImages = Array.from(
+          new Set([
+            ...rawImagesList,
+            ...(rawImage.trim() ? [rawImage.trim()] : []),
+          ]),
+        )
+        const primaryImage = dedupedImages[0] ?? rawImage
         return {
           id:
             typeof item.id === 'string' && item.id.trim()
@@ -327,7 +362,8 @@ export function parseTouristSpots(
           entranceFee: normalizeText(item.entranceFee),
           description: normalizeText(item.description),
           tips: normalizeText(item.tips),
-          image: normalizeText(item.image),
+          image: primaryImage,
+          images: dedupedImages,
         }
       })
       .filter((spot) => preserveDrafts || Boolean(spot.name))

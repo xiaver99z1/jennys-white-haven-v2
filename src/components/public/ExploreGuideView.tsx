@@ -1,8 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Clock, Compass, MapPin, Sun, Ticket } from 'lucide-react'
-import { parseTouristSpots } from '#/lib/constants/cms'
-import type { CmsSectionData, TouristSpotCategory } from '#/types'
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Compass,
+  Images,
+  MapPin,
+  Sun,
+  Ticket,
+  X,
+} from 'lucide-react'
+import { getSpotImages, parseTouristSpots } from '#/lib/constants/cms'
+import type {
+  CmsSectionData,
+  TouristSpotCategory,
+  TouristSpotItem,
+} from '#/types'
 
 interface ExploreGuideViewProps {
   exploreSection?: CmsSectionData
@@ -12,6 +27,8 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<
     'ALL' | TouristSpotCategory
   >('ALL')
+  const [activeSpot, setActiveSpot] = useState<TouristSpotItem | null>(null)
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0)
 
   const isPublished = Boolean(exploreSection?.isPublished)
   const meta = exploreSection?.metadata ?? {}
@@ -35,6 +52,34 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
         : spots.filter((spot) => spot.category === selectedCategory),
     [selectedCategory, spots],
   )
+
+  const activeSpotImages = useMemo(
+    () => (activeSpot ? getSpotImages(activeSpot) : []),
+    [activeSpot],
+  )
+
+  useEffect(() => {
+    if (!activeSpot) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveSpot(null)
+      } else if (e.key === 'ArrowRight' && activeSpotImages.length > 1) {
+        setActivePhotoIndex((prev) => (prev + 1) % activeSpotImages.length)
+      } else if (e.key === 'ArrowLeft' && activeSpotImages.length > 1) {
+        setActivePhotoIndex(
+          (prev) =>
+            (prev - 1 + activeSpotImages.length) % activeSpotImages.length,
+        )
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeSpot, activeSpotImages.length])
+
+  function handleOpenSpot(spot: TouristSpotItem) {
+    setActiveSpot(spot)
+    setActivePhotoIndex(0)
+  }
 
   if (!isPublished || !exploreSection) {
     return (
@@ -75,6 +120,8 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
   }
 
   const heroImage = exploreSection.images[0]
+  const safePhotoIndex =
+    activePhotoIndex < activeSpotImages.length ? activePhotoIndex : 0
 
   return (
     <div className="pb-24">
@@ -176,104 +223,125 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
-            {visibleSpots.map((spot) => (
-              <article
-                key={spot.id}
-                className="group rounded-3xl overflow-hidden bg-white border border-stone-200/80 shadow-xs hover:shadow-md transition flex flex-col"
-              >
-                <div className="relative aspect-[16/10] bg-[#EDE7DC] overflow-hidden">
-                  {spot.image ? (
-                    <img
-                      src={spot.image}
-                      alt={spot.name}
-                      loading="lazy"
-                      decoding="async"
-                      sizes="(min-width: 768px) 50vw, 100vw"
-                      className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 gap-2 p-6 text-center">
-                      <Compass className="w-8 h-8 text-amber-800/40" />
-                      <span className="text-[11px] uppercase tracking-[0.22em] text-stone-500">
-                        {spot.category} · Camotes Island
+            {visibleSpots.map((spot) => {
+              const spotImages = getSpotImages(spot)
+              const coverImage = spotImages[0]
+              return (
+                <article
+                  key={spot.id}
+                  className="group rounded-3xl overflow-hidden bg-white border border-stone-200/80 shadow-xs hover:shadow-md transition flex flex-col"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSpot(spot)}
+                    aria-label={`View gallery for ${spot.name}`}
+                    className="text-left flex-1 flex flex-col cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/50 rounded-3xl"
+                  >
+                    <div className="relative aspect-[16/10] w-full bg-[#EDE7DC] overflow-hidden">
+                      {coverImage ? (
+                        <img
+                          src={coverImage}
+                          alt={spot.name}
+                          loading="lazy"
+                          decoding="async"
+                          sizes="(min-width: 768px) 50vw, 100vw"
+                          className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 gap-2 p-6 text-center">
+                          <Compass className="w-8 h-8 text-amber-800/40" />
+                          <span className="text-[11px] uppercase tracking-[0.22em] text-stone-500">
+                            {spot.category} · Camotes Island
+                          </span>
+                        </div>
+                      )}
+
+                      <span className="absolute top-4 left-4 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.18em] bg-[#FAF8F4]/92 text-stone-800 backdrop-blur-xs border border-stone-200/70">
+                        {spot.category}
                       </span>
+
+                      {spotImages.length > 0 && (
+                        <span className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] bg-stone-900/75 text-[#FAF8F4] backdrop-blur-xs">
+                          <Images className="w-3 h-3" />
+                          {spotImages.length}{' '}
+                          {spotImages.length === 1 ? 'Photo' : 'Photos'}
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  <span className="absolute top-4 left-4 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.18em] bg-[#FAF8F4]/92 text-stone-800 backdrop-blur-xs border border-stone-200/70">
-                    {spot.category}
-                  </span>
-                </div>
+                    <div className="p-6 sm:p-8 flex-1 flex flex-col gap-5 w-full">
+                      <div className="space-y-2">
+                        <h2 className="font-serif text-2xl text-stone-900 group-hover:text-amber-900 transition leading-snug">
+                          {spot.name}
+                        </h2>
+                        {spot.location && (
+                          <p className="inline-flex items-center gap-1.5 text-xs text-stone-500">
+                            <MapPin className="w-3.5 h-3.5 text-amber-800 shrink-0" />
+                            <span>{spot.location}</span>
+                          </p>
+                        )}
+                      </div>
 
-                <div className="p-6 sm:p-8 flex-1 flex flex-col gap-5">
-                  <div className="space-y-2">
-                    <h2 className="font-serif text-2xl text-stone-900 leading-snug">
-                      {spot.name}
-                    </h2>
-                    {spot.location && (
-                      <p className="inline-flex items-center gap-1.5 text-xs text-stone-500">
-                        <MapPin className="w-3.5 h-3.5 text-amber-800 shrink-0" />
-                        <span>{spot.location}</span>
-                      </p>
-                    )}
-                  </div>
+                      {spot.description && (
+                        <p className="text-sm text-stone-600 leading-relaxed">
+                          {spot.description}
+                        </p>
+                      )}
 
-                  {spot.description && (
-                    <p className="text-sm text-stone-600 leading-relaxed">
-                      {spot.description}
-                    </p>
-                  )}
+                      {/* Quick Visitor Info Grid */}
+                      {(spot.travelTime ||
+                        spot.bestTime ||
+                        spot.entranceFee) && (
+                        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-stone-100 text-xs">
+                          {spot.travelTime && (
+                            <div className="space-y-1">
+                              <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
+                                <Clock className="w-3 h-3 text-amber-800" />
+                                Distance
+                              </dt>
+                              <dd className="text-stone-700 font-medium">
+                                {spot.travelTime}
+                              </dd>
+                            </div>
+                          )}
+                          {spot.bestTime && (
+                            <div className="space-y-1">
+                              <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
+                                <Sun className="w-3 h-3 text-amber-800" />
+                                Best Time
+                              </dt>
+                              <dd className="text-stone-700 font-medium">
+                                {spot.bestTime}
+                              </dd>
+                            </div>
+                          )}
+                          {spot.entranceFee && (
+                            <div className="space-y-1">
+                              <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
+                                <Ticket className="w-3 h-3 text-amber-800" />
+                                Fee / Access
+                              </dt>
+                              <dd className="text-stone-700 font-medium">
+                                {spot.entranceFee}
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      )}
 
-                  {/* Quick Visitor Info Grid */}
-                  {(spot.travelTime || spot.bestTime || spot.entranceFee) && (
-                    <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-stone-100 text-xs">
-                      {spot.travelTime && (
-                        <div className="space-y-1">
-                          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
-                            <Clock className="w-3 h-3 text-amber-800" />
-                            Distance
-                          </dt>
-                          <dd className="text-stone-700 font-medium">
-                            {spot.travelTime}
-                          </dd>
+                      {spot.tips && (
+                        <div className="mt-auto rounded-2xl bg-[#FAF8F4] border border-stone-200/70 px-4 py-3 text-xs text-stone-600 leading-relaxed">
+                          <span className="font-semibold text-amber-900 uppercase tracking-[0.14em] text-[10px] mr-2">
+                            Guest Tip
+                          </span>
+                          {spot.tips}
                         </div>
                       )}
-                      {spot.bestTime && (
-                        <div className="space-y-1">
-                          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
-                            <Sun className="w-3 h-3 text-amber-800" />
-                            Best Time
-                          </dt>
-                          <dd className="text-stone-700 font-medium">
-                            {spot.bestTime}
-                          </dd>
-                        </div>
-                      )}
-                      {spot.entranceFee && (
-                        <div className="space-y-1">
-                          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
-                            <Ticket className="w-3 h-3 text-amber-800" />
-                            Fee / Access
-                          </dt>
-                          <dd className="text-stone-700 font-medium">
-                            {spot.entranceFee}
-                          </dd>
-                        </div>
-                      )}
-                    </dl>
-                  )}
-
-                  {spot.tips && (
-                    <div className="mt-auto rounded-2xl bg-[#FAF8F4] border border-stone-200/70 px-4 py-3 text-xs text-stone-600 leading-relaxed">
-                      <span className="font-semibold text-amber-900 uppercase tracking-[0.14em] text-[10px] mr-2">
-                        Guest Tip
-                      </span>
-                      {spot.tips}
                     </div>
-                  )}
-                </div>
-              </article>
-            ))}
+                  </button>
+                </article>
+              )
+            })}
           </div>
         )}
 
@@ -300,6 +368,194 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
           </Link>
         </div>
       </section>
+
+      {/* Spot Photo Gallery & Details Modal */}
+      {activeSpot && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="spot-modal-title"
+          onClick={() => setActiveSpot(null)}
+          className="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-4xl rounded-3xl overflow-hidden bg-[#FAF8F4] border border-stone-200/80 shadow-2xl my-auto max-h-[92vh] flex flex-col"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-stone-200/70 bg-white">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-amber-900 font-semibold">
+                  {activeSpot.category}
+                </p>
+                <h2
+                  id="spot-modal-title"
+                  className="font-serif text-xl sm:text-2xl text-stone-900 truncate"
+                >
+                  {activeSpot.name}
+                </h2>
+                {activeSpot.location && (
+                  <p className="inline-flex items-center gap-1 text-xs text-stone-500 mt-0.5">
+                    <MapPin className="w-3 h-3 text-amber-800 shrink-0" />
+                    <span>{activeSpot.location}</span>
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSpot(null)}
+                aria-label="Close destination gallery"
+                className="p-2 rounded-full hover:bg-stone-100 text-stone-600 transition cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto flex-1">
+              {/* Main Photo Viewer */}
+              <div className="relative bg-stone-900 aspect-[16/10] max-h-[55vh] w-full flex items-center justify-center overflow-hidden">
+                {activeSpotImages.length > 0 ? (
+                  <>
+                    <img
+                      src={activeSpotImages[safePhotoIndex]}
+                      alt={`${activeSpot.name} photo ${safePhotoIndex + 1}`}
+                      className="w-full h-full object-contain"
+                    />
+                    {activeSpotImages.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActivePhotoIndex(
+                              (prev) =>
+                                (prev - 1 + activeSpotImages.length) %
+                                activeSpotImages.length,
+                            )
+                          }
+                          aria-label="Previous destination photo"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-stone-950/60 hover:bg-stone-950/85 text-white border border-white/15 cursor-pointer transition"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActivePhotoIndex(
+                              (prev) => (prev + 1) % activeSpotImages.length,
+                            )
+                          }
+                          aria-label="Next destination photo"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-stone-950/60 hover:bg-stone-950/85 text-white border border-white/15 cursor-pointer transition"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                        <span className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-stone-950/70 text-white text-[11px] font-semibold">
+                          {safePhotoIndex + 1} / {activeSpotImages.length}
+                        </span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-stone-400 p-8 text-center">
+                    <Compass className="w-9 h-9 text-amber-200/50" />
+                    <span className="text-xs uppercase tracking-[0.2em] text-stone-300">
+                      Photos coming soon
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Thumbnail Strip when spot has 2+ photos */}
+              {activeSpotImages.length > 1 && (
+                <div className="flex items-center gap-2 px-6 py-3 bg-stone-100/80 border-b border-stone-200/70 overflow-x-auto">
+                  {activeSpotImages.map((src, idx) => {
+                    const isSelected = idx === safePhotoIndex
+                    return (
+                      <button
+                        key={`${src}-${idx}`}
+                        type="button"
+                        onClick={() => setActivePhotoIndex(idx)}
+                        aria-label={`Select photo ${idx + 1}`}
+                        aria-pressed={isSelected}
+                        className={`relative shrink-0 w-20 aspect-[16/10] rounded-lg overflow-hidden border-2 transition cursor-pointer ${
+                          isSelected
+                            ? 'border-stone-900 shadow-xs'
+                            : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={src}
+                          alt={`${activeSpot.name} thumbnail ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Destination Info */}
+              <div className="p-6 space-y-4 bg-[#FAF8F4]">
+                {activeSpot.description && (
+                  <p className="text-sm text-stone-700 leading-relaxed">
+                    {activeSpot.description}
+                  </p>
+                )}
+
+                {(activeSpot.travelTime ||
+                  activeSpot.bestTime ||
+                  activeSpot.entranceFee) && (
+                  <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-stone-200/70 text-xs">
+                    {activeSpot.travelTime && (
+                      <div className="space-y-1">
+                        <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
+                          <Clock className="w-3 h-3 text-amber-800" />
+                          Distance
+                        </dt>
+                        <dd className="text-stone-800 font-medium">
+                          {activeSpot.travelTime}
+                        </dd>
+                      </div>
+                    )}
+                    {activeSpot.bestTime && (
+                      <div className="space-y-1">
+                        <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
+                          <Sun className="w-3 h-3 text-amber-800" />
+                          Best Time
+                        </dt>
+                        <dd className="text-stone-800 font-medium">
+                          {activeSpot.bestTime}
+                        </dd>
+                      </div>
+                    )}
+                    {activeSpot.entranceFee && (
+                      <div className="space-y-1">
+                        <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
+                          <Ticket className="w-3 h-3 text-amber-800" />
+                          Fee / Access
+                        </dt>
+                        <dd className="text-stone-800 font-medium">
+                          {activeSpot.entranceFee}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
+
+                {activeSpot.tips && (
+                  <div className="rounded-2xl bg-white border border-stone-200/80 px-4 py-3 text-xs text-stone-600 leading-relaxed">
+                    <span className="font-semibold text-amber-900 uppercase tracking-[0.14em] text-[10px] mr-2">
+                      Guest Tip
+                    </span>
+                    {activeSpot.tips}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

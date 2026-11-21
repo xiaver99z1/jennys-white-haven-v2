@@ -27,6 +27,20 @@ const ALLOWED_PUBLIC_IMAGE_MIME_TYPES = new Set([
   'image/gif',
 ])
 
+function normalizeImageMimeType(rawMime: string, filename?: string): string {
+  const lower = rawMime.trim().toLowerCase()
+  if (lower === 'image/jpg' || lower === 'image/jfif' || lower === 'image/pjpeg') {
+    return 'image/jpeg'
+  }
+  if (lower) return lower
+  const ext = filename?.split('.').pop()?.toLowerCase()
+  if (ext === 'jpg' || ext === 'jpeg' || ext === 'jfif') return 'image/jpeg'
+  if (ext === 'png') return 'image/png'
+  if (ext === 'gif') return 'image/gif'
+  if (ext === 'avif') return 'image/avif'
+  return 'image/webp'
+}
+
 const ALLOWED_PRIVATE_MIME_TYPES = new Set([
   ...ALLOWED_PUBLIC_IMAGE_MIME_TYPES,
   'application/pdf',
@@ -56,7 +70,7 @@ export async function getPresignedUploadUrlHandler({
 
   const scope: MediaScope = data.scope ?? 'rooms'
   const isPrivate = scope === 'bookings'
-  const mimeType = (data.mimeType.trim() || 'image/webp').toLowerCase()
+  const mimeType = normalizeImageMimeType(data.mimeType, filename)
   const allowedMimes = isPrivate
     ? ALLOWED_PRIVATE_MIME_TYPES
     : ALLOWED_PUBLIC_IMAGE_MIME_TYPES
@@ -390,7 +404,7 @@ export async function uploadAvatarHandler({ data }: { data: FormData }) {
   }
 
   const isPrivate = scope === 'bookings'
-  const mimeType = (file.type || 'image/webp').toLowerCase()
+  const mimeType = normalizeImageMimeType(file.type, file.name)
   const allowedMimes = isPrivate
     ? ALLOWED_PRIVATE_MIME_TYPES
     : ALLOWED_PUBLIC_IMAGE_MIME_TYPES

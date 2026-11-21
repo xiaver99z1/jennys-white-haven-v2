@@ -327,6 +327,10 @@ describe('cms-actions', () => {
         description: 'White sand.',
         tips: 'Go late afternoon.',
         image: '/api/media/view?key=cms/santiago.webp',
+        images: [
+          '/api/media/view?key=cms/santiago.webp',
+          '/api/media/view?key=cms/santiago-2.webp',
+        ],
       },
     ])
 
@@ -352,6 +356,7 @@ describe('cms-actions', () => {
             description: 'White sand.',
             tips: 'Go late afternoon.',
             image: 'cms/santiago.webp',
+            images: ['cms/santiago.webp', 'cms/santiago-2.webp'],
           },
         ]),
       },
@@ -373,5 +378,6 @@ describe('cms-actions', () => {
 
     expect(saved.success).toBe(true)
     expect(saved.section.metadata.spotsJson).toContain('cms/santiago.webp')
+    expect(saved.section.metadata.spotsJson).toContain('cms/santiago-2.webp')
   })
 })

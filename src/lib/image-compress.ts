@@ -34,6 +34,13 @@ export function getCmsUploadPreset(
   }
 }
 
+const IMAGE_FILENAME_RE = /\.(?:jpe?g|jfif|png|webp|avif|bmp)$/i
+
+export function isSupportedImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true
+  return !file.type && IMAGE_FILENAME_RE.test(file.name)
+}
+
 /**
  * Resizes and compresses an image File to WebP in the browser before upload
  * so large mobile photos stay well under serverless body limits and use minimal R2 storage.
@@ -47,7 +54,7 @@ export async function compressImageForUpload(
   if (
     typeof window === 'undefined' ||
     typeof document === 'undefined' ||
-    !file.type.startsWith('image/') ||
+    !isSupportedImageFile(file) ||
     file.type === 'image/gif'
   ) {
     return file
@@ -59,7 +66,7 @@ export async function compressImageForUpload(
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
         const timer = setTimeout(
           () => reject(new Error('Image decode timed out')),
-          2000,
+          8000,
         )
         const image = new Image()
         image.onload = () => {
