@@ -1,8 +1,10 @@
 import crypto from 'node:crypto'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import {
   DEFAULT_APP_BASE_URL,
-  DEFAULT_FROM_EMAIL,
+  DEFAULT_FROM_NAME,
+  DEFAULT_SMTP_HOST,
+  DEFAULT_SMTP_PORT,
   PASSWORD_RESET_EXPIRES_MINUTES,
   VERIFICATION_EXPIRES_MINUTES,
 } from '#/lib/constants/auth'
@@ -45,28 +47,55 @@ export function getAppBaseUrl(): string {
   return configuredUrl.replace(/\/+$/, '')
 }
 
+export function formatEmailExpiryLabel(expiresInMinutes: number): string {
+  if (expiresInMinutes % (24 * 60) === 0) {
+    const days = expiresInMinutes / (24 * 60)
+    return days === 1 ? '1 day' : `${days} days`
+  }
+  if (expiresInMinutes === 60) {
+    return '1 hour'
+  }
+  return `${expiresInMinutes} minutes`
+}
+
 async function sendActionEmail(template: ActionEmailTemplate) {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
+  const smtpUser = process.env.SMTP_USER?.trim()
+  const smtpPass = process.env.SMTP_PASS?.replace(/\s+/g, '')
+  if (!smtpUser || !smtpPass) {
     throw new Error(
-      'Email service is not configured. Please set RESEND_API_KEY.',
+      'Email service is not configured. Please set SMTP_USER and SMTP_PASS.',
     )
   }
 
-  const from = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL
+  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST
+  const port = Number(process.env.SMTP_PORT) || DEFAULT_SMTP_PORT
+  const secure =
+    process.env.SMTP_SECURE !== undefined
+      ? process.env.SMTP_SECURE === 'true'
+      : port === 465
+  const from =
+    process.env.SMTP_FROM?.trim() || `${DEFAULT_FROM_NAME} <${smtpUser}>`
+
   const safeName = escapeHtml(template.name)
   const safeUrl = escapeHtml(template.actionUrl)
-  const expiryLabel =
-    template.expiresInMinutes === 60
-      ? '1 hour'
-      : `${template.expiresInMinutes} minutes`
+  const expiryLabel = formatEmailExpiryLabel(template.expiresInMinutes)
 
-  const resend = new Resend(apiKey)
-  const result = await resend.emails.send({
-    from,
-    to: [template.to],
-    subject: template.subject,
-    html: `
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  })
+
+  try {
+    return await transporter.sendMail({
+      from,
+      to: template.to,
+      subject: template.subject,
+      html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #292524; background-color: #fafaf9;">
         <div style="background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 16px; padding: 32px;">
           <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #92400e; margin: 0 0 8px;">
@@ -95,16 +124,17 @@ async function sendActionEmail(template: ActionEmailTemplate) {
         </div>
       </div>
     `,
-    text: template
-      .textLines(template.name, expiryLabel, template.actionUrl)
-      .join('\n'),
-  })
-
-  if (result.error) {
-    throw new Error(result.error.message || template.fallbackErrorMessage)
+      text: template
+        .textLines(template.name, expiryLabel, template.actionUrl)
+        .join('\n'),
+    })
+  } catch (error: unknown) {
+    throw new Error(
+      error instanceof Error && error.message
+        ? error.message
+        : template.fallbackErrorMessage,
+    )
   }
-
-  return result
 }
 
 export async function sendVerificationEmail({

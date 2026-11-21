@@ -11,7 +11,7 @@
 - `src/types/index.ts` — centralized shared TypeScript types (`RoomItem`, `GuestItem`, `BookingItem`, `DashboardStats`, `User`, `AdminRouter`, domain unions)
 - `src/lib/auth.ts` — Better Auth server instance
 - `src/lib/auth-client.ts` — Better Auth client
-- `src/lib/email.ts` — Resend verification email helper and SHA-256 activation token utilities
+- `src/lib/email.ts` — Nodemailer SMTP verification & password-reset email helper and SHA-256 activation token utilities
 - `src/lib/prisma.ts` — Prisma client
 - `src/lib/permissions.ts` — RBAC `ROLES` and `hasPermission()`
 - `src/lib/formatters.ts` — reusable formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `formatRoleLabel`, `getErrorMessage`) and status/role badge lookups

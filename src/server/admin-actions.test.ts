@@ -16,6 +16,15 @@ import { auth } from '#/lib/auth'
 import { logActivity } from '#/lib/logger'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { authSession } from '#/lib/auth-helpers'
+import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
+
+vi.mock('#/lib/email', () => ({
+  generateActivationToken: vi.fn(() => ({
+    rawToken: 'raw-staff-token',
+    tokenHash: 'hashed-staff-token',
+  })),
+  sendVerificationEmail: vi.fn(),
+}))
 
 vi.mock('#/lib/prisma', () => ({
   prisma: {
@@ -77,6 +86,11 @@ describe('admin-actions handlers and validators', () => {
       user: mockAdminUser,
       session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
     } as any)
+    vi.mocked(generateActivationToken).mockReturnValue({
+      rawToken: 'raw-staff-token',
+      tokenHash: 'hashed-staff-token',
+    })
+    vi.mocked(sendVerificationEmail).mockResolvedValue({} as any)
 
     // Silence expected console.error logs during negative error-handling tests
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -140,13 +154,19 @@ describe('admin-actions handlers and validators', () => {
         expect.objectContaining({
           where: { id: 'new-user-1' },
           data: expect.objectContaining({
-            activationToken: expect.any(String),
+            activationToken: 'hashed-staff-token',
             activationTokenExpires: expect.any(Date),
             activationEmailCount: 1,
             lastActivationEmailSentAt: expect.any(Date),
           }),
         }),
       )
+      expect(sendVerificationEmail).toHaveBeenCalledWith({
+        to: validData.email,
+        name: validData.name,
+        rawToken: 'raw-staff-token',
+        expiresInMinutes: 4320,
+      })
       expect(logActivity).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'USER_CREATED',
@@ -655,6 +675,7 @@ describe('admin-actions handlers and validators', () => {
         lastActivationEmailSentAt: new Date(Date.now() - 1000),
       }
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
 
       const result = await resendVerificationEmailHandler({
         data: { userId: 'user-1' },
@@ -662,6 +683,12 @@ describe('admin-actions handlers and validators', () => {
 
       expect(result.success).toBe(true)
       expect(result.count).toBe(2)
+      expect(sendVerificationEmail).toHaveBeenCalledWith({
+        to: 'user@resort.com',
+        name: 'User',
+        rawToken: 'raw-staff-token',
+        expiresInMinutes: 4320,
+      })
       expect(logActivity).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'RESEND_VERIFICATION' }),
       )

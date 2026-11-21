@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import nodemailer from 'nodemailer'
 import {
   escapeHtml,
+  formatEmailExpiryLabel,
   generateActivationToken,
   getAppBaseUrl,
   hashActivationToken,
@@ -8,19 +10,17 @@ import {
   sendVerificationEmail,
 } from './email'
 
-const mockEmailsSend = vi.fn()
+const mockSendMail = vi.fn()
 
-vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation(function () {
-    return {
-      emails: {
-        send: mockEmailsSend,
-      },
-    }
-  }),
+vi.mock('nodemailer', () => ({
+  default: {
+    createTransport: vi.fn(() => ({
+      sendMail: mockSendMail,
+    })),
+  },
 }))
 
-describe('email helpers', () => {
+describe('email helpers (Nodemailer SMTP)', () => {
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
@@ -40,10 +40,14 @@ describe('email helpers', () => {
     expect(hashActivationToken(rawToken)).toBe(tokenHash)
   })
 
-  it('escapes HTML special characters safely', () => {
+  it('escapes HTML special characters and formats expiry labels', () => {
     expect(escapeHtml(`<script>"O'Brien" & Co</script>`)).toBe(
       '&lt;script&gt;&quot;O&#39;Brien&quot; &amp; Co&lt;/script&gt;',
     )
+    expect(formatEmailExpiryLabel(30)).toBe('30 minutes')
+    expect(formatEmailExpiryLabel(60)).toBe('1 hour')
+    expect(formatEmailExpiryLabel(1440)).toBe('1 day')
+    expect(formatEmailExpiryLabel(4320)).toBe('3 days')
   })
 
   it('resolves base URL from BETTER_AUTH_URL, VERCEL_URL, or localhost fallback', () => {
@@ -58,8 +62,10 @@ describe('email helpers', () => {
     expect(getAppBaseUrl()).toBe('http://localhost:3000')
   })
 
-  it('throws if RESEND_API_KEY is missing', async () => {
-    delete process.env.RESEND_API_KEY
+  it('throws if SMTP_USER or SMTP_PASS is missing', async () => {
+    delete process.env.SMTP_USER
+    delete process.env.SMTP_PASS
+
     await expect(
       sendVerificationEmail({
         to: 'admin@example.com',
@@ -67,31 +73,52 @@ describe('email helpers', () => {
         rawToken: 'abc123',
       }),
     ).rejects.toThrow(
-      'Email service is not configured. Please set RESEND_API_KEY.',
+      'Email service is not configured. Please set SMTP_USER and SMTP_PASS.',
+    )
+
+    process.env.SMTP_USER = 'sender@gmail.com'
+    await expect(
+      sendVerificationEmail({
+        to: 'admin@example.com',
+        name: 'Jenny',
+        rawToken: 'abc123',
+      }),
+    ).rejects.toThrow(
+      'Email service is not configured. Please set SMTP_USER and SMTP_PASS.',
     )
   })
 
-  it('sends verification email with escaped HTML and text fallback', async () => {
-    process.env.RESEND_API_KEY = 're_test_key'
-    process.env.RESEND_FROM_EMAIL = 'Resort <noreply@jennyswhitehaven.com>'
+  it('sends verification email via Nodemailer SMTP with escaped HTML, stripped app-password spaces, and text fallback', async () => {
+    process.env.SMTP_USER = 'resort@gmail.com'
+    process.env.SMTP_PASS = 'abcd efgh ijkl mnop'
+    process.env.SMTP_FROM = 'Resort <noreply@jennyswhitehaven.com>'
     process.env.BETTER_AUTH_URL = 'https://jennyswhitehaven.com'
+    delete process.env.SMTP_HOST
+    delete process.env.SMTP_PORT
+    delete process.env.SMTP_SECURE
 
-    mockEmailsSend.mockResolvedValueOnce({
-      data: { id: 'email-1' },
-      error: null,
-    })
+    mockSendMail.mockResolvedValueOnce({ messageId: '<msg-1>' })
 
     await sendVerificationEmail({
-      to: 'admin@jennyswhitehaven.com',
+      to: 'staff@anydomain.com',
       name: 'Jenny <Owner>',
       rawToken: 'raw-token-value',
       expiresInMinutes: 30,
     })
 
-    expect(mockEmailsSend).toHaveBeenCalledWith(
+    expect(nodemailer.createTransport).toHaveBeenCalledWith({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: 'resort@gmail.com',
+        pass: 'abcdefghijklmnop',
+      },
+    })
+    expect(mockSendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         from: 'Resort <noreply@jennyswhitehaven.com>',
-        to: ['admin@jennyswhitehaven.com'],
+        to: 'staff@anydomain.com',
         subject: "Verify Your Email — Jenny's White Haven",
         html: expect.stringContaining('Jenny &lt;Owner&gt;'),
         text: expect.stringContaining(
@@ -99,17 +126,18 @@ describe('email helpers', () => {
         ),
       }),
     )
-    expect(mockEmailsSend.mock.calls[0][0].html).toContain('30 minutes')
+    expect(mockSendMail.mock.calls[0][0].html).toContain('30 minutes')
   })
 
-  it('throws when Resend returns an error object', async () => {
-    process.env.RESEND_API_KEY = 're_test_key'
-    delete process.env.RESEND_FROM_EMAIL
+  it('supports custom SMTP_HOST, SMTP_PORT, SMTP_SECURE, default from address, and handles sendMail errors', async () => {
+    process.env.SMTP_USER = 'resort@gmail.com'
+    process.env.SMTP_PASS = 'apppassword123456'
+    process.env.SMTP_HOST = 'smtp.brevo.com'
+    process.env.SMTP_PORT = '587'
+    process.env.SMTP_SECURE = 'false'
+    delete process.env.SMTP_FROM
 
-    mockEmailsSend.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'Sandbox recipient not allowed' },
-    })
+    mockSendMail.mockRejectedValueOnce(new Error('SMTP authentication failed'))
 
     await expect(
       sendVerificationEmail({
@@ -117,12 +145,19 @@ describe('email helpers', () => {
         name: 'Admin',
         rawToken: 'tok',
       }),
-    ).rejects.toThrow('Sandbox recipient not allowed')
+    ).rejects.toThrow('SMTP authentication failed')
 
-    mockEmailsSend.mockResolvedValueOnce({
-      data: null,
-      error: {},
+    expect(nodemailer.createTransport).toHaveBeenCalledWith({
+      host: 'smtp.brevo.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'resort@gmail.com',
+        pass: 'apppassword123456',
+      },
     })
+
+    mockSendMail.mockRejectedValueOnce('non-error rejection')
 
     await expect(
       sendVerificationEmail({
@@ -133,24 +168,13 @@ describe('email helpers', () => {
     ).rejects.toThrow('Failed to send verification email.')
   })
 
-  it('sends password reset email and handles missing API key or Resend errors', async () => {
-    delete process.env.RESEND_API_KEY
-    await expect(
-      sendPasswordResetEmail({
-        to: 'admin@example.com',
-        name: 'Jenny',
-        rawToken: 'reset-tok',
-      }),
-    ).rejects.toThrow(
-      'Email service is not configured. Please set RESEND_API_KEY.',
-    )
-
-    process.env.RESEND_API_KEY = 're_test_key'
+  it('sends password reset email and handles SMTP errors', async () => {
+    process.env.SMTP_USER = 'resort@gmail.com'
+    process.env.SMTP_PASS = 'apppassword123456'
     process.env.BETTER_AUTH_URL = 'https://jennyswhitehaven.com'
-    mockEmailsSend.mockResolvedValueOnce({
-      data: { id: 'reset-1' },
-      error: null,
-    })
+    delete process.env.SMTP_FROM
+
+    mockSendMail.mockResolvedValueOnce({ messageId: '<reset-1>' })
 
     await sendPasswordResetEmail({
       to: 'admin@jennyswhitehaven.com',
@@ -159,9 +183,10 @@ describe('email helpers', () => {
       expiresInMinutes: 60,
     })
 
-    expect(mockEmailsSend).toHaveBeenCalledWith(
+    expect(mockSendMail).toHaveBeenCalledWith(
       expect.objectContaining({
-        to: ['admin@jennyswhitehaven.com'],
+        from: "Jenny's White Haven <resort@gmail.com>",
+        to: 'admin@jennyswhitehaven.com',
         subject: "Reset Your Password — Jenny's White Haven",
         html: expect.stringContaining('Jenny &lt;Admin&gt;'),
         text: expect.stringContaining(
@@ -170,22 +195,7 @@ describe('email helpers', () => {
       }),
     )
 
-    mockEmailsSend.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'Rate limit exceeded' },
-    })
-    await expect(
-      sendPasswordResetEmail({
-        to: 'admin@jennyswhitehaven.com',
-        name: 'Jenny',
-        rawToken: 'reset-tok',
-      }),
-    ).rejects.toThrow('Rate limit exceeded')
-
-    mockEmailsSend.mockResolvedValueOnce({
-      data: null,
-      error: {},
-    })
+    mockSendMail.mockRejectedValueOnce(new Error(''))
     await expect(
       sendPasswordResetEmail({
         to: 'admin@jennyswhitehaven.com',

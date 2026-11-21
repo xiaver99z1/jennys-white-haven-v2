@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import crypto from 'node:crypto'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { auth } from '#/lib/auth'
 import { authSession } from '#/lib/auth-helpers'
@@ -10,9 +9,11 @@ import {
   DEFAULT_TEMP_STAFF_PASSWORD,
   MAX_ADMIN_REAUTH_ATTEMPTS,
   MAX_VERIFICATION_EMAILS_PER_DAY,
+  STAFF_INVITE_EXPIRES_MINUTES,
   STAFF_INVITE_TOKEN_TTL_MS,
   resolveUserDisplayIdentifier,
 } from '#/lib/constants/auth'
+import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
 import { logActivity } from '#/lib/logger'
 import { prisma } from '#/lib/prisma'
 import type {
@@ -65,17 +66,24 @@ export async function createAdminUserHandler({
       throw new Error('Failed to create user in authentication system.')
     }
 
-    const token = crypto.randomBytes(32).toString('hex')
+    const { rawToken, tokenHash } = generateActivationToken()
     const tokenExpires = new Date(now.getTime() + STAFF_INVITE_TOKEN_TTL_MS)
 
     await prisma.user.update({
       where: { id: newUser.user.id },
       data: {
-        activationToken: token,
+        activationToken: tokenHash,
         activationTokenExpires: tokenExpires,
         activationEmailCount: 1,
         lastActivationEmailSentAt: now,
       },
+    })
+
+    await sendVerificationEmail({
+      to: data.email,
+      name: data.name,
+      rawToken,
+      expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
     })
 
     await logActivity({
@@ -419,6 +427,26 @@ export async function resendVerificationEmailHandler({
     } else {
       currentCount = 1
     }
+
+    const { rawToken, tokenHash } = generateActivationToken()
+    const tokenExpires = new Date(now.getTime() + STAFF_INVITE_TOKEN_TTL_MS)
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        activationToken: tokenHash,
+        activationTokenExpires: tokenExpires,
+        activationEmailCount: currentCount,
+        lastActivationEmailSentAt: now,
+      },
+    })
+
+    await sendVerificationEmail({
+      to: user.email,
+      name: user.name,
+      rawToken,
+      expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
+    })
 
     await logActivity({
       userId: session.user.id,
