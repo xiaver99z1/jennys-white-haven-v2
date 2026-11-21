@@ -34,6 +34,8 @@ describe('PublicLayout', () => {
 
     expect(screen.getByText('Hero Content')).toBeInTheDocument()
     expect(screen.getByText('Rooms')).toBeInTheDocument()
+    expect(screen.getByText('Explore Camotes')).toBeInTheDocument()
+    expect(screen.getByText('Camotes Island Guide')).toBeInTheDocument()
     expect(screen.getByText('Booking Status')).toBeInTheDocument()
     expect(
       screen.getByText(/Santiago Bay, San Francisco, Camotes Island, Cebu/i),

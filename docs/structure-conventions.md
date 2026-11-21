@@ -1,6 +1,7 @@
 # Structure conventions
 
 - `src/routes/` — file-based routes (TanStack Router)
+  - `index.tsx`, `rooms/index.tsx`, `rooms/$id.tsx`, `explore.tsx`, `booking-status.tsx` → Public visitor site (homepage, rooms, CMS-editable Camotes Island tourist spots guide, booking status)
   - `verify-activation.tsx`, `reset-password.tsx` → Email activation and password reset pages
 - `src/routes/admin/` — Admin section
   - `setup.tsx` → Initial Super Admin setup page (no sidebar; active only when 0 users exist)

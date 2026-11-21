@@ -25,6 +25,7 @@ export function getCmsUploadPreset(
       return IMAGE_UPLOAD_PRESETS.hero
     case 'story':
     case 'amenities':
+    case 'explore':
       return IMAGE_UPLOAD_PRESETS.editorial
     case 'gallery':
     case 'rooms':

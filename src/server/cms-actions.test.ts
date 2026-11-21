@@ -7,7 +7,10 @@ import {
   validateUpsertCmsSection,
   validateResetCmsSection,
 } from './cms-actions'
-import { DEFAULT_CMS_SECTIONS } from '#/lib/constants/cms'
+import {
+  DEFAULT_CMS_SECTIONS,
+  serializeTouristSpots,
+} from '#/lib/constants/cms'
 
 const {
   mockRequirePermission,
@@ -211,5 +214,95 @@ describe('cms-actions', () => {
       expect.objectContaining({ action: 'CMS_SECTION_RESET' }),
     )
     expect(res.section.key).toBe('story')
+  })
+
+  it('normalizes explore tourist spot images, rejects base64 spot images, and resolves URLs on read', async () => {
+    const spotsWithBase64 = serializeTouristSpots([
+      {
+        id: 'spot-1',
+        name: 'Santiago Bay',
+        category: 'Beach',
+        location: 'San Francisco',
+        travelTime: '10 mins',
+        bestTime: 'Sunset',
+        entranceFee: 'Free',
+        description: 'White sand.',
+        tips: 'Go late afternoon.',
+        image: 'data:image/png;base64,iVBORw0KGgo=',
+      },
+    ])
+
+    await expect(
+      upsertCmsSectionHandler({
+        data: {
+          key: 'explore',
+          title: 'Explore Camotes Island',
+          images: [],
+          metadata: { spotsJson: spotsWithBase64 },
+          isPublished: true,
+        },
+      }),
+    ).rejects.toThrow(
+      'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
+    )
+
+    const validSpots = serializeTouristSpots([
+      {
+        id: 'spot-1',
+        name: 'Santiago Bay',
+        category: 'Beach',
+        location: 'San Francisco',
+        travelTime: '10 mins',
+        bestTime: 'Sunset',
+        entranceFee: 'Free',
+        description: 'White sand.',
+        tips: 'Go late afternoon.',
+        image: '/api/media/view?key=cms/santiago.webp',
+      },
+    ])
+
+    mockUpsert.mockResolvedValueOnce({
+      id: 'sec-explore',
+      key: 'explore',
+      title: 'Explore Camotes Island',
+      subtitle: null,
+      body: null,
+      ctaLabel: null,
+      ctaHref: null,
+      images: [],
+      metadata: {
+        spotsJson: serializeTouristSpots([
+          {
+            id: 'spot-1',
+            name: 'Santiago Bay',
+            category: 'Beach',
+            location: 'San Francisco',
+            travelTime: '10 mins',
+            bestTime: 'Sunset',
+            entranceFee: 'Free',
+            description: 'White sand.',
+            tips: 'Go late afternoon.',
+            image: 'cms/santiago.webp',
+          },
+        ]),
+      },
+      isPublished: true,
+      sortOrder: 5,
+      updatedAt: new Date('2026-03-03T00:00:00Z'),
+      updatedBy: { name: 'Jenny Owner' },
+    })
+
+    const saved = await upsertCmsSectionHandler({
+      data: {
+        key: 'explore',
+        title: 'Explore Camotes Island',
+        images: [],
+        metadata: { spotsJson: validSpots },
+        isPublished: true,
+      },
+    })
+
+    expect(saved.success).toBe(true)
+    expect(saved.section.metadata.spotsJson).toContain('cms/santiago.webp')
   })
 })

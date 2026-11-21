@@ -103,4 +103,20 @@ describe('CmsSettings', () => {
       })
     })
   })
+
+  it('renders TouristSpotsEditor and Preview Explore Page link when Explore Camotes section is selected', () => {
+    render(<CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Explore Camotes/i }))
+
+    expect(
+      screen.getByRole('link', { name: /Preview Explore Page/i }),
+    ).toHaveAttribute('href', '/explore')
+    expect(
+      screen.getByText(/Camotes Island Tourist Spots/i),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Tourist Spot/i }))
+    expect(screen.getByDisplayValue('New Camotes Destination')).toBeInTheDocument()
+  })
 })
