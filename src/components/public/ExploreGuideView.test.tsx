@@ -99,8 +99,25 @@ describe('ExploreGuideView', () => {
     )
     expect(screen.getByText('No destinations listed yet')).toBeInTheDocument()
 
-    // Undefined exploreSection falls back gracefully to defaults
+    // Unpublished or undefined exploreSection hides the default guide cleanly
     rerender(<ExploreGuideView />)
-    expect(screen.getByText('Santiago Bay White Beach')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /Camotes Island Guide Unavailable/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Santiago Bay White Beach'),
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <ExploreGuideView
+        exploreSection={{ ...defaultExplore, isPublished: false }}
+      />,
+    )
+    expect(
+      screen.getByRole('heading', { name: /Camotes Island Guide Unavailable/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Santiago Bay White Beach'),
+    ).not.toBeInTheDocument()
   })
 })

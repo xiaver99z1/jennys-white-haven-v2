@@ -1,9 +1,8 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ArrowRight, Calendar, MapPin, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, MapPin, Sparkles } from 'lucide-react'
 import { getPublicCmsSections } from '#/server/cms-actions'
 import { getPublicRooms } from '#/server/public-actions'
+import { HeroCarouselSection } from '#/components/public/HeroCarouselSection'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { formatPeso } from '#/lib/formatters'
 
@@ -33,22 +32,6 @@ function LandingPage() {
   const gallery = byKey.get('gallery')
   const contact = byKey.get('contact')
 
-  const [checkIn, setCheckIn] = useState('')
-  const [checkOut, setCheckOut] = useState('')
-  const [guests, setGuests] = useState(2)
-
-  function handleSearch(e: FormEvent) {
-    e.preventDefault()
-    void navigate({
-      to: '/rooms',
-      search: {
-        ...(checkIn ? { checkIn } : {}),
-        ...(checkOut ? { checkOut } : {}),
-        guests,
-      },
-    })
-  }
-
   const featuredRooms = rooms.slice(0, 3)
   const amenityItems = (amenities?.metadata.items ?? '')
     .split(',')
@@ -56,121 +39,18 @@ function LandingPage() {
     .filter(Boolean)
 
   return (
-    <PublicLayout contactSection={contact}>
-      {/* Hero Section */}
+    <PublicLayout
+      contactSection={contact}
+      showExploreLink={Boolean(byKey.get('explore'))}
+    >
+      {/* Hero Carousel Section */}
       {hero && (
-        <section className="relative min-h-[78vh] flex items-end pb-14 pt-28 overflow-hidden bg-stone-900">
-          {hero.images[0] && (
-            <img
-              src={hero.images[0]}
-              alt={hero.title}
-              fetchPriority="high"
-              loading="eager"
-              decoding="async"
-              className="absolute inset-0 w-full h-full object-cover opacity-75"
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/35 to-stone-950/20" />
-
-          <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 w-full space-y-10">
-            <div className="max-w-2xl space-y-4 text-[#FAF8F4]">
-              {hero.metadata.eyebrow && (
-                <p className="text-xs uppercase tracking-[0.28em] text-amber-200/90">
-                  {hero.metadata.eyebrow}
-                </p>
-              )}
-              <h1 className="text-4xl sm:text-6xl font-serif leading-[1.08] tracking-tight">
-                {hero.title}
-              </h1>
-              {hero.subtitle && (
-                <p className="text-base sm:text-lg text-stone-200 leading-relaxed max-w-xl">
-                  {hero.subtitle}
-                </p>
-              )}
-              {hero.ctaLabel && (
-                <div className="pt-2">
-                  <Link
-                    to={hero.ctaHref || '/rooms'}
-                    className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-100 transition"
-                  >
-                    {hero.ctaLabel}
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Availability Search Bar */}
-            <form
-              onSubmit={handleSearch}
-              className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-2xl border border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end"
-            >
-              <div>
-                <label
-                  htmlFor="hero-checkin"
-                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  Check-in
-                </label>
-                <input
-                  id="hero-checkin"
-                  type="date"
-                  value={checkIn}
-                  onChange={(e) => setCheckIn(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="hero-checkout"
-                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  Check-out
-                </label>
-                <input
-                  id="hero-checkout"
-                  type="date"
-                  value={checkOut}
-                  min={checkIn || undefined}
-                  onChange={(e) => setCheckOut(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="hero-guests"
-                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  Guests
-                </label>
-                <select
-                  id="hero-guests"
-                  value={guests}
-                  onChange={(e) => setGuests(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                >
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? 'Guest' : 'Guests'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 px-5 rounded-xl bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold transition cursor-pointer"
-              >
-                Check Availability
-              </button>
-            </form>
-          </div>
-        </section>
+        <HeroCarouselSection
+          hero={hero}
+          onSearch={(search) => {
+            void navigate({ to: '/rooms', search })
+          }}
+        />
       )}
 
       {/* Story / Sanctuary Section */}

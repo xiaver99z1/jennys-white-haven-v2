@@ -525,6 +525,30 @@ export type CmsSectionKey =
   | 'explore'
   | 'contact'
 
+export interface HeroElementPosition {
+  x: number
+  y: number
+}
+
+export interface HeroSlideItem {
+  id: string
+  image: string
+  contentHtml: string
+  showText: boolean
+  textPosition: HeroElementPosition
+  textWidth?: number
+}
+
+export interface HeroCarouselConfig {
+  slides: HeroSlideItem[]
+  autoplay: boolean
+  intervalMs: number
+  showCta: boolean
+  ctaPosition: HeroElementPosition
+  showBookingBar: boolean
+  bookingBarPosition: HeroElementPosition
+}
+
 export type TouristSpotCategory =
   | 'Beach'
   | 'Cave & Lagoon'

@@ -59,4 +59,15 @@ describe('PublicLayout', () => {
     )
     expect(screen.queryByText('Reserve a Stay')).not.toBeInTheDocument()
   })
+
+  it('hides Explore links when showExploreLink is false', () => {
+    render(
+      <PublicLayout contactSection={contactSection} showExploreLink={false}>
+        <div>Body</div>
+      </PublicLayout>,
+    )
+
+    expect(screen.queryByText('Explore Camotes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Camotes Island Guide')).not.toBeInTheDocument()
+  })
 })

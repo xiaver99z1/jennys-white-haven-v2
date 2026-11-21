@@ -9,6 +9,8 @@ import {
 } from './cms-actions'
 import {
   DEFAULT_CMS_SECTIONS,
+  DEFAULT_HERO_CONFIG,
+  serializeHeroConfig,
   serializeTouristSpots,
 } from '#/lib/constants/cms'
 
@@ -177,7 +179,7 @@ describe('cms-actions', () => {
     )
   })
 
-  it('rejects invalid key or blank title on upsert', async () => {
+  it('rejects invalid key and allows blank section title on upsert', async () => {
     await expect(
       upsertCmsSectionHandler({
         data: {
@@ -190,17 +192,84 @@ describe('cms-actions', () => {
       }),
     ).rejects.toThrow('Invalid CMS section key.')
 
+    mockUpsert.mockResolvedValueOnce({
+      id: 'sec-hero',
+      key: 'hero',
+      title: '',
+      subtitle: null,
+      body: null,
+      ctaLabel: null,
+      ctaHref: null,
+      images: [],
+      metadata: {
+        heroConfigJson: serializeHeroConfig({
+          ...DEFAULT_HERO_CONFIG,
+          slides: [
+            {
+              ...DEFAULT_HERO_CONFIG.slides[0],
+              image: 'cms/hero-slide.webp',
+            },
+          ],
+        }),
+      },
+      isPublished: true,
+      sortOrder: 0,
+      updatedAt: new Date('2026-03-04T00:00:00Z'),
+      updatedBy: { name: 'Jenny Owner' },
+    })
+
+    const saved = await upsertCmsSectionHandler({
+      data: {
+        key: 'hero',
+        title: '   ',
+        images: [],
+        metadata: {
+          eyebrow: 'Should be stripped',
+          heroConfigJson: serializeHeroConfig({
+            ...DEFAULT_HERO_CONFIG,
+            slides: [
+              {
+                ...DEFAULT_HERO_CONFIG.slides[0],
+                image: '/api/media/view?key=cms/hero-slide.webp',
+              },
+            ],
+          }),
+        },
+        isPublished: true,
+      },
+    })
+
+    expect(saved.success).toBe(true)
+    expect(saved.section.title).toBe('')
+    expect(saved.section.metadata.eyebrow).toBeUndefined()
+    expect(saved.section.metadata.heroConfigJson).toContain(
+      'cms/hero-slide.webp',
+    )
+
+    // Rejects base64 images inside hero carousel slides
     await expect(
       upsertCmsSectionHandler({
         data: {
           key: 'hero',
-          title: '   ',
+          title: '',
           images: [],
-          metadata: {},
+          metadata: {
+            heroConfigJson: serializeHeroConfig({
+              ...DEFAULT_HERO_CONFIG,
+              slides: [
+                {
+                  ...DEFAULT_HERO_CONFIG.slides[0],
+                  image: 'data:image/png;base64,abc123',
+                },
+              ],
+            }),
+          },
           isPublished: true,
         },
       }),
-    ).rejects.toThrow('Section title is required.')
+    ).rejects.toThrow(
+      'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
+    )
   })
 
   it('resets a CMS section to defaults', async () => {

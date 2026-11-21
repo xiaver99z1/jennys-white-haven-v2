@@ -17,7 +17,9 @@ import {
 } from 'lucide-react'
 import {
   CMS_SECTION_META,
+  parseHeroConfig,
   parseTouristSpots,
+  serializeHeroConfig,
   serializeTouristSpots,
 } from '#/lib/constants/cms'
 import { formatShortDate, getErrorMessage } from '#/lib/formatters'
@@ -28,6 +30,7 @@ import {
 import { resetCmsSection, upsertCmsSection } from '#/server/cms-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { HeroCarouselEditor } from '#/components/admin/settings/HeroCarouselEditor'
 import { TouristSpotsEditor } from '#/components/admin/settings/TouristSpotsEditor'
 import type { CmsSectionData, CmsSectionKey } from '#/types'
 
@@ -57,7 +60,11 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   const [isPublished, setIsPublished] = useState(current?.isPublished ?? true)
 
   const [newImageUrl, setNewImageUrl] = useState('')
-  const [isUploading, setIsUploading] = useState(false)
+  const [sectionUploadCount, setSectionUploadCount] = useState(0)
+  const [isSpotUploading, setIsSpotUploading] = useState(false)
+  const [isHeroUploading, setIsHeroUploading] = useState(false)
+  const isUploading =
+    sectionUploadCount > 0 || isSpotUploading || isHeroUploading
   const [isSaving, setIsSaving] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -93,7 +100,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       setError('Please select a valid image file (JPG, PNG, WEBP, GIF).')
       return
     }
-    setIsUploading(true)
+    setSectionUploadCount((c) => c + 1)
     setError(null)
     try {
       const isSingleImageSection =
@@ -133,7 +140,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to upload image.'))
     } finally {
-      setIsUploading(false)
+      setSectionUploadCount((c) => Math.max(0, c - 1))
     }
   }
 
@@ -168,6 +175,15 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!current) return
+    if (current.key === 'explore') {
+      const draftSpots = parseTouristSpots(metadata.spotsJson, {
+        preserveDrafts: true,
+      })
+      if (draftSpots.some((spot) => !spot.name.trim())) {
+        setError('Every tourist spot must have a destination name.')
+        return
+      }
+    }
     setIsSaving(true)
     setError(null)
     setSuccessMsg(null)
@@ -199,7 +215,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   }
 
   async function handleResetConfirm() {
-    if (!current) return
+    if (!current || isUploading) return
     setIsResetting(true)
     setError(null)
     setSuccessMsg(null)
@@ -319,7 +335,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
         >
           <fieldset
             disabled={isSaving || isResetting}
-            className="space-y-6 disabled:opacity-80"
+            className="min-w-0 space-y-6 disabled:opacity-80"
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-stone-100">
               <div>
@@ -369,294 +385,339 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
               </div>
             )}
 
-            {/* Primary Content Fields */}
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label
-                  htmlFor="cms-title"
-                  className="block text-xs font-semibold text-stone-700 mb-1.5"
-                >
-                  Section Title <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="cms-title"
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="cms-subtitle"
-                  className="block text-xs font-semibold text-stone-700 mb-1.5"
-                >
-                  Subtitle
-                </label>
-                <input
-                  id="cms-subtitle"
-                  type="text"
-                  value={subtitle}
-                  onChange={(e) => setSubtitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="cms-body"
-                  className="block text-xs font-semibold text-stone-700 mb-1.5"
-                >
-                  Body Copy
-                </label>
-                <textarea
-                  id="cms-body"
-                  rows={4}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    htmlFor="cms-cta-label"
-                    className="block text-xs font-semibold text-stone-700 mb-1.5"
-                  >
-                    Button / CTA Label
-                  </label>
-                  <input
-                    id="cms-cta-label"
-                    type="text"
-                    value={ctaLabel}
-                    onChange={(e) => setCtaLabel(e.target.value)}
-                    placeholder="Explore Rooms"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="cms-cta-href"
-                    className="block text-xs font-semibold text-stone-700 mb-1.5"
-                  >
-                    Button / CTA Link
-                  </label>
-                  <input
-                    id="cms-cta-href"
-                    type="text"
-                    value={ctaHref}
-                    onChange={(e) => setCtaHref(e.target.value)}
-                    placeholder="/rooms"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Section-Specific Metadata Fields */}
-            {meta.metadataFields.length > 0 && (
-              <div className="pt-4 border-t border-stone-100 space-y-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
-                  Section Details
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {meta.metadataFields.map((field) => (
-                    <div
-                      key={field.key}
-                      className={
-                        field.key === 'items' ||
-                        field.key === 'paymentInfo' ||
-                        field.key === 'travelNote'
-                          ? 'sm:col-span-2'
-                          : ''
-                      }
+            {/* Hero Carousel Visual Editor */}
+            {current.key === 'hero' ? (
+              <HeroCarouselEditor
+                config={parseHeroConfig(metadata.heroConfigJson, {
+                  title,
+                  subtitle,
+                  images,
+                })}
+                ctaLabel={ctaLabel}
+                ctaHref={ctaHref}
+                disabled={isSaving || isResetting}
+                onChange={(updater) =>
+                  setMetadata((prev) => {
+                    const nextConfig = updater(
+                      parseHeroConfig(prev.heroConfigJson, {
+                        title,
+                        subtitle,
+                        images,
+                      }),
+                    )
+                    return {
+                      ...prev,
+                      heroConfigJson: serializeHeroConfig(nextConfig),
+                    }
+                  })
+                }
+                onCtaLabelChange={setCtaLabel}
+                onCtaHrefChange={setCtaHref}
+                onError={setError}
+                onUploadingChange={setIsHeroUploading}
+              />
+            ) : (
+              <>
+                {/* Primary Content Fields (all optional) */}
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label
+                      htmlFor="cms-title"
+                      className="block text-xs font-semibold text-stone-700 mb-1.5"
                     >
+                      Section Title
+                    </label>
+                    <input
+                      id="cms-title"
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="cms-subtitle"
+                      className="block text-xs font-semibold text-stone-700 mb-1.5"
+                    >
+                      Subtitle
+                    </label>
+                    <input
+                      id="cms-subtitle"
+                      type="text"
+                      value={subtitle}
+                      onChange={(e) => setSubtitle(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="cms-body"
+                      className="block text-xs font-semibold text-stone-700 mb-1.5"
+                    >
+                      Body Copy
+                    </label>
+                    <textarea
+                      id="cms-body"
+                      rows={4}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
                       <label
-                        htmlFor={`cms-meta-${field.key}`}
+                        htmlFor="cms-cta-label"
                         className="block text-xs font-semibold text-stone-700 mb-1.5"
                       >
-                        {field.label}
+                        Button / CTA Label
                       </label>
                       <input
-                        id={`cms-meta-${field.key}`}
+                        id="cms-cta-label"
                         type="text"
-                        value={metadata[field.key] ?? ''}
-                        placeholder={field.placeholder}
-                        onChange={(e) =>
-                          setMetadata((prev) => ({
-                            ...prev,
-                            [field.key]: e.target.value,
-                          }))
-                        }
+                        value={ctaLabel}
+                        onChange={(e) => setCtaLabel(e.target.value)}
+                        placeholder="Explore Rooms"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
                       />
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tourist Spots List Editor (Explore Camotes section) */}
-            {current.key === 'explore' && (
-              <TouristSpotsEditor
-                spots={parseTouristSpots(metadata.spotsJson)}
-                disabled={isSaving || isResetting}
-                onChange={(nextSpots) =>
-                  setMetadata((prev) => ({
-                    ...prev,
-                    spotsJson: serializeTouristSpots(nextSpots),
-                  }))
-                }
-                onError={setError}
-                onUploadingChange={setIsUploading}
-              />
-            )}
-
-            {/* Images Manager */}
-            <div className="pt-4 border-t border-stone-100 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
-                    Section Images ({images.length})
-                  </h3>
-                  <p className="text-[11px] text-stone-400">
-                    Upload photography or paste image URLs. The first image is
-                    used as the primary photo.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => uploadInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition self-start disabled:opacity-50"
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <ImagePlus className="w-3.5 h-3.5" />
-                  )}
-                  {isUploading ? 'Uploading...' : 'Upload Image'}
-                </button>
-                <input
-                  ref={uploadInputRef}
-                  type="file"
-                  accept="image/*"
-                  tabIndex={-1}
-                  className="hidden"
-                  disabled={isUploading}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    e.target.value = ''
-                    void handleImageUpload(file)
-                  }}
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  placeholder="https://... paste an image URL"
-                  className="flex-1 px-3.5 py-2 rounded-xl border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddImageUrl}
-                  disabled={!newImageUrl.trim()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-xs font-semibold text-stone-700 transition disabled:opacity-50 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add URL
-                </button>
-              </div>
-
-              {images.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {images.map((src, idx) => (
-                    <div
-                      key={`${src}-${idx}`}
-                      className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
-                    >
-                      <img
-                        src={src}
-                        alt={`${meta.label} ${idx + 1}`}
-                        className="w-full h-36 object-cover"
+                    <div>
+                      <label
+                        htmlFor="cms-cta-href"
+                        className="block text-xs font-semibold text-stone-700 mb-1.5"
+                      >
+                        Button / CTA Link
+                      </label>
+                      <input
+                        id="cms-cta-href"
+                        type="text"
+                        value={ctaHref}
+                        onChange={(e) => setCtaHref(e.target.value)}
+                        placeholder="/rooms"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
                       />
-                      <div className="p-2 flex items-center justify-between gap-2 bg-white border-t border-stone-100">
-                        <span className="text-[11px] text-stone-500 truncate">
-                          #{idx + 1} · {src}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            disabled={isUploading}
-                            aria-label={`Replace image ${idx + 1}`}
-                            onClick={(e) => {
-                              const input = e.currentTarget
-                                .nextElementSibling as HTMLInputElement | null
-                              input?.click()
-                            }}
-                            className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
-                          >
-                            Replace
-                          </button>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            tabIndex={-1}
-                            className="hidden"
-                            disabled={isUploading}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              e.target.value = ''
-                              void handleImageUpload(file, idx)
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleMoveImage(idx, -1)}
-                            disabled={isUploading || idx === 0}
-                            aria-label={`Move image ${idx + 1} up`}
-                            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveImage(idx, 1)}
-                            disabled={isUploading || idx === images.length - 1}
-                            aria-label={`Move image ${idx + 1} down`}
-                            className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isUploading}
-                            onClick={() => handleRemoveImage(idx)}
-                            aria-label={`Remove image ${idx + 1}`}
-                            className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Section-Specific Metadata Fields */}
+                {meta.metadataFields.length > 0 && (
+                  <div className="pt-4 border-t border-stone-100 space-y-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+                      Section Details
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {meta.metadataFields.map((field) => (
+                        <div
+                          key={field.key}
+                          className={
+                            field.key === 'items' ||
+                            field.key === 'paymentInfo' ||
+                            field.key === 'travelNote'
+                              ? 'sm:col-span-2'
+                              : ''
+                          }
+                        >
+                          <label
+                            htmlFor={`cms-meta-${field.key}`}
+                            className="block text-xs font-semibold text-stone-700 mb-1.5"
+                          >
+                            {field.label}
+                          </label>
+                          <input
+                            id={`cms-meta-${field.key}`}
+                            type="text"
+                            value={metadata[field.key] ?? ''}
+                            placeholder={field.placeholder}
+                            onChange={(e) =>
+                              setMetadata((prev) => ({
+                                ...prev,
+                                [field.key]: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tourist Spots List Editor (Explore Camotes section) */}
+                {current.key === 'explore' && (
+                  <TouristSpotsEditor
+                    spots={parseTouristSpots(metadata.spotsJson, {
+                      preserveDrafts: true,
+                    })}
+                    disabled={isSaving || isResetting}
+                    onChange={(updater) =>
+                      setMetadata((prev) => ({
+                        ...prev,
+                        spotsJson: serializeTouristSpots(
+                          updater(
+                            parseTouristSpots(prev.spotsJson, {
+                              preserveDrafts: true,
+                            }),
+                          ),
+                        ),
+                      }))
+                    }
+                    onError={setError}
+                    onUploadingChange={setIsSpotUploading}
+                  />
+                )}
+
+                {/* Images Manager */}
+                <div className="pt-4 border-t border-stone-100 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+                        Section Images ({images.length})
+                      </h3>
+                      <p className="text-[11px] text-stone-400">
+                        Upload photography or paste image URLs. The first image
+                        is used as the primary photo.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isUploading}
+                      onClick={() => uploadInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition self-start disabled:opacity-50"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ImagePlus className="w-3.5 h-3.5" />
+                      )}
+                      {isUploading ? 'Uploading...' : 'Upload Image'}
+                    </button>
+                    <input
+                      ref={uploadInputRef}
+                      type="file"
+                      accept="image/*"
+                      tabIndex={-1}
+                      className="hidden"
+                      disabled={isUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        e.target.value = ''
+                        void handleImageUpload(file)
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="url"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      placeholder="https://... paste an image URL"
+                      className="flex-1 px-3.5 py-2 rounded-xl border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddImageUrl}
+                      disabled={!newImageUrl.trim()}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-xs font-semibold text-stone-700 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add URL
+                    </button>
+                  </div>
+
+                  {images.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {images.map((src, idx) => (
+                        <div
+                          key={`${src}-${idx}`}
+                          className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
+                        >
+                          <img
+                            src={src}
+                            alt={`${meta.label} ${idx + 1}`}
+                            className="w-full h-36 object-cover"
+                          />
+                          <div className="p-2 flex items-center justify-between gap-2 bg-white border-t border-stone-100">
+                            <span className="text-[11px] text-stone-500 truncate">
+                              #{idx + 1} · {src}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                disabled={isUploading}
+                                aria-label={`Replace image ${idx + 1}`}
+                                onClick={(e) => {
+                                  const input = e.currentTarget
+                                    .nextElementSibling as HTMLInputElement | null
+                                  input?.click()
+                                }}
+                                className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
+                              >
+                                Replace
+                              </button>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                tabIndex={-1}
+                                className="hidden"
+                                disabled={isUploading}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  e.target.value = ''
+                                  void handleImageUpload(file, idx)
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleMoveImage(idx, -1)}
+                                disabled={isUploading || idx === 0}
+                                aria-label={`Move image ${idx + 1} up`}
+                                className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveImage(idx, 1)}
+                                disabled={
+                                  isUploading || idx === images.length - 1
+                                }
+                                aria-label={`Move image ${idx + 1} down`}
+                                className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isUploading}
+                                onClick={() => handleRemoveImage(idx)}
+                                aria-label={`Remove image ${idx + 1}`}
+                                className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Footer Actions */}
             <div className="pt-4 border-t border-stone-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setConfirmResetOpen(true)}
-                disabled={isSaving || isResetting}
+                disabled={isSaving || isResetting || isUploading}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer disabled:opacity-50"
               >
                 <RotateCcw className="w-3.5 h-3.5" />

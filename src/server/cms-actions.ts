@@ -5,7 +5,9 @@ import { logActivity } from '#/lib/logger'
 import { requirePermission } from '#/server/room-actions'
 import {
   DEFAULT_CMS_SECTIONS,
+  parseHeroConfig,
   parseTouristSpots,
+  serializeHeroConfig,
   serializeTouristSpots,
 } from '#/lib/constants/cms'
 import {
@@ -56,6 +58,36 @@ function resolveExploreMetadata(
   }
 }
 
+function resolveHeroMetadata(
+  metadata: Record<string, string>,
+  fallback?: { title?: string; subtitle?: string; images?: string[] },
+): Record<string, string> {
+  const { eyebrow: _removedEyebrow, ...rest } = metadata
+  const config = parseHeroConfig(rest.heroConfigJson, fallback)
+  const resolvedSlides = config.slides.map((slide) => ({
+    ...slide,
+    image:
+      slide.image && !isBase64DataUrl(slide.image)
+        ? resolvePublicMediaUrl(slide.image)
+        : '',
+  }))
+  return {
+    ...rest,
+    heroConfigJson: serializeHeroConfig({
+      ...config,
+      slides: resolvedSlides,
+    }),
+  }
+}
+
+function extractHeroSlideImageKeys(metadata: unknown): string[] {
+  const record = toStringRecord(metadata)
+  if (!record.heroConfigJson) return []
+  return parseHeroConfig(record.heroConfigJson)
+    .slides.map((slide) => extractObjectKey(slide.image))
+    .filter(Boolean)
+}
+
 function extractSpotImageKeys(metadata: unknown): string[] {
   const record = toStringRecord(metadata)
   if (!record.spotsJson) return []
@@ -84,7 +116,16 @@ function mergeWithDefaults(
   return DEFAULT_CMS_SECTIONS.map((def) => {
     const row = byKey.get(def.key)
     if (!row) return def
-    const mergedMeta = { ...def.metadata, ...toStringRecord(row.metadata) }
+    const rowMeta = toStringRecord(row.metadata)
+    const rowImages = toStringArray(row.images)
+    const mergedMeta =
+      def.key === 'hero'
+        ? resolveHeroMetadata(rowMeta, {
+            title: row.title,
+            subtitle: row.subtitle ?? '',
+            images: rowImages,
+          })
+        : { ...def.metadata, ...rowMeta }
     return {
       key: def.key,
       title: row.title,
@@ -92,7 +133,7 @@ function mergeWithDefaults(
       body: row.body ?? '',
       ctaLabel: row.ctaLabel ?? '',
       ctaHref: row.ctaHref ?? '',
-      images: toStringArray(row.images),
+      images: rowImages,
       metadata:
         def.key === 'explore' ? resolveExploreMetadata(mergedMeta) : mergedMeta,
       isPublished: row.isPublished,
@@ -165,9 +206,6 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     }
 
     const title = data.title.trim()
-    if (!title) {
-      throw new Error('Section title is required.')
-    }
 
     const def = DEFAULT_CMS_SECTIONS.find((s) => s.key === data.key)!
     if (data.images.some((u) => isBase64DataUrl(u))) {
@@ -176,15 +214,39 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       )
     }
 
-    const cleanImages = Array.from(
+    let cleanImages = Array.from(
       new Set(data.images.map((u) => extractObjectKey(u)).filter(Boolean)),
     )
     const cleanMeta: Record<string, string> = {}
     for (const [k, v] of Object.entries(data.metadata)) {
+      if (data.key === 'hero' && k === 'eyebrow') continue
       cleanMeta[k] = v.trim()
     }
 
-    const spotMediaKeys: string[] = []
+    const extraMediaKeys: string[] = []
+    if (data.key === 'hero' && cleanMeta.heroConfigJson) {
+      const parsedHero = parseHeroConfig(cleanMeta.heroConfigJson, {
+        title,
+        subtitle: data.subtitle,
+        images: cleanImages,
+      })
+      if (parsedHero.slides.some((slide) => isBase64DataUrl(slide.image))) {
+        throw new Error(
+          'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
+        )
+      }
+      const normalizedSlides = parsedHero.slides.map((slide) => {
+        const key = extractObjectKey(slide.image)
+        if (key) extraMediaKeys.push(key)
+        return { ...slide, image: key }
+      })
+      cleanMeta.heroConfigJson = serializeHeroConfig({
+        ...parsedHero,
+        slides: normalizedSlides,
+      })
+      cleanImages = Array.from(new Set(extraMediaKeys))
+    }
+
     if (data.key === 'explore' && cleanMeta.spotsJson) {
       const parsedSpots = parseTouristSpots(cleanMeta.spotsJson)
       if (parsedSpots.some((spot) => isBase64DataUrl(spot.image))) {
@@ -194,13 +256,13 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       }
       const normalizedSpots = parsedSpots.map((spot) => {
         const key = extractObjectKey(spot.image)
-        if (key) spotMediaKeys.push(key)
+        if (key) extraMediaKeys.push(key)
         return { ...spot, image: key }
       })
       cleanMeta.spotsJson = serializeTouristSpots(normalizedSpots)
     }
 
-    const allMediaKeys = Array.from(new Set([...cleanImages, ...spotMediaKeys]))
+    const allMediaKeys = Array.from(new Set([...cleanImages, ...extraMediaKeys]))
 
     const session = await authSession()
     const existingRow = await prisma.siteSection.findUnique({
@@ -212,6 +274,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
         ...(Array.isArray(existingRow?.images)
           ? existingRow.images.filter((i): i is string => typeof i === 'string')
           : []),
+        ...extractHeroSlideImageKeys(existingRow?.metadata),
         ...extractSpotImageKeys(existingRow?.metadata),
       ]),
     )
@@ -285,6 +348,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     })
 
     const savedMeta = toStringRecord(saved.metadata)
+    const savedImages = toStringArray(saved.images)
 
     return {
       success: true,
@@ -295,11 +359,17 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
         body: saved.body ?? '',
         ctaLabel: saved.ctaLabel ?? '',
         ctaHref: saved.ctaHref ?? '',
-        images: toStringArray(saved.images),
+        images: savedImages,
         metadata:
           data.key === 'explore'
             ? resolveExploreMetadata(savedMeta)
-            : savedMeta,
+            : data.key === 'hero'
+              ? resolveHeroMetadata(savedMeta, {
+                  title: saved.title,
+                  subtitle: saved.subtitle ?? '',
+                  images: savedImages,
+                })
+              : savedMeta,
         isPublished: saved.isPublished,
         sortOrder: saved.sortOrder,
         updatedAt: saved.updatedAt,
@@ -338,6 +408,7 @@ export const resetCmsSectionHandler = createServerOnlyFn(
         ...(Array.isArray(existingRow?.images)
           ? existingRow.images.filter((i): i is string => typeof i === 'string')
           : []),
+        ...extractHeroSlideImageKeys(existingRow?.metadata),
         ...extractSpotImageKeys(existingRow?.metadata),
       ]),
     )
