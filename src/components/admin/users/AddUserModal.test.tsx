@@ -59,6 +59,7 @@ describe('AddUserModal', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     vi.mocked(createAdminUser).mockResolvedValueOnce({
       success: true,
+      emailSent: true,
       message:
         'Resort staff created successfully! Activation link sent to email.',
       user: {} as any,
@@ -106,6 +107,7 @@ describe('AddUserModal', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     vi.mocked(createAdminUser).mockResolvedValueOnce({
       success: true,
+      emailSent: true,
       message:
         'Resort staff created successfully! Activation link sent to email.',
       user: {} as any,

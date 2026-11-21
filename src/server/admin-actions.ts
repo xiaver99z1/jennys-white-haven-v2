@@ -79,13 +79,6 @@ export async function createAdminUserHandler({
       },
     })
 
-    await sendVerificationEmail({
-      to: data.email,
-      name: data.name,
-      rawToken,
-      expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
-    })
-
     await logActivity({
       userId: session.user.id,
       action: 'USER_CREATED',
@@ -94,8 +87,46 @@ export async function createAdminUserHandler({
       userAgent: session.session.userAgent ?? null,
     })
 
+    try {
+      await sendVerificationEmail({
+        to: data.email,
+        name: data.name,
+        rawToken,
+        expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
+      })
+    } catch (emailError) {
+      console.error(
+        'Staff account created, but activation email delivery failed:',
+        emailError,
+      )
+      try {
+        await prisma.user.updateMany({
+          where: {
+            id: newUser.user.id,
+            emailVerified: false,
+            activationToken: tokenHash,
+          },
+          data: {
+            activationEmailCount: 0,
+            lastActivationEmailSentAt: null,
+          },
+        })
+      } catch {
+        // Keep partial-success response so admin can use Resend Verification Email
+      }
+
+      return {
+        success: true,
+        emailSent: false,
+        message:
+          'Resort staff created, but the activation email could not be delivered. Please use Resend Verification Email from User Management.',
+        user: newUser.user,
+      }
+    }
+
     return {
       success: true,
+      emailSent: true,
       message:
         'Resort staff created successfully! Activation link sent to email.',
       user: newUser.user,
@@ -441,12 +472,33 @@ export async function resendVerificationEmailHandler({
       },
     })
 
-    await sendVerificationEmail({
-      to: user.email,
-      name: user.name,
-      rawToken,
-      expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
-    })
+    try {
+      await sendVerificationEmail({
+        to: user.email,
+        name: user.name,
+        rawToken,
+        expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
+      })
+    } catch (sendError) {
+      try {
+        await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            emailVerified: false,
+            activationToken: tokenHash,
+          },
+          data: {
+            activationToken: user.activationToken,
+            activationTokenExpires: user.activationTokenExpires,
+            activationEmailCount: user.activationEmailCount,
+            lastActivationEmailSentAt: user.lastActivationEmailSentAt,
+          },
+        })
+      } catch {
+        // Preserve original delivery error
+      }
+      throw sendError
+    }
 
     await logActivity({
       userId: session.user.id,

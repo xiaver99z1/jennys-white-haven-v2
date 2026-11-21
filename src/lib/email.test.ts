@@ -129,9 +129,9 @@ describe('email helpers (Nodemailer SMTP)', () => {
     expect(mockSendMail.mock.calls[0][0].html).toContain('30 minutes')
   })
 
-  it('supports custom SMTP_HOST, SMTP_PORT, SMTP_SECURE, default from address, and handles sendMail errors', async () => {
+  it('supports custom SMTP_HOST (preserving spaces in SMTP_PASS), SMTP_PORT, SMTP_SECURE, default from address, and handles sendMail errors', async () => {
     process.env.SMTP_USER = 'resort@gmail.com'
-    process.env.SMTP_PASS = 'apppassword123456'
+    process.env.SMTP_PASS = 'custom pass with spaces'
     process.env.SMTP_HOST = 'smtp.brevo.com'
     process.env.SMTP_PORT = '587'
     process.env.SMTP_SECURE = 'false'
@@ -153,7 +153,7 @@ describe('email helpers (Nodemailer SMTP)', () => {
       secure: false,
       auth: {
         user: 'resort@gmail.com',
-        pass: 'apppassword123456',
+        pass: 'custom pass with spaces',
       },
     })
 

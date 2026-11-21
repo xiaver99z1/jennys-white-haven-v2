@@ -59,15 +59,19 @@ export function formatEmailExpiryLabel(expiresInMinutes: number): string {
 }
 
 async function sendActionEmail(template: ActionEmailTemplate) {
+  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST
+  const isGmailHost = host.toLowerCase() === DEFAULT_SMTP_HOST
   const smtpUser = process.env.SMTP_USER?.trim()
-  const smtpPass = process.env.SMTP_PASS?.replace(/\s+/g, '')
-  if (!smtpUser || !smtpPass) {
+  const rawSmtpPass = process.env.SMTP_PASS
+  const smtpPass = isGmailHost
+    ? rawSmtpPass?.replace(/\s+/g, '')
+    : rawSmtpPass
+  if (!smtpUser || !smtpPass?.trim()) {
     throw new Error(
       'Email service is not configured. Please set SMTP_USER and SMTP_PASS.',
     )
   }
 
-  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST
   const port = Number(process.env.SMTP_PORT) || DEFAULT_SMTP_PORT
   const secure =
     process.env.SMTP_SECURE !== undefined
