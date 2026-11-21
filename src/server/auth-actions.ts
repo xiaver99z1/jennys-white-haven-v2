@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { hashPassword } from 'better-auth/crypto'
 import { authSession, getServerHeaders } from '#/lib/auth-helpers'
 import {
@@ -47,11 +47,8 @@ export function validateVerifyActivationToken(
   return data
 }
 
-export async function verifyActivationTokenHandler({
-  data,
-}: {
-  data: VerifyActivationTokenInput
-}) {
+export const verifyActivationTokenHandler = createServerOnlyFn(
+  async ({ data }: { data: VerifyActivationTokenInput }) => {
   const token = data.token.trim()
   if (!token) {
     throw new Error('Verification token is missing.')
@@ -108,7 +105,7 @@ export async function verifyActivationTokenHandler({
     success: true,
     message: 'Email verified successfully!',
   }
-}
+})
 
 export const verifyActivationToken = createServerFn({ method: 'POST' })
   .validator(validateVerifyActivationToken)
@@ -120,11 +117,8 @@ export function validateResendVerificationByEmail(
   return data
 }
 
-export async function resendVerificationByEmailHandler({
-  data,
-}: {
-  data: ResendVerificationByEmailInput
-}) {
+export const resendVerificationByEmailHandler = createServerOnlyFn(
+  async ({ data }: { data: ResendVerificationByEmailInput }) => {
   const email = data.email.trim().toLowerCase()
   if (!EMAIL_REGEX.test(email)) {
     throw new Error('Please enter a valid email address.')
@@ -251,13 +245,13 @@ export async function resendVerificationByEmailHandler({
     success: true,
     message: GENERIC_RESEND_MESSAGE,
   }
-}
+})
 
 export const resendVerificationByEmail = createServerFn({ method: 'POST' })
   .validator(validateResendVerificationByEmail)
   .handler(resendVerificationByEmailHandler)
 
-export async function logUserLoginHandler() {
+export const logUserLoginHandler = createServerOnlyFn(async () => {
   try {
     const session = (await authSession()) as Awaited<
       ReturnType<typeof authSession>
@@ -280,13 +274,13 @@ export async function logUserLoginHandler() {
     console.error('Failed to log user login:', error)
     return { success: false, error: error.message }
   }
-}
+})
 
 export const logUserLogin = createServerFn({ method: 'POST' }).handler(
   logUserLoginHandler,
 )
 
-export async function logUserLogoutHandler() {
+export const logUserLogoutHandler = createServerOnlyFn(async () => {
   try {
     const session = await authSession()
 
@@ -303,7 +297,7 @@ export async function logUserLogoutHandler() {
     console.error('Failed to log user logout:', error)
     return { success: false, error: error.message }
   }
-}
+})
 
 export const logUserLogout = createServerFn({ method: 'POST' }).handler(
   logUserLogoutHandler,
@@ -357,7 +351,7 @@ async function reserveDailyPasswordResetSlot(
   )
 }
 
-export async function requestPasswordResetHandler() {
+export const requestPasswordResetHandler = createServerOnlyFn(async () => {
   const session = await authSession(
     'Unauthorized: You must be logged in to request a password reset.',
   )
@@ -473,7 +467,7 @@ export async function requestPasswordResetHandler() {
     max: MAX_PASSWORD_RESET_EMAILS_PER_DAY,
     message: `Password reset link sent to ${user.email}. Please check your inbox.`,
   }
-}
+})
 
 export const requestPasswordReset = createServerFn({ method: 'POST' }).handler(
   requestPasswordResetHandler,
@@ -485,11 +479,8 @@ export function validateResetPasswordWithToken(
   return data
 }
 
-export async function resetPasswordWithTokenHandler({
-  data,
-}: {
-  data: ResetPasswordWithTokenInput
-}) {
+export const resetPasswordWithTokenHandler = createServerOnlyFn(
+  async ({ data }: { data: ResetPasswordWithTokenInput }) => {
   const token = data.token.trim()
   if (!token) {
     throw new Error('Password reset token is missing.')
@@ -577,7 +568,7 @@ export async function resetPasswordWithTokenHandler({
     message:
       'Your password has been reset successfully. Please sign in with your new password.',
   }
-}
+})
 
 export const resetPasswordWithToken = createServerFn({ method: 'POST' })
   .validator(validateResetPasswordWithToken)

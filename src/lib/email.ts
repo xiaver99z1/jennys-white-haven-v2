@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import nodemailer from 'nodemailer'
+import { createServerOnlyFn } from '@tanstack/react-start'
 import {
   DEFAULT_APP_BASE_URL,
   DEFAULT_FROM_NAME,
@@ -15,20 +15,24 @@ import type {
 
 export type { SendVerificationEmailOptions }
 
-export function hashActivationToken(rawToken: string): string {
-  return crypto.createHash('sha256').update(rawToken).digest('hex')
-}
+export const hashActivationToken = createServerOnlyFn(
+  (rawToken: string): string => {
+    return crypto.createHash('sha256').update(rawToken).digest('hex')
+  },
+)
 
-export function generateActivationToken(): {
-  rawToken: string
-  tokenHash: string
-} {
-  const rawToken = crypto.randomBytes(32).toString('hex')
-  return {
-    rawToken,
-    tokenHash: hashActivationToken(rawToken),
-  }
-}
+export const generateActivationToken = createServerOnlyFn(
+  (): {
+    rawToken: string
+    tokenHash: string
+  } => {
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    return {
+      rawToken,
+      tokenHash: hashActivationToken(rawToken),
+    }
+  },
+)
 
 export function escapeHtml(value: string): string {
   return value
@@ -58,48 +62,50 @@ export function formatEmailExpiryLabel(expiresInMinutes: number): string {
   return `${expiresInMinutes} minutes`
 }
 
-async function sendActionEmail(template: ActionEmailTemplate) {
-  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST
-  const isGmailHost = host.toLowerCase() === DEFAULT_SMTP_HOST
-  const smtpUser = process.env.SMTP_USER?.trim()
-  const rawSmtpPass = process.env.SMTP_PASS
-  const smtpPass = isGmailHost
-    ? rawSmtpPass?.replace(/\s+/g, '')
-    : rawSmtpPass
-  if (!smtpUser || !smtpPass?.trim()) {
-    throw new Error(
-      'Email service is not configured. Please set SMTP_USER and SMTP_PASS.',
-    )
-  }
+const sendActionEmail = createServerOnlyFn(
+  async (template: ActionEmailTemplate) => {
+    const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST
+    const isGmailHost = host.toLowerCase() === DEFAULT_SMTP_HOST
+    const smtpUser = process.env.SMTP_USER?.trim()
+    const rawSmtpPass = process.env.SMTP_PASS
+    const smtpPass = isGmailHost
+      ? rawSmtpPass?.replace(/\s+/g, '')
+      : rawSmtpPass
+    if (!smtpUser || !smtpPass?.trim()) {
+      throw new Error(
+        'Email service is not configured. Please set SMTP_USER and SMTP_PASS.',
+      )
+    }
 
-  const port = Number(process.env.SMTP_PORT) || DEFAULT_SMTP_PORT
-  const secure =
-    process.env.SMTP_SECURE !== undefined
-      ? process.env.SMTP_SECURE === 'true'
-      : port === 465
-  const from =
-    process.env.SMTP_FROM?.trim() || `${DEFAULT_FROM_NAME} <${smtpUser}>`
+    const port = Number(process.env.SMTP_PORT) || DEFAULT_SMTP_PORT
+    const secure =
+      process.env.SMTP_SECURE !== undefined
+        ? process.env.SMTP_SECURE === 'true'
+        : port === 465
+    const from =
+      process.env.SMTP_FROM?.trim() || `${DEFAULT_FROM_NAME} <${smtpUser}>`
 
-  const safeName = escapeHtml(template.name)
-  const safeUrl = escapeHtml(template.actionUrl)
-  const expiryLabel = formatEmailExpiryLabel(template.expiresInMinutes)
+    const safeName = escapeHtml(template.name)
+    const safeUrl = escapeHtml(template.actionUrl)
+    const expiryLabel = formatEmailExpiryLabel(template.expiresInMinutes)
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  })
+    const { default: nodemailer } = await import('nodemailer')
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    })
 
-  try {
-    return await transporter.sendMail({
-      from,
-      to: template.to,
-      subject: template.subject,
-      html: `
+    try {
+      return await transporter.sendMail({
+        from,
+        to: template.to,
+        subject: template.subject,
+        html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #292524; background-color: #fafaf9;">
         <div style="background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 16px; padding: 32px;">
           <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #92400e; margin: 0 0 8px;">
@@ -128,18 +134,19 @@ async function sendActionEmail(template: ActionEmailTemplate) {
         </div>
       </div>
     `,
-      text: template
-        .textLines(template.name, expiryLabel, template.actionUrl)
-        .join('\n'),
-    })
-  } catch (error: unknown) {
-    throw new Error(
-      error instanceof Error && error.message
-        ? error.message
-        : template.fallbackErrorMessage,
-    )
-  }
-}
+        text: template
+          .textLines(template.name, expiryLabel, template.actionUrl)
+          .join('\n'),
+      })
+    } catch (error: unknown) {
+      throw new Error(
+        error instanceof Error && error.message
+          ? error.message
+          : template.fallbackErrorMessage,
+      )
+    }
+  },
+)
 
 export async function sendVerificationEmail({
   to,
