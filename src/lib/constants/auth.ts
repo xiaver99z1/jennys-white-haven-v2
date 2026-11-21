@@ -6,7 +6,10 @@ import type {
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export const DEFAULT_FROM_EMAIL = "Jenny's White Haven <onboarding@resend.dev>"
+export const DEFAULT_SMTP_HOST = 'smtp.gmail.com'
+export const DEFAULT_SMTP_PORT = 465
+export const DEFAULT_FROM_NAME = "Jenny's White Haven"
+export const DEFAULT_FROM_EMAIL = "Jenny's White Haven <noreply@jennyswhitehaven.com>"
 export const DEFAULT_APP_BASE_URL = 'http://localhost:3000'
 export const DEFAULT_CLIENT_IP = '127.0.0.1'
 export const DEFAULT_USER_AGENT = 'Unknown User-Agent'
@@ -15,7 +18,9 @@ export const DEFAULT_TEMP_STAFF_PASSWORD = 'Password!123'
 export const VERIFICATION_EXPIRES_MINUTES = 60
 export const VERIFICATION_TOKEN_TTL_MS =
   VERIFICATION_EXPIRES_MINUTES * 60 * 1000 // 1 hour
-export const STAFF_INVITE_TOKEN_TTL_MS = 3 * 24 * 60 * 60 * 1000 // 3 days
+export const STAFF_INVITE_EXPIRES_MINUTES = 3 * 24 * 60 // 4320 minutes (3 days)
+export const STAFF_INVITE_TOKEN_TTL_MS =
+  STAFF_INVITE_EXPIRES_MINUTES * 60 * 1000 // 3 days
 
 export const PASSWORD_RESET_EXPIRES_MINUTES = 30
 export const PASSWORD_RESET_TTL_MS =

@@ -4,6 +4,9 @@ import {
   ADMIN_REAUTH_WINDOW_MS,
   DAY_WINDOW_MS,
   DEFAULT_CLIENT_IP,
+  DEFAULT_FROM_NAME,
+  DEFAULT_SMTP_HOST,
+  DEFAULT_SMTP_PORT,
   DEFAULT_USER_AGENT,
   EMAIL_REGEX,
   MAX_ADMIN_REAUTH_ATTEMPTS,
@@ -18,6 +21,7 @@ import {
   RESEND_COOLDOWN_MINUTES,
   RESEND_COOLDOWN_MS,
   RESEND_COOLDOWN_SECONDS,
+  STAFF_INVITE_EXPIRES_MINUTES,
   STAFF_ROLE_OPTIONS,
   VERIFICATION_TOKEN_TTL_MS,
   extractRequestClientMeta,
@@ -31,6 +35,10 @@ describe('auth constants and helpers', () => {
   it('exports expected security thresholds, TTLs, and staff role options', () => {
     expect(EMAIL_REGEX.test('admin@resort.com')).toBe(true)
     expect(EMAIL_REGEX.test('invalid')).toBe(false)
+    expect(DEFAULT_SMTP_HOST).toBe('smtp.gmail.com')
+    expect(DEFAULT_SMTP_PORT).toBe(465)
+    expect(DEFAULT_FROM_NAME).toBe("Jenny's White Haven")
+    expect(STAFF_INVITE_EXPIRES_MINUTES).toBe(4320)
     expect(VERIFICATION_TOKEN_TTL_MS).toBe(3_600_000)
     expect(PASSWORD_RESET_TTL_MS).toBe(1_800_000)
     expect(PASSWORD_RESET_COOLDOWN_MINUTES).toBe(5)

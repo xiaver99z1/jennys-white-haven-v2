@@ -16,6 +16,15 @@ import { auth } from '#/lib/auth'
 import { logActivity } from '#/lib/logger'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { authSession } from '#/lib/auth-helpers'
+import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
+
+vi.mock('#/lib/email', () => ({
+  generateActivationToken: vi.fn(() => ({
+    rawToken: 'raw-staff-token',
+    tokenHash: 'hashed-staff-token',
+  })),
+  sendVerificationEmail: vi.fn(),
+}))
 
 vi.mock('#/lib/prisma', () => ({
   prisma: {
@@ -24,6 +33,7 @@ vi.mock('#/lib/prisma', () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     account: {
       findFirst: vi.fn(),
@@ -77,6 +87,11 @@ describe('admin-actions handlers and validators', () => {
       user: mockAdminUser,
       session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
     } as any)
+    vi.mocked(generateActivationToken).mockReturnValue({
+      rawToken: 'raw-staff-token',
+      tokenHash: 'hashed-staff-token',
+    })
+    vi.mocked(sendVerificationEmail).mockResolvedValue({} as any)
 
     // Silence expected console.error logs during negative error-handling tests
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -140,13 +155,19 @@ describe('admin-actions handlers and validators', () => {
         expect.objectContaining({
           where: { id: 'new-user-1' },
           data: expect.objectContaining({
-            activationToken: expect.any(String),
+            activationToken: 'hashed-staff-token',
             activationTokenExpires: expect.any(Date),
             activationEmailCount: 1,
             lastActivationEmailSentAt: expect.any(Date),
           }),
         }),
       )
+      expect(sendVerificationEmail).toHaveBeenCalledWith({
+        to: validData.email,
+        name: validData.name,
+        rawToken: 'raw-staff-token',
+        expiresInMinutes: 4320,
+      })
       expect(logActivity).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'USER_CREATED',
@@ -193,6 +214,58 @@ describe('admin-actions handlers and validators', () => {
       await expect(createAdminUserHandler({ data: validData })).rejects.toThrow(
         'Failed to create user in authentication system.',
       )
+    })
+
+    it('logs USER_CREATED and returns partial success when initial activation email delivery fails', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
+      vi.mocked(auth.api.createUser).mockResolvedValueOnce({
+        user: { id: 'new-user-2', email: validData.email },
+      } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
+        new Error('SMTP connection timeout'),
+      )
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 })
+
+      const result = await createAdminUserHandler({ data: validData })
+
+      expect(result.success).toBe(true)
+      expect(result.emailSent).toBe(false)
+      expect(result.message).toContain('Resend Verification Email')
+      expect(logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'USER_CREATED',
+          userId: 'admin-1',
+        }),
+      )
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'new-user-2',
+          emailVerified: false,
+          activationToken: 'hashed-staff-token',
+        },
+        data: {
+          activationEmailCount: 0,
+          lastActivationEmailSentAt: null,
+        },
+      })
+
+      // Also cover rollback updateMany failure gracefully
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null)
+      vi.mocked(auth.api.createUser).mockResolvedValueOnce({
+        user: { id: 'new-user-3', email: validData.email },
+      } as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
+        new Error('SMTP down'),
+      )
+      vi.mocked(prisma.user.updateMany).mockRejectedValueOnce(
+        new Error('DB rollback fail'),
+      )
+
+      const fallbackRes = await createAdminUserHandler({ data: validData })
+      expect(fallbackRes.success).toBe(true)
+      expect(fallbackRes.emailSent).toBe(false)
     })
 
     it('throws fallback error message when caught error has no message', async () => {
@@ -655,6 +728,7 @@ describe('admin-actions handlers and validators', () => {
         lastActivationEmailSentAt: new Date(Date.now() - 1000),
       }
       vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
 
       const result = await resendVerificationEmailHandler({
         data: { userId: 'user-1' },
@@ -662,9 +736,77 @@ describe('admin-actions handlers and validators', () => {
 
       expect(result.success).toBe(true)
       expect(result.count).toBe(2)
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: targetUser.id },
+        data: {
+          activationToken: 'hashed-staff-token',
+          activationTokenExpires: expect.any(Date),
+          activationEmailCount: 2,
+          lastActivationEmailSentAt: expect.any(Date),
+        },
+      })
+      expect(sendVerificationEmail).toHaveBeenCalledWith({
+        to: 'user@resort.com',
+        name: 'User',
+        rawToken: 'raw-staff-token',
+        expiresInMinutes: 4320,
+      })
       expect(logActivity).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'RESEND_VERIFICATION' }),
       )
+    })
+
+    it('restores previous invitation metadata conditionally when resend email delivery fails', async () => {
+      const prevSentAt = new Date(Date.now() - 10 * 60 * 1000)
+      const prevExpiresAt = new Date(Date.now() + 60 * 60 * 1000)
+      const targetUser = {
+        id: 'user-1',
+        email: 'user@resort.com',
+        name: 'User',
+        emailVerified: false,
+        activationToken: 'previous-token-hash',
+        activationTokenExpires: prevExpiresAt,
+        activationEmailCount: 2,
+        lastActivationEmailSentAt: prevSentAt,
+      }
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
+        new Error('SMTP rejected'),
+      )
+      vi.mocked(prisma.user.updateMany).mockResolvedValueOnce({ count: 1 })
+
+      await expect(
+        resendVerificationEmailHandler({ data: { userId: 'user-1' } }),
+      ).rejects.toThrow('SMTP rejected')
+
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'user-1',
+          emailVerified: false,
+          activationToken: 'hashed-staff-token',
+        },
+        data: {
+          activationToken: 'previous-token-hash',
+          activationTokenExpires: prevExpiresAt,
+          activationEmailCount: 2,
+          lastActivationEmailSentAt: prevSentAt,
+        },
+      })
+
+      // Also cover rollback updateMany throwing an error while preserving sendError
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(targetUser as any)
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({} as any)
+      vi.mocked(sendVerificationEmail).mockRejectedValueOnce(
+        new Error('SMTP offline'),
+      )
+      vi.mocked(prisma.user.updateMany).mockRejectedValueOnce(
+        new Error('Rollback DB error'),
+      )
+
+      await expect(
+        resendVerificationEmailHandler({ data: { userId: 'user-1' } }),
+      ).rejects.toThrow('SMTP offline')
     })
 
     it('handles zero activationEmailCount and null session metadata', async () => {

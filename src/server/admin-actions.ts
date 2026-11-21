@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import crypto from 'node:crypto'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { auth } from '#/lib/auth'
 import { authSession } from '#/lib/auth-helpers'
@@ -10,9 +9,11 @@ import {
   DEFAULT_TEMP_STAFF_PASSWORD,
   MAX_ADMIN_REAUTH_ATTEMPTS,
   MAX_VERIFICATION_EMAILS_PER_DAY,
+  STAFF_INVITE_EXPIRES_MINUTES,
   STAFF_INVITE_TOKEN_TTL_MS,
   resolveUserDisplayIdentifier,
 } from '#/lib/constants/auth'
+import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
 import { logActivity } from '#/lib/logger'
 import { prisma } from '#/lib/prisma'
 import type {
@@ -65,13 +66,13 @@ export async function createAdminUserHandler({
       throw new Error('Failed to create user in authentication system.')
     }
 
-    const token = crypto.randomBytes(32).toString('hex')
+    const { rawToken, tokenHash } = generateActivationToken()
     const tokenExpires = new Date(now.getTime() + STAFF_INVITE_TOKEN_TTL_MS)
 
     await prisma.user.update({
       where: { id: newUser.user.id },
       data: {
-        activationToken: token,
+        activationToken: tokenHash,
         activationTokenExpires: tokenExpires,
         activationEmailCount: 1,
         lastActivationEmailSentAt: now,
@@ -86,8 +87,46 @@ export async function createAdminUserHandler({
       userAgent: session.session.userAgent ?? null,
     })
 
+    try {
+      await sendVerificationEmail({
+        to: data.email,
+        name: data.name,
+        rawToken,
+        expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
+      })
+    } catch (emailError) {
+      console.error(
+        'Staff account created, but activation email delivery failed:',
+        emailError,
+      )
+      try {
+        await prisma.user.updateMany({
+          where: {
+            id: newUser.user.id,
+            emailVerified: false,
+            activationToken: tokenHash,
+          },
+          data: {
+            activationEmailCount: 0,
+            lastActivationEmailSentAt: null,
+          },
+        })
+      } catch {
+        // Keep partial-success response so admin can use Resend Verification Email
+      }
+
+      return {
+        success: true,
+        emailSent: false,
+        message:
+          'Resort staff created, but the activation email could not be delivered. Please use Resend Verification Email from User Management.',
+        user: newUser.user,
+      }
+    }
+
     return {
       success: true,
+      emailSent: true,
       message:
         'Resort staff created successfully! Activation link sent to email.',
       user: newUser.user,
@@ -418,6 +457,47 @@ export async function resendVerificationEmailHandler({
       currentCount += 1
     } else {
       currentCount = 1
+    }
+
+    const { rawToken, tokenHash } = generateActivationToken()
+    const tokenExpires = new Date(now.getTime() + STAFF_INVITE_TOKEN_TTL_MS)
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        activationToken: tokenHash,
+        activationTokenExpires: tokenExpires,
+        activationEmailCount: currentCount,
+        lastActivationEmailSentAt: now,
+      },
+    })
+
+    try {
+      await sendVerificationEmail({
+        to: user.email,
+        name: user.name,
+        rawToken,
+        expiresInMinutes: STAFF_INVITE_EXPIRES_MINUTES,
+      })
+    } catch (sendError) {
+      try {
+        await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            emailVerified: false,
+            activationToken: tokenHash,
+          },
+          data: {
+            activationToken: user.activationToken,
+            activationTokenExpires: user.activationTokenExpires,
+            activationEmailCount: user.activationEmailCount,
+            lastActivationEmailSentAt: user.lastActivationEmailSentAt,
+          },
+        })
+      } catch {
+        // Preserve original delivery error
+      }
+      throw sendError
     }
 
     await logActivity({
