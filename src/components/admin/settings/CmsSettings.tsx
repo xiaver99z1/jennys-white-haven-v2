@@ -335,7 +335,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
         >
           <fieldset
             disabled={isSaving || isResetting}
-            className="space-y-6 disabled:opacity-80"
+            className="min-w-0 space-y-6 disabled:opacity-80"
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-stone-100">
               <div>

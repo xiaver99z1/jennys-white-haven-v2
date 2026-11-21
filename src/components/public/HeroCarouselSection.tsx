@@ -8,7 +8,10 @@ import {
   ChevronRight,
   Users,
 } from 'lucide-react'
-import { parseHeroConfig } from '#/lib/constants/cms'
+import {
+  DEFAULT_HERO_TEXT_WIDTH,
+  parseHeroConfig,
+} from '#/lib/constants/cms'
 import { hasVisibleRichText } from '#/lib/hero-rich-text'
 import { HeroRichTextContent } from '#/components/public/HeroRichTextContent'
 import type { CmsSectionData, HeroElementPosition } from '#/types'
@@ -22,10 +25,14 @@ interface HeroCarouselSectionProps {
   }) => void
 }
 
-function positionVars(pos: HeroElementPosition): CSSProperties {
+function positionVars(
+  pos: HeroElementPosition,
+  widthPct?: number,
+): CSSProperties {
   return {
     '--hx': `${pos.x}%`,
     '--hy': `${pos.y}%`,
+    ...(widthPct !== undefined ? { '--hw': `${widthPct}%` } : {}),
   } as CSSProperties
 }
 
@@ -87,7 +94,7 @@ export function HeroCarouselSection({
       aria-label="Hero showcase"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      className="relative min-h-[78vh] md:min-h-[82vh] flex flex-col justify-end overflow-hidden bg-stone-900"
+      className="relative min-h-[76vh] md:min-h-0 md:h-[clamp(540px,82vh,720px)] flex flex-col justify-end overflow-hidden bg-stone-900"
     >
       {/* Background Carousel Slides */}
       {config.slides.map((slide, idx) => {
@@ -141,13 +148,16 @@ export function HeroCarouselSection({
         </>
       )}
 
-      {/* Content Overlay Stage: stacked on mobile, custom dragged positions on md+ */}
-      <div className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-10 pt-24 pb-16 md:p-0 md:min-h-[82vh] flex flex-col justify-end gap-6 md:block">
+      {/* Content Overlay Stage: stacked on mobile, 1:1 center-anchored dragged positions on md+ */}
+      <div className="relative z-10 max-w-[1280px] mx-auto w-full px-6 pt-24 pb-16 md:p-0 md:h-full flex flex-col justify-end gap-6 md:block">
         {/* Per-Slide Rich Text (Title & Subtitle) */}
         {showSlideText && (
           <div
-            style={positionVars(activeSlide.textPosition)}
-            className="max-w-2xl text-[#FAF8F4] md:absolute md:left-[var(--hx)] md:top-[var(--hy)] md:[transform:translate(calc(var(--hx)*-1),calc(var(--hy)*-1))] md:px-6 lg:px-10"
+            style={positionVars(
+              activeSlide.textPosition,
+              activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH,
+            )}
+            className="w-full md:w-[var(--hw)] text-[#FAF8F4] md:absolute md:z-20 md:left-[var(--hx)] md:top-[var(--hy)] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <HeroRichTextContent
               html={activeSlide.contentHtml}
@@ -160,11 +170,11 @@ export function HeroCarouselSection({
         {showCta && (
           <div
             style={positionVars(config.ctaPosition)}
-            className="md:absolute md:left-[var(--hx)] md:top-[var(--hy)] md:[transform:translate(calc(var(--hx)*-1),calc(var(--hy)*-1))] md:px-6 lg:px-10"
+            className="md:absolute md:z-20 md:left-[var(--hx)] md:top-[var(--hy)] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <Link
               to={hero.ctaHref || '/rooms'}
-              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-100 transition shadow-lg"
+              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-100 transition shadow-lg whitespace-nowrap"
             >
               {hero.ctaLabel}
               <ArrowRight className="w-4 h-4" />
@@ -176,11 +186,11 @@ export function HeroCarouselSection({
         {config.showBookingBar && (
           <div
             style={positionVars(config.bookingBarPosition)}
-            className="w-full md:max-w-5xl md:px-6 lg:px-10 md:absolute md:left-[var(--hx)] md:top-[var(--hy)] md:[transform:translate(calc(var(--hx)*-1),calc(var(--hy)*-1))]"
+            className="w-full md:w-[88%] md:max-w-5xl md:absolute md:z-10 md:left-[var(--hx)] md:top-[var(--hy)] md:-translate-x-1/2 md:-translate-y-1/2"
           >
             <form
               onSubmit={handleFormSubmit}
-              className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-2xl border border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end"
+              className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-2xl border border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end"
             >
               <div>
                 <label

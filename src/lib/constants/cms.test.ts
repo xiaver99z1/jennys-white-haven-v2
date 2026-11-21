@@ -124,6 +124,7 @@ describe('CMS constants and tourist spot helpers', () => {
             contentHtml: '<p>Hello</p><script>bad()</script>',
             showText: false,
             textPosition: { x: 200, y: -5 },
+            textWidth: 150,
           },
         ],
       }),
@@ -133,6 +134,7 @@ describe('CMS constants and tourist spot helpers', () => {
     expect(clamped.slides[0].image).toBe('cms/slide.webp')
     expect(clamped.slides[0].contentHtml).toBe('<p>Hello</p>')
     expect(clamped.slides[0].textPosition).toEqual({ x: 100, y: 0 })
+    expect(clamped.slides[0].textWidth).toBe(95)
 
     // Invalid JSON falls back safely
     expect(parseHeroConfig('invalid-json').slides.length).toBeGreaterThanOrEqual(

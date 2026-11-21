@@ -36,7 +36,7 @@ describe('hero-rich-text', () => {
       ),
     ).toEqual({
       'font-size': '2rem',
-      'font-family': HERO_FONT_OPTIONS[3].value,
+      'font-family': HERO_FONT_OPTIONS[5].value,
       color: 'rgb(250, 248, 244)',
       'font-weight': '600',
       'font-style': 'normal',
@@ -49,10 +49,15 @@ describe('hero-rich-text', () => {
         'font-size: 999px; color: rgb(300, 0, 0); font-family: Arial, sans-serif; unknown: 1; broken',
       ),
     ).toEqual({
-      'font-family': HERO_FONT_OPTIONS[1].value,
+      'font-family': HERO_FONT_OPTIONS[3].value,
     })
 
     expect(sanitizeInlineStyle('font-family: Custom Serif')).toEqual({
+      'font-family': HERO_FONT_OPTIONS[4].value,
+    })
+    expect(
+      sanitizeInlineStyle('font-family: "Cormorant Garamond", Georgia, serif'),
+    ).toEqual({
       'font-family': HERO_FONT_OPTIONS[0].value,
     })
   })

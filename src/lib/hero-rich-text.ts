@@ -6,9 +6,20 @@ export interface HeroFontOption {
 }
 
 export const HERO_FONT_OPTIONS: readonly HeroFontOption[] = [
-  { label: 'Editorial Serif', value: 'Georgia, Cambria, serif' },
-  { label: 'Clean Sans', value: 'system-ui, -apple-system, sans-serif' },
-  { label: 'Classic Display', value: '"Times New Roman", Times, serif' },
+  {
+    label: 'Cormorant Garamond (Luxury Serif)',
+    value: "'Cormorant Garamond', Georgia, serif",
+  },
+  {
+    label: 'Playfair Display (Boutique Serif)',
+    value: "'Playfair Display', Georgia, serif",
+  },
+  { label: 'Lora (Warm Serif)', value: "'Lora', Georgia, serif" },
+  {
+    label: 'DM Sans (Clean Sans)',
+    value: "'DM Sans', system-ui, sans-serif",
+  },
+  { label: 'Editorial Serif (Georgia)', value: 'Georgia, Cambria, serif' },
   { label: 'Monospace', value: 'ui-monospace, SFMono-Regular, monospace' },
 ] as const
 
@@ -43,8 +54,12 @@ const ALLOWED_TAGS = new Set([
   'span',
 ])
 
-const ALLOWED_FONT_FAMILIES = new Set(
-  HERO_FONT_OPTIONS.map((opt) => opt.value.toLowerCase().replace(/\s+/g, ' ')),
+function normalizeFontFamilyKey(font: string): string {
+  return font.replace(/['"]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+const ALLOWED_FONT_FAMILY_MAP = new Map<string, string>(
+  HERO_FONT_OPTIONS.map((opt) => [normalizeFontFamilyKey(opt.value), opt.value]),
 )
 
 const FONT_SIZE_RE = /^(\d{1,2}(?:\.\d+)?)(px|rem)$/i
@@ -108,15 +123,24 @@ export function sanitizeInlineStyle(rawStyle: string): Record<string, string> {
         }
       }
     } else if (prop === 'font-family') {
-      const normalized = val.toLowerCase().replace(/\s+/g, ' ')
-      if (ALLOWED_FONT_FAMILIES.has(normalized)) {
-        safe['font-family'] = val
-      } else if (normalized.includes('serif') && !normalized.includes('sans')) {
+      const normalized = normalizeFontFamilyKey(val)
+      const exactMatch = ALLOWED_FONT_FAMILY_MAP.get(normalized)
+      if (exactMatch) {
+        safe['font-family'] = exactMatch
+      } else if (normalized.includes('cormorant')) {
         safe['font-family'] = HERO_FONT_OPTIONS[0].value
-      } else if (normalized.includes('mono')) {
-        safe['font-family'] = HERO_FONT_OPTIONS[3].value
-      } else if (normalized.includes('sans')) {
+      } else if (normalized.includes('playfair')) {
         safe['font-family'] = HERO_FONT_OPTIONS[1].value
+      } else if (normalized.includes('lora')) {
+        safe['font-family'] = HERO_FONT_OPTIONS[2].value
+      } else if (normalized.includes('dm sans')) {
+        safe['font-family'] = HERO_FONT_OPTIONS[3].value
+      } else if (normalized.includes('mono')) {
+        safe['font-family'] = HERO_FONT_OPTIONS[5].value
+      } else if (normalized.includes('serif') && !normalized.includes('sans')) {
+        safe['font-family'] = HERO_FONT_OPTIONS[4].value
+      } else if (normalized.includes('sans')) {
+        safe['font-family'] = HERO_FONT_OPTIONS[3].value
       }
     } else if (prop === 'font-weight') {
       const lower = val.toLowerCase()
@@ -186,9 +210,9 @@ function styleMapToCssProperties(
 }
 
 function extractStyleAttribute(attrString: string): string {
-  const match =
-    /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrString)
-  return match ? (match[1] || match[2] || '') : ''
+  const match = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrString)
+  const raw = match ? match[1] || match[2] || '' : ''
+  return raw ? unescapeHtmlEntities(raw) : ''
 }
 
 function serializeNodesToHtml(nodes: RichTextNode[]): string {
@@ -307,6 +331,10 @@ export function hasVisibleRichText(rawHtml?: string | null): boolean {
   return walk(nodes)
 }
 
+export const DEFAULT_LUXURY_HERO_HTML =
+  `<p style="text-align: center"><span style="font-family: ${HERO_FONT_OPTIONS[0].value}; font-size: 64px; color: #FAF8F4">Where island </span><em style="font-family: ${HERO_FONT_OPTIONS[0].value}; font-size: 64px; color: #FAF8F4">calm</em><span style="font-family: ${HERO_FONT_OPTIONS[0].value}; font-size: 64px; color: #FAF8F4"> stays</span></p>` +
+  `<p style="text-align: center"><span style="font-family: ${HERO_FONT_OPTIONS[3].value}; font-size: 16px; color: #E7E5E4">Boutique coastal rooms on Camotes Island, Cebu.</span></p>`
+
 export function buildDefaultHeroContentHtml(
   title?: string | null,
   subtitle?: string | null,
@@ -316,12 +344,12 @@ export function buildDefaultHeroContentHtml(
   const cleanSubtitle = subtitle?.trim()
   if (cleanTitle) {
     lines.push(
-      `<p><span style="font-family: ${HERO_FONT_OPTIONS[0].value}; font-size: 56px; font-weight: 600; color: #FAF8F4">${escapeHtmlText(cleanTitle)}</span></p>`,
+      `<p style="text-align: center"><span style="font-family: ${HERO_FONT_OPTIONS[0].value}; font-size: 64px; color: #FAF8F4">${escapeHtmlText(cleanTitle)}</span></p>`,
     )
   }
   if (cleanSubtitle) {
     lines.push(
-      `<p><span style="font-family: ${HERO_FONT_OPTIONS[1].value}; font-size: 18px; color: #E7E5E4">${escapeHtmlText(cleanSubtitle)}</span></p>`,
+      `<p style="text-align: center"><span style="font-family: ${HERO_FONT_OPTIONS[3].value}; font-size: 16px; color: #E7E5E4">${escapeHtmlText(cleanSubtitle)}</span></p>`,
     )
   }
   return lines.join('')

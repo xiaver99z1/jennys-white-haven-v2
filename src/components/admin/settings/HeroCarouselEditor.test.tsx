@@ -70,7 +70,7 @@ describe('HeroCarouselEditor', () => {
 
     // Rich text toolbar actions (font style, font size, bold, italic, align, color, preset lines)
     fireEvent.change(screen.getByLabelText('Font style'), {
-      target: { value: 'system-ui, -apple-system, sans-serif' },
+      target: { value: "'DM Sans', system-ui, sans-serif" },
     })
     fireEvent.change(screen.getByLabelText('Font size'), {
       target: { value: '36px' },
@@ -132,13 +132,14 @@ describe('HeroCarouselEditor', () => {
     render(<StatefulHeroHarness onConfigChange={onConfigChange} />)
 
     const stage = screen.getByLabelText('Interactive hero preview canvas')
+    // Preview viewport is 640x360 => exact 0.5x scale of canonical 1280x720 stage
     vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
       left: 0,
       top: 0,
-      width: 500,
-      height: 300,
-      right: 500,
-      bottom: 300,
+      width: 640,
+      height: 360,
+      right: 640,
+      bottom: 360,
       x: 0,
       y: 0,
       toJSON: () => ({}),
@@ -146,6 +147,7 @@ describe('HeroCarouselEditor', () => {
 
     const dragItem = (label: string, clientX: number, clientY: number) => {
       const el = screen.getByLabelText(label)
+      // Scaled box 100x50 centered at (50, 25) in viewport coords => 200x100 in 1280x720
       vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
         left: 0,
         top: 0,
@@ -157,27 +159,51 @@ describe('HeroCarouselEditor', () => {
         y: 0,
         toJSON: () => ({}),
       })
-      fireEvent.pointerDown(el, { pointerId: 1, clientX: 0, clientY: 0 })
+      fireEvent.pointerDown(el, { pointerId: 1, clientX: 50, clientY: 25 })
       fireEvent.pointerMove(el, { pointerId: 1, clientX, clientY })
       fireEvent.pointerUp(el, { pointerId: 1, clientX, clientY })
     }
 
-    dragItem('Draggable hero text', 200, 125)
-    dragItem('Draggable Explore Rooms button', 100, 150)
-    dragItem('Draggable check-in and check-out section', 200, 200)
+    // Center at (320, 180) in 640x360 viewport => (50%, 50%)
+    dragItem('Draggable hero text', 320, 180)
+    // Center at (160, 216) in 640x360 viewport => (25%, 60%)
+    dragItem('Draggable Explore Rooms button', 160, 216)
+    // Center at (320, 288) in 640x360 viewport => (50%, 80%)
+    dragItem('Draggable check-in and check-out section', 320, 288)
 
     const latest = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
     expect(latest.slides[0].textPosition).toEqual({ x: 50, y: 50 })
     expect(latest.ctaPosition).toEqual({ x: 25, y: 60 })
     expect(latest.bookingBarPosition).toEqual({ x: 50, y: 80 })
 
-    // Reset positions snaps back to defaults
+    // Resize text box wider from the right handle (to fit one line)
+    const rightHandle = screen.getByLabelText('Resize hero text from right')
+    fireEvent.pointerDown(rightHandle, { pointerId: 2, clientX: 550, clientY: 180 })
+    fireEvent.pointerMove(rightHandle, { pointerId: 2, clientX: 620, clientY: 180 })
+    fireEvent.pointerUp(rightHandle, { pointerId: 2, clientX: 620, clientY: 180 })
+
+    const resizedRight = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(resizedRight.slides[0].textWidth).toBeGreaterThan(72)
+
+    // Resize text box from the left handle
+    const leftHandle = screen.getByLabelText('Resize hero text from left')
+    fireEvent.pointerDown(leftHandle, { pointerId: 3, clientX: 90, clientY: 180 })
+    fireEvent.pointerMove(leftHandle, { pointerId: 3, clientX: 30, clientY: 180 })
+    fireEvent.pointerUp(leftHandle, { pointerId: 3, clientX: 30, clientY: 180 })
+
+    const resizedLeft = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(resizedLeft.slides[0].textWidth).toBeGreaterThan(
+      resizedRight.slides[0].textWidth ?? 0,
+    )
+
+    // Reset positions snaps back to defaults including textWidth
     fireEvent.click(screen.getByRole('button', { name: /Reset Positions/i }))
     const reset = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
     expect(reset.ctaPosition).toEqual(DEFAULT_HERO_CONFIG.ctaPosition)
     expect(reset.bookingBarPosition).toEqual(
       DEFAULT_HERO_CONFIG.bookingBarPosition,
     )
+    expect(reset.slides[0].textWidth).toBe(72)
   })
 
   it('uploads compressed slide photos, supports relative URLs, and handles upload errors', async () => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import {
   ArrowLeft,
@@ -16,7 +16,14 @@ import {
   Trash2,
   Users,
 } from 'lucide-react'
-import { DEFAULT_HERO_POSITIONS } from '#/lib/constants/cms'
+import {
+  DEFAULT_HERO_POSITIONS,
+  DEFAULT_HERO_TEXT_WIDTH,
+  HERO_CANVAS_HEIGHT,
+  HERO_CANVAS_WIDTH,
+  MAX_HERO_TEXT_WIDTH,
+  MIN_HERO_TEXT_WIDTH,
+} from '#/lib/constants/cms'
 import { getErrorMessage } from '#/lib/formatters'
 import { hasVisibleRichText } from '#/lib/hero-rich-text'
 import {
@@ -50,11 +57,11 @@ interface HeroCarouselEditorProps {
   onUploadingChange?: (uploading: boolean) => void
 }
 
-function posStyle(pos: HeroElementPosition): CSSProperties {
+function centerAnchorStyle(pos: HeroElementPosition): CSSProperties {
   return {
     left: `${pos.x}%`,
     top: `${pos.y}%`,
-    transform: `translate(-${pos.x}%, -${pos.y}%)`,
+    transform: 'translate(-50%, -50%)',
   }
 }
 
@@ -74,18 +81,45 @@ export function HeroCarouselEditor({
   )
   const [uploadingSlideIds, setUploadingSlideIds] = useState<string[]>([])
   const [draggingTarget, setDraggingTarget] = useState<DragTarget | null>(null)
+  const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(
+    null,
+  )
+  const [snappedCenterX, setSnappedCenterX] = useState(false)
+  const [previewScale, setPreviewScale] = useState(0.5)
 
   const activeUploadsRef = useRef(0)
-  const stageRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
   const dragStateRef = useRef<{
     target: DragTarget
     slideId: string
     pointerId: number
-    offsetX: number
-    offsetY: number
+    grabOffsetX: number
+    grabOffsetY: number
     elWidth: number
     elHeight: number
   } | null>(null)
+  const resizeStateRef = useRef<{
+    side: 'left' | 'right'
+    slideId: string
+    pointerId: number
+    anchorEdgePx: number
+  } | null>(null)
+
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const updateScale = () => {
+      const width = el.getBoundingClientRect().width
+      if (width > 0) {
+        setPreviewScale(width / HERO_CANVAS_WIDTH)
+      }
+    }
+    updateScale()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateScale)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const activeSlideIndex = Math.max(
     0,
@@ -115,6 +149,7 @@ export function HeroCarouselEditor({
           contentHtml: '',
           showText: true,
           textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+          textWidth: DEFAULT_HERO_TEXT_WIDTH,
         },
       ],
     }))
@@ -188,17 +223,31 @@ export function HeroCarouselEditor({
     e: ReactPointerEvent<HTMLDivElement>,
   ) {
     if (disabled) return
-    const stage = stageRef.current
-    if (!stage) return
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    const stageRect = viewport.getBoundingClientRect()
+    const scale =
+      stageRect.width > 0 ? stageRect.width / HERO_CANVAS_WIDTH : previewScale
     const elRect = e.currentTarget.getBoundingClientRect()
+
+    const elWidth = elRect.width / scale
+    const elHeight = elRect.height / scale
+    const elCenterX =
+      (elRect.left + elRect.width / 2 - stageRect.left) / scale
+    const elCenterY =
+      (elRect.top + elRect.height / 2 - stageRect.top) / scale
+    const pointerCanvasX = (e.clientX - stageRect.left) / scale
+    const pointerCanvasY = (e.clientY - stageRect.top) / scale
+
     dragStateRef.current = {
       target,
       slideId: activeSlide.id,
       pointerId: e.pointerId,
-      offsetX: e.clientX - elRect.left,
-      offsetY: e.clientY - elRect.top,
-      elWidth: elRect.width,
-      elHeight: elRect.height,
+      grabOffsetX: pointerCanvasX - elCenterX,
+      grabOffsetY: pointerCanvasY - elCenterY,
+      elWidth,
+      elHeight,
     }
     setDraggingTarget(target)
     if (typeof e.currentTarget.setPointerCapture === 'function') {
@@ -208,18 +257,37 @@ export function HeroCarouselEditor({
 
   function handleDragMove(e: ReactPointerEvent<HTMLDivElement>) {
     const drag = dragStateRef.current
-    const stage = stageRef.current
-    if (!drag || !stage || drag.pointerId !== e.pointerId) return
+    const viewport = viewportRef.current
+    if (!drag || !viewport || drag.pointerId !== e.pointerId) return
 
-    const stageRect = stage.getBoundingClientRect()
-    const maxX = Math.max(1, stageRect.width - drag.elWidth)
-    const maxY = Math.max(1, stageRect.height - drag.elHeight)
-    const rawX = ((e.clientX - drag.offsetX - stageRect.left) / maxX) * 100
-    const rawY = ((e.clientY - drag.offsetY - stageRect.top) / maxY) * 100
-    const nextPos: HeroElementPosition = {
-      x: Math.min(100, Math.max(0, Math.round(rawX * 10) / 10)),
-      y: Math.min(100, Math.max(0, Math.round(rawY * 10) / 10)),
-    }
+    const stageRect = viewport.getBoundingClientRect()
+    const scale =
+      stageRect.width > 0 ? stageRect.width / HERO_CANVAS_WIDTH : previewScale
+
+    const nextCenterX =
+      (e.clientX - stageRect.left) / scale - drag.grabOffsetX
+    const nextCenterY =
+      (e.clientY - stageRect.top) / scale - drag.grabOffsetY
+
+    const halfW = Math.min(drag.elWidth / 2, HERO_CANVAS_WIDTH / 2)
+    const halfH = Math.min(drag.elHeight / 2, HERO_CANVAS_HEIGHT / 2)
+
+    const clampedX = Math.min(
+      HERO_CANVAS_WIDTH - halfW,
+      Math.max(halfW, nextCenterX),
+    )
+    const clampedY = Math.min(
+      HERO_CANVAS_HEIGHT - halfH,
+      Math.max(halfH, nextCenterY),
+    )
+
+    let pctX = Math.round((clampedX / HERO_CANVAS_WIDTH) * 1000) / 10
+    const isNearCenter = Math.abs(pctX - 50) <= 1.5
+    if (isNearCenter) pctX = 50
+    setSnappedCenterX(isNearCenter)
+
+    const pctY = Math.round((clampedY / HERO_CANVAS_HEIGHT) * 1000) / 10
+    const nextPos: HeroElementPosition = { x: pctX, y: pctY }
 
     if (drag.target === 'text') {
       updateSlide(drag.slideId, { textPosition: nextPos })
@@ -235,6 +303,109 @@ export function HeroCarouselEditor({
     if (!drag || drag.pointerId !== e.pointerId) return
     dragStateRef.current = null
     setDraggingTarget(null)
+    setSnappedCenterX(false)
+    if (
+      typeof e.currentTarget.hasPointerCapture === 'function' &&
+      e.currentTarget.hasPointerCapture(e.pointerId)
+    ) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+  }
+
+  function handleResizeStart(
+    side: 'left' | 'right',
+    e: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (disabled) return
+    e.stopPropagation()
+    const currentWidthPct = activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH
+    const currentWidthPx = (currentWidthPct / 100) * HERO_CANVAS_WIDTH
+    const currentCenterPx =
+      (activeSlide.textPosition.x / 100) * HERO_CANVAS_WIDTH
+    const leftEdgePx = currentCenterPx - currentWidthPx / 2
+    const rightEdgePx = currentCenterPx + currentWidthPx / 2
+
+    resizeStateRef.current = {
+      side,
+      slideId: activeSlide.id,
+      pointerId: e.pointerId,
+      anchorEdgePx: side === 'right' ? leftEdgePx : rightEdgePx,
+    }
+    setResizingSide(side)
+    if (typeof e.currentTarget.setPointerCapture === 'function') {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+  }
+
+  function handleResizeMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const resize = resizeStateRef.current
+    const viewport = viewportRef.current
+    if (!resize || !viewport || resize.pointerId !== e.pointerId) return
+    e.stopPropagation()
+
+    const stageRect = viewport.getBoundingClientRect()
+    const scale =
+      stageRect.width > 0 ? stageRect.width / HERO_CANVAS_WIDTH : previewScale
+    const pointerCanvasX = (e.clientX - stageRect.left) / scale
+
+    const minWidthPx = (MIN_HERO_TEXT_WIDTH / 100) * HERO_CANVAS_WIDTH
+    const maxWidthPx = (MAX_HERO_TEXT_WIDTH / 100) * HERO_CANVAS_WIDTH
+
+    let nextLeftPx: number
+    let nextRightPx: number
+
+    if (resize.side === 'right') {
+      nextLeftPx = Math.max(0, resize.anchorEdgePx)
+      nextRightPx = Math.min(
+        HERO_CANVAS_WIDTH,
+        Math.max(nextLeftPx + minWidthPx, pointerCanvasX),
+      )
+      if (nextRightPx - nextLeftPx > maxWidthPx) {
+        nextRightPx = nextLeftPx + maxWidthPx
+      }
+    } else {
+      nextRightPx = Math.min(HERO_CANVAS_WIDTH, resize.anchorEdgePx)
+      nextLeftPx = Math.max(
+        0,
+        Math.min(nextRightPx - minWidthPx, pointerCanvasX),
+      )
+      if (nextRightPx - nextLeftPx > maxWidthPx) {
+        nextLeftPx = nextRightPx - maxWidthPx
+      }
+    }
+
+    const nextWidthPct = Math.min(
+      MAX_HERO_TEXT_WIDTH,
+      Math.max(
+        MIN_HERO_TEXT_WIDTH,
+        Math.round(((nextRightPx - nextLeftPx) / HERO_CANVAS_WIDTH) * 1000) /
+          10,
+      ),
+    )
+    const nextCenterX =
+      Math.round((((nextLeftPx + nextRightPx) / 2) / HERO_CANVAS_WIDTH) * 1000) /
+      10
+
+    onChange((prev) => ({
+      ...prev,
+      slides: prev.slides.map((s) =>
+        s.id === resize.slideId
+          ? {
+              ...s,
+              textWidth: nextWidthPct,
+              textPosition: { ...s.textPosition, x: nextCenterX },
+            }
+          : s,
+      ),
+    }))
+  }
+
+  function handleResizeEnd(e: ReactPointerEvent<HTMLDivElement>) {
+    const resize = resizeStateRef.current
+    if (!resize || resize.pointerId !== e.pointerId) return
+    e.stopPropagation()
+    resizeStateRef.current = null
+    setResizingSide(null)
     if (
       typeof e.currentTarget.hasPointerCapture === 'function' &&
       e.currentTarget.hasPointerCapture(e.pointerId)
@@ -250,7 +421,11 @@ export function HeroCarouselEditor({
       bookingBarPosition: { ...DEFAULT_HERO_POSITIONS.bookingBar },
       slides: prev.slides.map((s) =>
         s.id === activeSlide.id
-          ? { ...s, textPosition: { ...DEFAULT_HERO_POSITIONS.text } }
+          ? {
+              ...s,
+              textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+              textWidth: DEFAULT_HERO_TEXT_WIDTH,
+            }
           : s,
       ),
     }))
@@ -262,7 +437,7 @@ export function HeroCarouselEditor({
 
   return (
     <div className="space-y-6">
-      {/* 1. Interactive Live Hero Canvas (Drag & Drop Positioning) */}
+      {/* 1. True 1:1 Scaled 1280×720 WYSIWYG Hero Canvas */}
       <div className="space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -270,8 +445,8 @@ export function HeroCarouselEditor({
               Live Hero Canvas — Drag Elements to Position
             </h3>
             <p className="text-[11px] text-stone-400">
-              Drag the slide text, Explore Rooms button, or Check-in/Check-out
-              bar anywhere on the hero preview.
+              Scaled 1:1 desktop preview (1280×720). Drag slide text, Explore
+              Rooms button, or Check-in/Check-out bar to place them accurately.
             </p>
           </div>
           <button
@@ -286,22 +461,186 @@ export function HeroCarouselEditor({
         </div>
 
         <div
-          ref={stageRef}
+          ref={viewportRef}
           aria-label="Interactive hero preview canvas"
-          className="relative w-full aspect-[16/9] min-h-[280px] rounded-2xl overflow-hidden border border-stone-200 bg-stone-900 select-none touch-none"
+          className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden border border-stone-200 bg-stone-900 select-none touch-none"
         >
-          {activeSlide.image ? (
-            <img
-              src={activeSlide.image}
-              alt={`Slide ${activeSlideIndex + 1} preview`}
-              className="absolute inset-0 w-full h-full object-cover opacity-80 pointer-events-none"
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-stone-800 via-stone-900 to-amber-950/80 pointer-events-none" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/75 via-stone-950/30 to-stone-950/15 pointer-events-none" />
+          {/* Scaled canonical 1280×720 stage matching public HeroCarouselSection 1:1 */}
+          <div
+            style={{
+              width: HERO_CANVAS_WIDTH,
+              height: HERO_CANVAS_HEIGHT,
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+            className="absolute top-0 left-0 overflow-hidden bg-stone-900"
+          >
+            {activeSlide.image ? (
+              <img
+                src={activeSlide.image}
+                alt={`Slide ${activeSlideIndex + 1} preview`}
+                className="absolute inset-0 w-full h-full object-cover opacity-80 pointer-events-none"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-stone-800 via-stone-900 to-amber-950/80 pointer-events-none" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-950/35 to-stone-950/20 pointer-events-none" />
 
-          {/* Preview slide switcher arrows */}
+            {/* Subtle Center Snap Guide Line */}
+            {draggingTarget && snappedCenterX && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px border-l-2 border-dashed border-amber-300/80 z-30 pointer-events-none"
+              />
+            )}
+
+            {/* Draggable & Resizable Slide Text Overlay (exact real-size HeroRichTextContent) */}
+            {showPreviewText && (
+              <div
+                role="group"
+                aria-label="Draggable hero text"
+                style={{
+                  ...centerAnchorStyle(activeSlide.textPosition),
+                  width: `${activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH}%`,
+                }}
+                onPointerDown={(e) => handleDragStart('text', e)}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                className={`absolute z-20 rounded-xl border-2 border-dashed transition-colors cursor-grab active:cursor-grabbing ${
+                  draggingTarget === 'text' || resizingSide !== null
+                    ? 'border-amber-300 bg-stone-950/35'
+                    : 'border-white/40 hover:border-amber-300/80'
+                }`}
+              >
+                <div className="absolute -top-7 left-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-950/85 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap pointer-events-none">
+                  <GripVertical className="w-3.5 h-3.5" />
+                  Slide Text ({Math.round(activeSlide.textPosition.x)}%,{' '}
+                  {Math.round(activeSlide.textPosition.y)}%) · W{' '}
+                  {Math.round(
+                    activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH,
+                  )}
+                  %
+                </div>
+
+                {/* Left Width Resize Handle */}
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize hero text from left"
+                  onPointerDown={(e) => handleResizeStart('left', e)}
+                  onPointerMove={handleResizeMove}
+                  onPointerUp={handleResizeEnd}
+                  className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-30"
+                >
+                  <span className="w-1.5 h-7 rounded-full bg-amber-300 border border-stone-900 shadow-sm" />
+                </div>
+
+                {/* Right Width Resize Handle */}
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize hero text from right"
+                  onPointerDown={(e) => handleResizeStart('right', e)}
+                  onPointerMove={handleResizeMove}
+                  onPointerUp={handleResizeEnd}
+                  className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-30"
+                >
+                  <span className="w-1.5 h-7 rounded-full bg-amber-300 border border-stone-900 shadow-sm" />
+                </div>
+
+                <div className="pointer-events-none text-[#FAF8F4]">
+                  <HeroRichTextContent
+                    html={activeSlide.contentHtml}
+                    className="drop-shadow-xs"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Draggable Explore Rooms CTA Overlay (exact real-size button) */}
+            {showPreviewCta && (
+              <div
+                role="group"
+                aria-label="Draggable Explore Rooms button"
+                style={centerAnchorStyle(config.ctaPosition)}
+                onPointerDown={(e) => handleDragStart('cta', e)}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                className={`absolute z-20 rounded-full border-2 border-dashed cursor-grab active:cursor-grabbing ${
+                  draggingTarget === 'cta'
+                    ? 'border-amber-300 bg-stone-950/40'
+                    : 'border-white/40 hover:border-amber-300/80'
+                }`}
+              >
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-950/85 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap pointer-events-none">
+                  <GripVertical className="w-3.5 h-3.5" />
+                  CTA ({Math.round(config.ctaPosition.x)}%,{' '}
+                  {Math.round(config.ctaPosition.y)}%)
+                </div>
+                <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold shadow-lg whitespace-nowrap pointer-events-none">
+                  {ctaLabel}
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </div>
+            )}
+
+            {/* Draggable Check-in / Check-out Bar Overlay (exact real-size 4-column bar) */}
+            {config.showBookingBar && (
+              <div
+                role="group"
+                aria-label="Draggable check-in and check-out section"
+                style={centerAnchorStyle(config.bookingBarPosition)}
+                onPointerDown={(e) => handleDragStart('bookingBar', e)}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                className={`absolute z-10 w-[88%] max-w-5xl rounded-2xl border-2 border-dashed cursor-grab active:cursor-grabbing ${
+                  draggingTarget === 'bookingBar'
+                    ? 'border-amber-400'
+                    : 'border-white/40 hover:border-amber-300/80'
+                }`}
+              >
+                <div className="absolute -top-7 left-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-950/85 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap pointer-events-none">
+                  <GripVertical className="w-3.5 h-3.5" />
+                  Booking Bar ({Math.round(config.bookingBarPosition.x)}%,{' '}
+                  {Math.round(config.bookingBarPosition.y)}%)
+                </div>
+                <div className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-5 shadow-2xl border border-stone-200/60 grid grid-cols-4 gap-3 items-end pointer-events-none">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Check-in
+                    </div>
+                    <div className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-400">
+                      dd/mm/yyyy
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Check-out
+                    </div>
+                    <div className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-400">
+                      dd/mm/yyyy
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5">
+                      <Users className="w-3.5 h-3.5" />
+                      Guests
+                    </div>
+                    <div className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-800">
+                      2 Guests
+                    </div>
+                  </div>
+                  <div className="w-full py-3 px-5 rounded-xl bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold text-center">
+                    Check Availability
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Preview slide switcher arrows (unscaled so buttons stay comfortable to click) */}
           {config.slides.length > 1 && (
             <>
               <button
@@ -313,7 +652,7 @@ export function HeroCarouselEditor({
                     config.slides.length
                   setSelectedSlideId(config.slides[prevIdx].id)
                 }}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 p-1.5 rounded-full bg-stone-950/50 text-white hover:bg-stone-950/80 cursor-pointer"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-30 p-1.5 rounded-full bg-stone-950/60 text-white hover:bg-stone-950/85 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -324,95 +663,11 @@ export function HeroCarouselEditor({
                   const nextIdx = (activeSlideIndex + 1) % config.slides.length
                   setSelectedSlideId(config.slides[nextIdx].id)
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 p-1.5 rounded-full bg-stone-950/50 text-white hover:bg-stone-950/80 cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 p-1.5 rounded-full bg-stone-950/60 text-white hover:bg-stone-950/85 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </>
-          )}
-
-          {/* Draggable Slide Text Overlay */}
-          {showPreviewText && (
-            <div
-              role="group"
-              aria-label="Draggable hero text"
-              style={posStyle(activeSlide.textPosition)}
-              onPointerDown={(e) => handleDragStart('text', e)}
-              onPointerMove={handleDragMove}
-              onPointerUp={handleDragEnd}
-              className={`absolute z-10 max-w-[75%] px-3 py-2 rounded-xl border border-dashed transition-colors cursor-grab active:cursor-grabbing ${
-                draggingTarget === 'text'
-                  ? 'border-amber-300 bg-stone-950/50'
-                  : 'border-white/40 hover:border-amber-300/80 bg-stone-950/20'
-              }`}
-            >
-              <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest text-amber-200/90 mb-1 pointer-events-none">
-                <GripVertical className="w-3 h-3" />
-                Slide Text ({Math.round(activeSlide.textPosition.x)}%,{' '}
-                {Math.round(activeSlide.textPosition.y)}%)
-              </div>
-              <div className="pointer-events-none origin-top-left scale-75 sm:scale-90">
-                <HeroRichTextContent html={activeSlide.contentHtml} />
-              </div>
-            </div>
-          )}
-
-          {/* Draggable Explore Rooms CTA Overlay */}
-          {showPreviewCta && (
-            <div
-              role="group"
-              aria-label="Draggable Explore Rooms button"
-              style={posStyle(config.ctaPosition)}
-              onPointerDown={(e) => handleDragStart('cta', e)}
-              onPointerMove={handleDragMove}
-              onPointerUp={handleDragEnd}
-              className={`absolute z-10 p-1 rounded-full border border-dashed cursor-grab active:cursor-grabbing ${
-                draggingTarget === 'cta'
-                  ? 'border-amber-300 bg-stone-950/50'
-                  : 'border-white/40 hover:border-amber-300/80'
-              }`}
-            >
-              <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#FAF8F4] text-stone-900 text-[10px] uppercase tracking-[0.16em] font-semibold pointer-events-none">
-                <GripVertical className="w-3 h-3 text-stone-400" />
-                {ctaLabel}
-                <ArrowRight className="w-3 h-3" />
-              </div>
-            </div>
-          )}
-
-          {/* Draggable Check-in / Check-out Bar Overlay */}
-          {config.showBookingBar && (
-            <div
-              role="group"
-              aria-label="Draggable check-in and check-out section"
-              style={posStyle(config.bookingBarPosition)}
-              onPointerDown={(e) => handleDragStart('bookingBar', e)}
-              onPointerMove={handleDragMove}
-              onPointerUp={handleDragEnd}
-              className={`absolute z-10 w-[86%] max-w-lg rounded-xl p-2 bg-[#FAF8F4]/95 border-2 border-dashed shadow-xl cursor-grab active:cursor-grabbing ${
-                draggingTarget === 'bookingBar'
-                  ? 'border-amber-500'
-                  : 'border-stone-300 hover:border-amber-400'
-              }`}
-            >
-              <div className="grid grid-cols-4 gap-1.5 items-center text-[9px] text-stone-600 pointer-events-none">
-                <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white border border-stone-200">
-                  <Calendar className="w-2.5 h-2.5 text-stone-400 shrink-0" />
-                  <span className="truncate">Check-in</span>
-                </div>
-                <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white border border-stone-200">
-                  <Calendar className="w-2.5 h-2.5 text-stone-400 shrink-0" />
-                  <span className="truncate">Check-out</span>
-                </div>
-                <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white border border-stone-200">
-                  <Users className="w-2.5 h-2.5 text-stone-400 shrink-0" />
-                  <span className="truncate">2 Guests</span>
-                </div>
-                <div className="px-2 py-1.5 rounded-lg bg-stone-900 text-[#FAF8F4] text-center font-semibold truncate">
-                  Check Availability
-                </div>
-              </div>
-            </div>
           )}
         </div>
       </div>

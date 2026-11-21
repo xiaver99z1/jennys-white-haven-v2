@@ -536,6 +536,7 @@ export interface HeroSlideItem {
   contentHtml: string
   showText: boolean
   textPosition: HeroElementPosition
+  textWidth?: number
 }
 
 export interface HeroCarouselConfig {

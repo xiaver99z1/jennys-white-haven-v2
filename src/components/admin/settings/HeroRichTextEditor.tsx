@@ -186,20 +186,32 @@ export function HeroRichTextEditor({
     const el = editorRef.current
     if (!el || disabled) return
     const p = document.createElement('p')
-    const span = document.createElement('span')
+    p.style.textAlign = 'center'
     if (kind === 'title') {
-      span.style.fontFamily = HERO_FONT_OPTIONS[0].value
-      span.style.fontSize = '56px'
-      span.style.fontWeight = '600'
-      span.style.color = '#FAF8F4'
-      span.textContent = "Jenny's White Haven"
+      const lead = document.createElement('span')
+      lead.style.fontFamily = HERO_FONT_OPTIONS[0].value
+      lead.style.fontSize = '64px'
+      lead.style.color = '#FAF8F4'
+      lead.textContent = 'Where island '
+      const accent = document.createElement('em')
+      accent.style.fontFamily = HERO_FONT_OPTIONS[0].value
+      accent.style.fontSize = '64px'
+      accent.style.color = '#FAF8F4'
+      accent.textContent = 'calm'
+      const tail = document.createElement('span')
+      tail.style.fontFamily = HERO_FONT_OPTIONS[0].value
+      tail.style.fontSize = '64px'
+      tail.style.color = '#FAF8F4'
+      tail.textContent = ' stays'
+      p.append(lead, accent, tail)
     } else {
-      span.style.fontFamily = HERO_FONT_OPTIONS[1].value
-      span.style.fontSize = '18px'
+      const span = document.createElement('span')
+      span.style.fontFamily = HERO_FONT_OPTIONS[3].value
+      span.style.fontSize = '16px'
       span.style.color = '#E7E5E4'
-      span.textContent = 'A cozy island sanctuary on Camotes Island, Cebu.'
+      span.textContent = 'Boutique coastal rooms on Camotes Island, Cebu.'
+      p.appendChild(span)
     }
-    p.appendChild(span)
     el.appendChild(p)
     emitCurrentHtml()
   }

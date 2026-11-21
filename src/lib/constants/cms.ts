@@ -8,28 +8,33 @@ import type {
   TouristSpotItem,
 } from '#/types'
 import {
+  DEFAULT_LUXURY_HERO_HTML,
   buildDefaultHeroContentHtml,
   sanitizeHeroRichText,
 } from '#/lib/hero-rich-text'
 
+export const HERO_CANVAS_WIDTH = 1280
+export const HERO_CANVAS_HEIGHT = 720
+export const DEFAULT_HERO_TEXT_WIDTH = 72
+export const MIN_HERO_TEXT_WIDTH = 20
+export const MAX_HERO_TEXT_WIDTH = 95
+
 export const DEFAULT_HERO_POSITIONS: Readonly<
   Record<'text' | 'cta' | 'bookingBar', HeroElementPosition>
 > = {
-  text: { x: 8, y: 36 },
-  cta: { x: 8, y: 66 },
-  bookingBar: { x: 50, y: 92 },
+  text: { x: 50, y: 40 },
+  cta: { x: 50, y: 58 },
+  bookingBar: { x: 50, y: 80 },
 }
 
 export const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
   {
     id: 'hero-slide-1',
     image: '',
-    contentHtml: buildDefaultHeroContentHtml(
-      "Jenny's White Haven",
-      'An intimate rooms-only island sanctuary on the quiet shores of Camotes Island, Cebu.',
-    ),
+    contentHtml: DEFAULT_LUXURY_HERO_HTML,
     showText: true,
     textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+    textWidth: DEFAULT_HERO_TEXT_WIDTH,
   },
 ]
 
@@ -62,6 +67,16 @@ function clampPosition(
   return { x, y }
 }
 
+function clampTextWidth(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return DEFAULT_HERO_TEXT_WIDTH
+  }
+  return Math.min(
+    MAX_HERO_TEXT_WIDTH,
+    Math.max(MIN_HERO_TEXT_WIDTH, Math.round(raw * 10) / 10),
+  )
+}
+
 export function serializeHeroConfig(config: HeroCarouselConfig): string {
   return JSON.stringify(config)
 }
@@ -85,6 +100,7 @@ export function parseHeroConfig(
             contentHtml: idx === 0 ? legacyHtml : '',
             showText: idx === 0,
             textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+            textWidth: DEFAULT_HERO_TEXT_WIDTH,
           }))
         : [
             {
@@ -93,6 +109,7 @@ export function parseHeroConfig(
               contentHtml: legacyHtml,
               showText: true,
               textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+              textWidth: DEFAULT_HERO_TEXT_WIDTH,
             },
           ]
     return {
@@ -134,6 +151,7 @@ export function parseHeroConfig(
           item.textPosition,
           DEFAULT_HERO_POSITIONS.text,
         ),
+        textWidth: clampTextWidth(item.textWidth),
       }))
 
     const rawInterval =
