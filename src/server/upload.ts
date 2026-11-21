@@ -27,18 +27,28 @@ const ALLOWED_PUBLIC_IMAGE_MIME_TYPES = new Set([
   'image/gif',
 ])
 
-function normalizeImageMimeType(rawMime: string, filename?: string): string {
+export function normalizeImageMimeType(
+  rawMime: string,
+  filename?: string,
+): string {
   const lower = rawMime.trim().toLowerCase()
-  if (lower === 'image/jpg' || lower === 'image/jfif' || lower === 'image/pjpeg') {
+  if (
+    lower === 'image/jpg' ||
+    lower === 'image/jfif' ||
+    lower === 'image/pjpeg'
+  ) {
     return 'image/jpeg'
   }
   if (lower) return lower
-  const ext = filename?.split('.').pop()?.toLowerCase()
+  const trimmedName = filename?.trim().toLowerCase() ?? ''
+  const dotIdx = trimmedName.lastIndexOf('.')
+  const ext = dotIdx !== -1 ? trimmedName.slice(dotIdx + 1) : ''
   if (ext === 'jpg' || ext === 'jpeg' || ext === 'jfif') return 'image/jpeg'
   if (ext === 'png') return 'image/png'
   if (ext === 'gif') return 'image/gif'
   if (ext === 'avif') return 'image/avif'
-  return 'image/webp'
+  if (ext === 'webp') return 'image/webp'
+  return ''
 }
 
 const ALLOWED_PRIVATE_MIME_TYPES = new Set([

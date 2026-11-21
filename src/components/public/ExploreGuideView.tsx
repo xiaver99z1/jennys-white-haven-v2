@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
@@ -29,6 +29,16 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
   >('ALL')
   const [activeSpot, setActiveSpot] = useState<TouristSpotItem | null>(null)
   const [activePhotoIndex, setActivePhotoIndex] = useState(0)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  const handleCloseModal = useCallback(() => {
+    setActiveSpot(null)
+    const trigger = triggerRef.current
+    triggerRef.current = null
+    trigger?.focus()
+  }, [])
 
   const isPublished = Boolean(exploreSection?.isPublished)
   const meta = exploreSection?.metadata ?? {}
@@ -60,9 +70,15 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
 
   useEffect(() => {
     if (!activeSpot) return
+    closeButtonRef.current?.focus()
+  }, [activeSpot])
+
+  useEffect(() => {
+    if (!activeSpot) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setActiveSpot(null)
+        e.preventDefault()
+        handleCloseModal()
       } else if (e.key === 'ArrowRight' && activeSpotImages.length > 1) {
         setActivePhotoIndex((prev) => (prev + 1) % activeSpotImages.length)
       } else if (e.key === 'ArrowLeft' && activeSpotImages.length > 1) {
@@ -70,13 +86,41 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
           (prev) =>
             (prev - 1 + activeSpotImages.length) % activeSpotImages.length,
         )
+      } else if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+        if (focusable.length === 0) {
+          e.preventDefault()
+          dialogRef.current.focus()
+          return
+        }
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeSpot, activeSpotImages.length])
+  }, [activeSpot, activeSpotImages.length, handleCloseModal])
 
-  function handleOpenSpot(spot: TouristSpotItem) {
+  function handleOpenSpot(
+    spot: TouristSpotItem,
+    triggerEl?: HTMLElement | null,
+  ) {
+    triggerRef.current =
+      triggerEl ??
+      (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null)
     setActiveSpot(spot)
     setActivePhotoIndex(0)
   }
@@ -233,7 +277,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                 >
                   <button
                     type="button"
-                    onClick={() => handleOpenSpot(spot)}
+                    onClick={(e) => handleOpenSpot(spot, e.currentTarget)}
                     aria-label={`View gallery for ${spot.name}`}
                     className="text-left flex-1 flex flex-col cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/50 rounded-3xl"
                   >
@@ -372,10 +416,12 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
       {/* Spot Photo Gallery & Details Modal */}
       {activeSpot && (
         <div
+          ref={dialogRef}
           role="dialog"
+          tabIndex={-1}
           aria-modal="true"
           aria-labelledby="spot-modal-title"
-          onClick={() => setActiveSpot(null)}
+          onClick={handleCloseModal}
           className="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
         >
           <div
@@ -402,10 +448,11 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                 )}
               </div>
               <button
+                ref={closeButtonRef}
                 type="button"
-                onClick={() => setActiveSpot(null)}
+                onClick={handleCloseModal}
                 aria-label="Close destination gallery"
-                className="p-2 rounded-full hover:bg-stone-100 text-stone-600 transition cursor-pointer shrink-0"
+                className="p-2 rounded-full hover:bg-stone-100 text-stone-600 transition cursor-pointer shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900/30"
               >
                 <X className="w-5 h-5" />
               </button>

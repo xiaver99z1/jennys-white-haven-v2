@@ -4,6 +4,7 @@ import {
   validateUploadAvatar,
   validatePresignedUploadInput,
   validatePrivateMediaInput,
+  normalizeImageMimeType,
   getPresignedUploadUrlHandler,
   getPrivateMediaUrlHandler,
   uploadAvatarHandler,
@@ -101,7 +102,7 @@ describe('upload-actions (Cloudflare R2 + Media)', () => {
     process.env = { ...originalEnv }
   })
 
-  it('validates input helpers', () => {
+  it('validates input helpers and normalizes image MIME types without mislabeling unknown extensions as WebP', () => {
     const fd = new FormData()
     expect(validateUploadAvatar(fd)).toBe(fd)
     expect(
@@ -110,6 +111,12 @@ describe('upload-actions (Cloudflare R2 + Media)', () => {
     expect(validatePrivateMediaInput({ objectKey: 'private/rec.pdf' })).toEqual(
       { objectKey: 'private/rec.pdf' },
     )
+    expect(normalizeImageMimeType('image/jpg', 'photo.jpg')).toBe('image/jpeg')
+    expect(normalizeImageMimeType('', 'photo.jfif')).toBe('image/jpeg')
+    expect(normalizeImageMimeType('', 'photo.png')).toBe('image/png')
+    expect(normalizeImageMimeType('', 'photo.webp')).toBe('image/webp')
+    expect(normalizeImageMimeType('', 'photo.bmp')).toBe('')
+    expect(normalizeImageMimeType('', 'noext')).toBe('')
   })
 
   it('creates presigned upload URL and stores PENDING_UPLOAD Media in transaction', async () => {

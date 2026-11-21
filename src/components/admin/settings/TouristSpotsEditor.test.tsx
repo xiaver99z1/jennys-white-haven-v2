@@ -78,10 +78,10 @@ describe('TouristSpotsEditor', () => {
       entranceFee: '₱50',
       description: 'Natural cave pool.',
       tips: 'Bring aqua shoes.',
-      image: 'https://cdn.example.com/bukilat-1.webp',
+      image: '/api/media/view?key=cms/bukilat-1.webp',
       images: [
-        'https://cdn.example.com/bukilat-1.webp',
-        'https://cdn.example.com/bukilat-2.webp',
+        '/api/media/view?key=cms/bukilat-1.webp',
+        '/api/media/view?key=cms/bukilat-2.webp',
       ],
     },
   ]
@@ -176,7 +176,7 @@ describe('TouristSpotsEditor', () => {
       { target: { value: 'Try grilled fish' } },
     )
 
-    // Add relative photo URL to spot 1 gallery
+    // Rejects Base64 data URLs and external image URLs
     const urlInput = screen.getByLabelText('Spot 1 image URL')
     expect(urlInput).toHaveAttribute('type', 'text')
     fireEvent.change(urlInput, {
@@ -185,6 +185,14 @@ describe('TouristSpotsEditor', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
     expect(onError).toHaveBeenCalledWith(
       expect.stringMatching(/Base64 data URLs cannot be stored/i),
+    )
+
+    fireEvent.change(urlInput, {
+      target: { value: 'https://external.example.com/santiago.webp' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
+    expect(onError).toHaveBeenCalledWith(
+      expect.stringMatching(/External image URLs are not allowed/i),
     )
 
     fireEvent.change(urlInput, {
@@ -202,8 +210,8 @@ describe('TouristSpotsEditor', () => {
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].images,
     ).toEqual([
-      'https://cdn.example.com/bukilat-2.webp',
-      'https://cdn.example.com/bukilat-1.webp',
+      '/api/media/view?key=cms/bukilat-2.webp',
+      '/api/media/view?key=cms/bukilat-1.webp',
     ])
 
     // Remove photo 1 from spot 2
@@ -212,7 +220,7 @@ describe('TouristSpotsEditor', () => {
     )
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].images,
-    ).toEqual(['https://cdn.example.com/bukilat-1.webp'])
+    ).toEqual(['/api/media/view?key=cms/bukilat-1.webp'])
 
     // Move spot 1 down, then back up, then delete spot 1
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 1 down' }))
@@ -303,15 +311,17 @@ describe('TouristSpotsEditor', () => {
     })
   })
 
-  it('validates unsupported file types and displays inline upload errors', async () => {
+  it('validates unsupported file types, keeps earlier successful batch uploads when a later photo fails, and displays inline upload errors', async () => {
     const onError = vi.fn()
     const onUploadingChange = vi.fn()
+    const onSpotsChange = vi.fn()
 
     render(
       <StatefulEditorHarness
         initialSpots={[{ ...sampleSpots[0], name: '' }]}
         onError={onError}
         onUploadingChange={onUploadingChange}
+        onSpotsChange={onSpotsChange}
       />,
     )
 
@@ -330,17 +340,24 @@ describe('TouristSpotsEditor', () => {
       screen.getByRole('alert'),
     ).toHaveTextContent(/Please select valid image files/i)
 
-    // Upload error displayed inline
-    mockUploadAvatar.mockRejectedValueOnce(new Error('Upload quota exceeded'))
-    const validFile = new File(['img'], 'beach.jpg', { type: 'image/jpeg' })
-    fireEvent.change(fileInput, { target: { files: [validFile] } })
+    // Batch upload where photo 1 succeeds and photo 2 fails: photo 1 is kept and error is displayed inline
+    mockUploadAvatar
+      .mockResolvedValueOnce('/api/media/view?key=cms/kept-photo.webp')
+      .mockRejectedValueOnce(new Error('Upload quota exceeded'))
+    const validFile1 = new File(['img1'], 'beach1.jpg', { type: 'image/jpeg' })
+    const validFile2 = new File(['img2'], 'beach2.jpg', { type: 'image/jpeg' })
+    fireEvent.change(fileInput, { target: { files: [validFile1, validFile2] } })
 
     await waitFor(() => {
-      expect(mockCompressImage).toHaveBeenCalledWith(validFile, 1280, 0.82)
+      expect(mockCompressImage).toHaveBeenCalledWith(validFile1, 1280, 0.82)
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Upload quota exceeded',
       )
       expect(onUploadingChange).toHaveBeenCalledWith(false)
+      const latest = onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]
+      expect(latest[0].images).toEqual([
+        '/api/media/view?key=cms/kept-photo.webp',
+      ])
     })
   })
 })

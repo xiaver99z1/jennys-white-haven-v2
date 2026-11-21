@@ -34,7 +34,7 @@ export function getCmsUploadPreset(
   }
 }
 
-const IMAGE_FILENAME_RE = /\.(?:jpe?g|jfif|png|webp|avif|bmp)$/i
+const IMAGE_FILENAME_RE = /\.(?:jpe?g|jfif|png|webp|avif|gif)$/i
 
 export function isSupportedImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true

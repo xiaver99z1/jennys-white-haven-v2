@@ -315,6 +315,36 @@ describe('cms-actions', () => {
       'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
     )
 
+    const spotsWithExternalUrl = serializeTouristSpots([
+      {
+        id: 'spot-1',
+        name: 'Santiago Bay',
+        category: 'Beach',
+        location: 'San Francisco',
+        travelTime: '10 mins',
+        bestTime: 'Sunset',
+        entranceFee: 'Free',
+        description: 'White sand.',
+        tips: 'Go late afternoon.',
+        image: 'https://external.example.com/santiago.webp',
+        images: ['https://external.example.com/santiago.webp'],
+      },
+    ])
+
+    await expect(
+      upsertCmsSectionHandler({
+        data: {
+          key: 'explore',
+          title: 'Explore Camotes Island',
+          images: [],
+          metadata: { spotsJson: spotsWithExternalUrl },
+          isPublished: true,
+        },
+      }),
+    ).rejects.toThrow(
+      'External image URLs are not allowed for tourist spots. Upload photos via Cloudflare R2 instead.',
+    )
+
     const validSpots = serializeTouristSpots([
       {
         id: 'spot-1',

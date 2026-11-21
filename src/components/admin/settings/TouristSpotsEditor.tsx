@@ -17,6 +17,7 @@ import {
   IMAGE_UPLOAD_PRESETS,
   isSupportedImageFile,
 } from '#/lib/image-compress'
+import { isBase64DataUrl, isR2ManagedObjectKey } from '#/lib/r2'
 import { uploadAvatar } from '#/server/upload'
 import type { TouristSpotCategory, TouristSpotItem } from '#/types'
 
@@ -146,10 +147,17 @@ export function TouristSpotsEditor({
   const handleAddPhotoUrl = (spotId: string) => {
     const raw = (urlDrafts[spotId] ?? '').trim()
     if (!raw) return
-    if (raw.toLowerCase().startsWith('data:')) {
+    if (isBase64DataUrl(raw)) {
       setSpotError(
         spotId,
-        'Base64 data URLs cannot be stored in PostgreSQL. Please upload image files or paste an HTTP/CDN URL.',
+        'Base64 data URLs cannot be stored in PostgreSQL. Please upload image files to Cloudflare R2.',
+      )
+      return
+    }
+    if (!isR2ManagedObjectKey(raw)) {
+      setSpotError(
+        spotId,
+        'External image URLs are not allowed. Please upload photos to Cloudflare R2 or enter an R2 media key.',
       )
       return
     }
@@ -185,7 +193,6 @@ export function TouristSpotsEditor({
     onUploadingChange?.(true)
 
     try {
-      const uploadedUrls: string[] = []
       for (const file of validFiles) {
         const compressed = await compressImageForUpload(
           file,
@@ -196,14 +203,9 @@ export function TouristSpotsEditor({
         formData.append('file', compressed)
         formData.append('scope', 'cms')
         const url = await uploadAvatar({ data: formData })
-        if (url) uploadedUrls.push(url)
-      }
-
-      if (uploadedUrls.length > 0) {
-        handleSetSpotImages(spotId, (prevImages) => [
-          ...prevImages,
-          ...uploadedUrls,
-        ])
+        if (url) {
+          handleSetSpotImages(spotId, (prevImages) => [...prevImages, url])
+        }
       }
     } catch (err: unknown) {
       setSpotError(
@@ -378,7 +380,7 @@ export function TouristSpotsEditor({
                           handleAddPhotoUrl(spot.id)
                         }
                       }}
-                      placeholder="https://... paste an image URL to add to gallery"
+                      placeholder="/api/media/view?key=cms/... or cms/... R2 media key"
                       className="flex-1 px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10 disabled:opacity-60"
                     />
                     <button

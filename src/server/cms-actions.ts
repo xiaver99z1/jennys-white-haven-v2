@@ -14,9 +14,13 @@ import {
 import {
   extractObjectKey,
   isBase64DataUrl,
+  isR2ManagedObjectKey,
   resolvePublicMediaUrl,
 } from '#/lib/r2'
-import { purgeReplacedR2Objects } from '#/server/upload'
+import {
+  normalizeImageMimeType,
+  purgeReplacedR2Objects,
+} from '#/server/upload'
 import type { CmsSectionData, CmsSectionKey } from '#/types'
 
 const VALID_KEYS = new Set<string>(DEFAULT_CMS_SECTIONS.map((s) => s.key))
@@ -48,7 +52,7 @@ function resolveExploreMetadata(
   if (!metadata.spotsJson) return metadata
   const spots = parseTouristSpots(metadata.spotsJson).map((spot) => {
     const resolvedImages = getSpotImages(spot)
-      .filter((img) => !isBase64DataUrl(img))
+      .filter((img) => !isBase64DataUrl(img) && isR2ManagedObjectKey(img))
       .map((img) => resolvePublicMediaUrl(img))
       .filter(Boolean)
     return {
@@ -264,6 +268,15 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
           'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
         )
       }
+      if (
+        parsedSpots.some((spot) =>
+          getSpotImages(spot).some((img) => !isR2ManagedObjectKey(img)),
+        )
+      ) {
+        throw new Error(
+          'External image URLs are not allowed for tourist spots. Upload photos via Cloudflare R2 instead.',
+        )
+      }
       const normalizedSpots = parsedSpots.map((spot) => {
         const keys = Array.from(
           new Set(
@@ -336,7 +349,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
           create: {
             objectKey,
             bucket: 'public',
-            mimeType: 'image/webp',
+            mimeType: normalizeImageMimeType('', objectKey) || 'image/webp',
             status: 'READY',
             uploadedById: admin.id,
           },

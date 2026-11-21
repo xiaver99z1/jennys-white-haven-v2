@@ -90,12 +90,31 @@ describe('ExploreGuideView', () => {
     // Only 1 category -> tablist hidden
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
 
-    // Clicking spot opens multi-photo gallery modal with navigation and keyboard controls
-    fireEvent.click(
-      screen.getByRole('button', { name: 'View gallery for Bakhaw White Beach' }),
-    )
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // Clicking spot opens multi-photo gallery modal, focuses close button, traps Tab, and restores focus on close
+    const triggerBtn = screen.getByRole('button', {
+      name: 'View gallery for Bakhaw White Beach',
+    })
+    triggerBtn.focus()
+    fireEvent.click(triggerBtn)
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    const closeBtn = screen.getByRole('button', {
+      name: 'Close destination gallery',
+    })
+    expect(closeBtn).toHaveFocus()
     expect(screen.getByText('1 / 2')).toBeInTheDocument()
+
+    // Shift+Tab from first focusable element wraps to last focusable element
+    const selectPhoto2Btn = screen.getByRole('button', {
+      name: 'Select photo 2',
+    })
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true })
+    expect(selectPhoto2Btn).toHaveFocus()
+
+    // Tab from last focusable element wraps back to first focusable element
+    fireEvent.keyDown(window, { key: 'Tab' })
+    expect(closeBtn).toHaveFocus()
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Next destination photo' }),
@@ -112,12 +131,13 @@ describe('ExploreGuideView', () => {
     expect(screen.getByText('1 / 2')).toBeInTheDocument()
 
     // Thumbnail click jumps directly to photo 2
-    fireEvent.click(screen.getByRole('button', { name: 'Select photo 2' }))
+    fireEvent.click(selectPhoto2Btn)
     expect(screen.getByText('2 / 2')).toBeInTheDocument()
 
-    // Keyboard Escape closes modal
+    // Keyboard Escape closes modal and restores focus to trigger button
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(triggerBtn).toHaveFocus()
 
     // Empty spots list state
     rerender(
