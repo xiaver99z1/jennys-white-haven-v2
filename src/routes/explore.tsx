@@ -29,7 +29,10 @@ function ExploreCamotesPage() {
   const contactSection = sections.find((s) => s.key === 'contact')
 
   return (
-    <PublicLayout contactSection={contactSection}>
+    <PublicLayout
+      contactSection={contactSection}
+      showExploreLink={Boolean(exploreSection)}
+    >
       <ExploreGuideView exploreSection={exploreSection} />
     </PublicLayout>
   )

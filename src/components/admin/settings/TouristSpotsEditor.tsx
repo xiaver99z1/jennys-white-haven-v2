@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -17,10 +17,14 @@ import {
 import { uploadAvatar } from '#/server/upload'
 import type { TouristSpotCategory, TouristSpotItem } from '#/types'
 
+export type TouristSpotsUpdater = (
+  prevSpots: TouristSpotItem[],
+) => TouristSpotItem[]
+
 interface TouristSpotsEditorProps {
   spots: TouristSpotItem[]
   disabled?: boolean
-  onChange: (nextSpots: TouristSpotItem[]) => void
+  onChange: (updater: TouristSpotsUpdater) => void
   onError: (message: string | null) => void
   onUploadingChange?: (uploading: boolean) => void
 }
@@ -32,12 +36,13 @@ export function TouristSpotsEditor({
   onError,
   onUploadingChange,
 }: TouristSpotsEditorProps) {
-  const [uploadingSpotId, setUploadingSpotId] = useState<string | null>(null)
+  const [uploadingSpotIds, setUploadingSpotIds] = useState<string[]>([])
+  const activeUploadsRef = useRef(0)
 
   const handleAddSpot = () => {
-    const nextId = `spot-${Date.now()}`
-    onChange([
-      ...spots,
+    const nextId = `spot-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    onChange((prev) => [
+      ...prev,
       {
         id: nextId,
         name: 'New Camotes Destination',
@@ -54,36 +59,41 @@ export function TouristSpotsEditor({
   }
 
   const handleUpdateSpot = (
-    index: number,
+    spotId: string,
     patch: Partial<TouristSpotItem>,
   ) => {
-    onChange(
-      spots.map((spot, idx) => (idx === index ? { ...spot, ...patch } : spot)),
+    onChange((prev) =>
+      prev.map((spot) => (spot.id === spotId ? { ...spot, ...patch } : spot)),
     )
   }
 
-  const handleRemoveSpot = (index: number) => {
-    onChange(spots.filter((_, idx) => idx !== index))
+  const handleRemoveSpot = (spotId: string) => {
+    onChange((prev) => prev.filter((spot) => spot.id !== spotId))
   }
 
-  const handleMoveSpot = (index: number, direction: -1 | 1) => {
-    const target = index + direction
-    if (target < 0 || target >= spots.length) return
-    const next = [...spots]
-    const [moved] = next.splice(index, 1)
-    next.splice(target, 0, moved)
-    onChange(next)
+  const handleMoveSpot = (spotId: string, direction: -1 | 1) => {
+    onChange((prev) => {
+      const index = prev.findIndex((spot) => spot.id === spotId)
+      const target = index + direction
+      if (index === -1 || target < 0 || target >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(index, 1)
+      next.splice(target, 0, moved)
+      return next
+    })
   }
 
-  const handleUploadSpotPhoto = async (index: number, file?: File) => {
-    const spot = spots.at(index)
-    if (!file || !spot) return
+  const handleUploadSpotPhoto = async (spotId: string, file?: File) => {
+    if (!file) return
     if (!file.type.startsWith('image/')) {
       onError('Please select a valid image file (JPG, PNG, WEBP, GIF).')
       return
     }
 
-    setUploadingSpotId(spot.id)
+    activeUploadsRef.current += 1
+    setUploadingSpotIds((prev) =>
+      prev.includes(spotId) ? prev : [...prev, spotId],
+    )
     onUploadingChange?.(true)
     onError(null)
     try {
@@ -96,12 +106,15 @@ export function TouristSpotsEditor({
       formData.append('file', compressed)
       formData.append('scope', 'cms')
       const url = await uploadAvatar({ data: formData })
-      handleUpdateSpot(index, { image: url })
+      handleUpdateSpot(spotId, { image: url })
     } catch (err: unknown) {
       onError(getErrorMessage(err, 'Failed to upload tourist spot image.'))
     } finally {
-      setUploadingSpotId(null)
-      onUploadingChange?.(false)
+      activeUploadsRef.current = Math.max(0, activeUploadsRef.current - 1)
+      setUploadingSpotIds((prev) => prev.filter((id) => id !== spotId))
+      if (activeUploadsRef.current === 0) {
+        onUploadingChange?.(false)
+      }
     }
   }
 
@@ -119,7 +132,7 @@ export function TouristSpotsEditor({
         </div>
         <button
           type="button"
-          disabled={disabled || uploadingSpotId !== null}
+          disabled={disabled}
           onClick={handleAddSpot}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-xs font-semibold text-white transition self-start cursor-pointer disabled:opacity-50"
         >
@@ -136,7 +149,7 @@ export function TouristSpotsEditor({
       ) : (
         <div className="space-y-4">
           {spots.map((spot, idx) => {
-            const isUploadingThis = uploadingSpotId === spot.id
+            const isUploadingThis = uploadingSpotIds.includes(spot.id)
             return (
               <div
                 key={spot.id}
@@ -148,14 +161,14 @@ export function TouristSpotsEditor({
                       {idx + 1}
                     </span>
                     <span className="text-sm font-semibold text-stone-900 truncate">
-                      {spot.name || 'Untitled Destination'}
+                      {spot.name.trim() || 'Untitled Destination'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
                       disabled={disabled || idx === 0}
-                      onClick={() => handleMoveSpot(idx, -1)}
+                      onClick={() => handleMoveSpot(spot.id, -1)}
                       aria-label={`Move spot ${idx + 1} up`}
                       className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-600 disabled:opacity-30 cursor-pointer"
                     >
@@ -164,7 +177,7 @@ export function TouristSpotsEditor({
                     <button
                       type="button"
                       disabled={disabled || idx === spots.length - 1}
-                      onClick={() => handleMoveSpot(idx, 1)}
+                      onClick={() => handleMoveSpot(spot.id, 1)}
                       aria-label={`Move spot ${idx + 1} down`}
                       className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-600 disabled:opacity-30 cursor-pointer"
                     >
@@ -172,8 +185,8 @@ export function TouristSpotsEditor({
                     </button>
                     <button
                       type="button"
-                      disabled={disabled || uploadingSpotId !== null}
-                      onClick={() => handleRemoveSpot(idx)}
+                      disabled={disabled || isUploadingThis}
+                      onClick={() => handleRemoveSpot(spot.id)}
                       aria-label={`Remove spot ${idx + 1}`}
                       className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
                     >
@@ -189,7 +202,7 @@ export function TouristSpotsEditor({
                       {spot.image ? (
                         <img
                           src={spot.image}
-                          alt={spot.name || `Spot ${idx + 1}`}
+                          alt={spot.name.trim() || `Spot ${idx + 1}`}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -217,11 +230,11 @@ export function TouristSpotsEditor({
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          disabled={disabled || uploadingSpotId !== null}
+                          disabled={disabled || isUploadingThis}
                           onChange={(e) => {
                             const file = e.target.files?.[0]
                             e.target.value = ''
-                            void handleUploadSpotPhoto(idx, file)
+                            void handleUploadSpotPhoto(spot.id, file)
                           }}
                         />
                       </label>
@@ -229,7 +242,9 @@ export function TouristSpotsEditor({
                         <button
                           type="button"
                           disabled={disabled || isUploadingThis}
-                          onClick={() => handleUpdateSpot(idx, { image: '' })}
+                          onClick={() =>
+                            handleUpdateSpot(spot.id, { image: '' })
+                          }
                           className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                         >
                           Remove Photo
@@ -237,11 +252,12 @@ export function TouristSpotsEditor({
                       )}
                     </div>
                     <input
-                      type="url"
+                      type="text"
+                      inputMode="url"
                       aria-label={`Spot ${idx + 1} image URL`}
                       value={spot.image}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { image: e.target.value })
+                        handleUpdateSpot(spot.id, { image: e.target.value })
                       }
                       placeholder="https://... or upload an image above"
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
@@ -264,7 +280,7 @@ export function TouristSpotsEditor({
                       required
                       value={spot.name}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { name: e.target.value })
+                        handleUpdateSpot(spot.id, { name: e.target.value })
                       }
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                     />
@@ -280,7 +296,7 @@ export function TouristSpotsEditor({
                       id={`spot-category-${spot.id}`}
                       value={spot.category}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, {
+                        handleUpdateSpot(spot.id, {
                           category: e.target.value as TouristSpotCategory,
                         })
                       }
@@ -305,7 +321,7 @@ export function TouristSpotsEditor({
                       type="text"
                       value={spot.location}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { location: e.target.value })
+                        handleUpdateSpot(spot.id, { location: e.target.value })
                       }
                       placeholder="Brgy. Santiago, San Francisco"
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
@@ -323,7 +339,9 @@ export function TouristSpotsEditor({
                       type="text"
                       value={spot.travelTime}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { travelTime: e.target.value })
+                        handleUpdateSpot(spot.id, {
+                          travelTime: e.target.value,
+                        })
                       }
                       placeholder="15–20 mins from resort"
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
@@ -341,7 +359,7 @@ export function TouristSpotsEditor({
                       type="text"
                       value={spot.bestTime}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { bestTime: e.target.value })
+                        handleUpdateSpot(spot.id, { bestTime: e.target.value })
                       }
                       placeholder="Morning or sunset"
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
@@ -359,7 +377,9 @@ export function TouristSpotsEditor({
                       type="text"
                       value={spot.entranceFee}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { entranceFee: e.target.value })
+                        handleUpdateSpot(spot.id, {
+                          entranceFee: e.target.value,
+                        })
                       }
                       placeholder="₱50 entrance"
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
@@ -377,7 +397,9 @@ export function TouristSpotsEditor({
                       rows={2}
                       value={spot.description}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { description: e.target.value })
+                        handleUpdateSpot(spot.id, {
+                          description: e.target.value,
+                        })
                       }
                       placeholder="What makes this destination special for guests..."
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
@@ -395,7 +417,7 @@ export function TouristSpotsEditor({
                       type="text"
                       value={spot.tips}
                       onChange={(e) =>
-                        handleUpdateSpot(idx, { tips: e.target.value })
+                        handleUpdateSpot(spot.id, { tips: e.target.value })
                       }
                       placeholder="Helpful local advice, tide tips, or food stops..."
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"

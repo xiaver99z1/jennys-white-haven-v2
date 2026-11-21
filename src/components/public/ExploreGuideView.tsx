@@ -13,10 +13,11 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
     'ALL' | TouristSpotCategory
   >('ALL')
 
+  const isPublished = Boolean(exploreSection?.isPublished)
   const meta = exploreSection?.metadata ?? {}
   const spots = useMemo(
-    () => parseTouristSpots(meta.spotsJson),
-    [meta.spotsJson],
+    () => (isPublished ? parseTouristSpots(meta.spotsJson) : []),
+    [isPublished, meta.spotsJson],
   )
 
   const categories = useMemo(() => {
@@ -35,7 +36,45 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
     [selectedCategory, spots],
   )
 
-  const heroImage = exploreSection?.images[0]
+  if (!isPublished || !exploreSection) {
+    return (
+      <section className="max-w-3xl mx-auto px-6 lg:px-10 py-24 lg:py-32 text-center space-y-6">
+        <div className="mx-auto w-12 h-12 rounded-full bg-[#F3EFE7] border border-stone-200/80 flex items-center justify-center">
+          <Compass className="w-5 h-5 text-amber-800" />
+        </div>
+        <div className="space-y-3">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-amber-900/80 font-semibold">
+            Island Guide · Camotes, Cebu
+          </p>
+          <h1 className="font-serif text-3xl sm:text-4xl text-stone-900">
+            Camotes Island Guide Unavailable
+          </h1>
+          <p className="text-sm sm:text-base text-stone-600 leading-relaxed max-w-xl mx-auto">
+            Our island destination guide is currently hidden while we update
+            recommendations for your stay. Browse our rooms or reach out to our
+            team for local travel tips.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <Link
+            to="/rooms"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-stone-900 text-[#FAF8F4] hover:bg-amber-900 text-xs uppercase tracking-[0.16em] font-medium transition"
+          >
+            <span>Browse Rooms &amp; Rates</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-stone-300 text-stone-700 hover:bg-stone-100 text-xs uppercase tracking-[0.16em] font-medium transition"
+          >
+            Return to Sanctuary
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
+  const heroImage = exploreSection.images[0]
 
   return (
     <div className="pb-24">
@@ -61,14 +100,14 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
               {meta.eyebrow || 'Island Guide · Camotes, Cebu'}
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-stone-900 tracking-tight leading-[1.1]">
-              {exploreSection?.title || 'Explore Camotes Island'}
+              {exploreSection.title || 'Explore Camotes Island'}
             </h1>
-            {exploreSection?.subtitle && (
+            {exploreSection.subtitle && (
               <p className="text-base sm:text-lg text-stone-700 leading-relaxed font-light">
                 {exploreSection.subtitle}
               </p>
             )}
-            {exploreSection?.body && (
+            {exploreSection.body && (
               <p className="text-sm text-stone-600 leading-relaxed max-w-2xl">
                 {exploreSection.body}
               </p>
@@ -253,10 +292,10 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
             </p>
           </div>
           <Link
-            to={exploreSection?.ctaHref || '/rooms'}
+            to={exploreSection.ctaHref || '/rooms'}
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-stone-900 text-[#FAF8F4] hover:bg-amber-900 text-xs uppercase tracking-[0.16em] font-medium transition self-start md:self-auto shrink-0"
           >
-            <span>{exploreSection?.ctaLabel || 'Browse Rooms & Rates'}</span>
+            <span>{exploreSection.ctaLabel || 'Browse Rooms & Rates'}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

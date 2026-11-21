@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TouristSpotsEditor } from './TouristSpotsEditor'
+import type { TouristSpotsUpdater } from './TouristSpotsEditor'
 import type { TouristSpotItem } from '#/types'
 
 const { mockUploadAvatar, mockCompressImage } = vi.hoisted(() => ({
@@ -18,6 +20,35 @@ vi.mock('#/lib/image-compress', () => ({
     editorial: { maxDimension: 1280, quality: 0.82 },
   },
 }))
+
+function StatefulEditorHarness({
+  initialSpots,
+  onError,
+  onUploadingChange,
+  onSpotsChange,
+}: {
+  initialSpots: TouristSpotItem[]
+  onError: (msg: string | null) => void
+  onUploadingChange?: (uploading: boolean) => void
+  onSpotsChange?: (next: TouristSpotItem[]) => void
+}) {
+  const [spots, setSpots] = useState(initialSpots)
+  const handleChange = (updater: TouristSpotsUpdater) => {
+    setSpots((prev) => {
+      const next = updater(prev)
+      onSpotsChange?.(next)
+      return next
+    })
+  }
+  return (
+    <TouristSpotsEditor
+      spots={spots}
+      onChange={handleChange}
+      onError={onError}
+      onUploadingChange={onUploadingChange}
+    />
+  )
+}
 
 describe('TouristSpotsEditor', () => {
   const sampleSpots: TouristSpotItem[] = [
@@ -52,11 +83,15 @@ describe('TouristSpotsEditor', () => {
   })
 
   it('renders empty state and adds a new tourist spot', () => {
-    const onChange = vi.fn()
     const onError = vi.fn()
+    const onSpotsChange = vi.fn()
 
     render(
-      <TouristSpotsEditor spots={[]} onChange={onChange} onError={onError} />,
+      <StatefulEditorHarness
+        initialSpots={[]}
+        onError={onError}
+        onSpotsChange={onSpotsChange}
+      />,
     )
 
     expect(
@@ -64,7 +99,7 @@ describe('TouristSpotsEditor', () => {
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Add Tourist Spot/i }))
-    expect(onChange).toHaveBeenCalledWith([
+    expect(onSpotsChange).toHaveBeenCalledWith([
       expect.objectContaining({
         name: 'New Camotes Destination',
         category: 'Beach',
@@ -72,86 +107,200 @@ describe('TouristSpotsEditor', () => {
     ])
   })
 
-  it('edits spot fields, reorders, removes photos, and deletes spots', () => {
-    const onChange = vi.fn()
+  it('edits spot fields (including spaces and clearing name), reorders, removes photos, and deletes spots', () => {
     const onError = vi.fn()
+    const onSpotsChange = vi.fn()
 
     render(
-      <TouristSpotsEditor
-        spots={sampleSpots}
-        onChange={onChange}
+      <StatefulEditorHarness
+        initialSpots={sampleSpots}
         onError={onError}
+        onSpotsChange={onSpotsChange}
       />,
     )
 
-    fireEvent.change(screen.getByLabelText('Destination Name', { selector: '#spot-name-spot-1' }), {
-      target: { value: 'Santiago White Sand' },
+    const nameInput = screen.getByLabelText('Destination Name', {
+      selector: '#spot-name-spot-1',
     })
-    expect(onChange).toHaveBeenLastCalledWith([
-      expect.objectContaining({ id: 'spot-1', name: 'Santiago White Sand' }),
-      sampleSpots[1],
-    ])
+    fireEvent.change(nameInput, {
+      target: { value: 'Santiago White ' },
+    })
+    expect(nameInput).toHaveValue('Santiago White ')
 
-    fireEvent.change(screen.getByLabelText('Category', { selector: '#spot-category-spot-1' }), {
-      target: { value: 'Lake & Nature' },
-    })
-    fireEvent.change(screen.getByLabelText('Location / Barangay', { selector: '#spot-location-spot-1' }), {
-      target: { value: 'Brgy. Santiago' },
-    })
-    fireEvent.change(screen.getByLabelText('Travel Time from Resort', { selector: '#spot-travel-spot-1' }), {
-      target: { value: '5 mins' },
-    })
-    fireEvent.change(screen.getByLabelText('Best Time to Visit', { selector: '#spot-best-time-spot-1' }), {
-      target: { value: 'Morning' },
-    })
-    fireEvent.change(screen.getByLabelText('Entrance Fee / Access Info', { selector: '#spot-fee-spot-1' }), {
-      target: { value: '₱20' },
-    })
-    fireEvent.change(screen.getByLabelText('Description', { selector: '#spot-desc-spot-1' }), {
-      target: { value: 'Calm waters' },
-    })
-    fireEvent.change(screen.getByLabelText('Guest Tip', { selector: '#spot-tips-spot-1' }), {
-      target: { value: 'Try grilled fish' },
-    })
-    fireEvent.change(screen.getByLabelText('Spot 1 image URL'), {
-      target: { value: 'https://cdn.example.com/santiago.webp' },
+    // Clearing the name does not delete the spot
+    fireEvent.change(nameInput, { target: { value: '' } })
+    expect(screen.getByText('Untitled Destination')).toBeInTheDocument()
+
+    fireEvent.change(nameInput, { target: { value: 'Santiago White Sand' } })
+    fireEvent.change(
+      screen.getByLabelText('Category', { selector: '#spot-category-spot-1' }),
+      { target: { value: 'Lake & Nature' } },
+    )
+    fireEvent.change(
+      screen.getByLabelText('Location / Barangay', {
+        selector: '#spot-location-spot-1',
+      }),
+      { target: { value: 'Brgy. Santiago' } },
+    )
+    fireEvent.change(
+      screen.getByLabelText('Travel Time from Resort', {
+        selector: '#spot-travel-spot-1',
+      }),
+      { target: { value: '5 mins' } },
+    )
+    fireEvent.change(
+      screen.getByLabelText('Best Time to Visit', {
+        selector: '#spot-best-time-spot-1',
+      }),
+      { target: { value: 'Morning' } },
+    )
+    fireEvent.change(
+      screen.getByLabelText('Entrance Fee / Access Info', {
+        selector: '#spot-fee-spot-1',
+      }),
+      { target: { value: '₱20' } },
+    )
+    fireEvent.change(
+      screen.getByLabelText('Description', { selector: '#spot-desc-spot-1' }),
+      { target: { value: 'Calm waters' } },
+    )
+    fireEvent.change(
+      screen.getByLabelText('Guest Tip', { selector: '#spot-tips-spot-1' }),
+      { target: { value: 'Try grilled fish' } },
+    )
+
+    // Spot image input uses text type so relative /api/media/view URLs remain valid
+    const urlInput = screen.getByLabelText('Spot 1 image URL')
+    expect(urlInput).toHaveAttribute('type', 'text')
+    fireEvent.change(urlInput, {
+      target: { value: '/api/media/view?key=cms%2Fsantiago.webp' },
     })
 
-    // Move spot 1 down
+    // Move spot 1 down, then back up
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 1 down' }))
-    expect(onChange).toHaveBeenLastCalledWith([sampleSpots[1], sampleSpots[0]])
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
+    ).toEqual(['spot-2', 'spot-1'])
 
-    // Move spot 2 up
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 2 up' }))
-    expect(onChange).toHaveBeenLastCalledWith([sampleSpots[1], sampleSpots[0]])
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
+    ).toEqual(['spot-1', 'spot-2'])
 
-    // Remove photo on spot 2
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Photo' }))
-    expect(onChange).toHaveBeenLastCalledWith([
-      sampleSpots[0],
-      { ...sampleSpots[1], image: '' },
-    ])
+    // Remove photo on spot 2 (second Remove Photo button)
+    const removePhotoButtons = screen.getAllByRole('button', {
+      name: 'Remove Photo',
+    })
+    fireEvent.click(removePhotoButtons[1])
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].image,
+    ).toBe('')
 
     // Remove spot 1
     fireEvent.click(screen.getByRole('button', { name: 'Remove spot 1' }))
-    expect(onChange).toHaveBeenLastCalledWith([sampleSpots[1]])
+    expect(
+      (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
+    ).toEqual(['spot-2'])
   })
 
-  it('validates and uploads compressed tourist spot photos, and handles upload errors', async () => {
-    const onChange = vi.fn()
+  it('preserves newer edits and reorders made during an in-flight photo upload and tracks overlapping uploads', async () => {
+    const onError = vi.fn()
+    const onUploadingChange = vi.fn()
+    const onSpotsChange = vi.fn()
+
+    let resolveUpload1!: (value: string) => void
+    let resolveUpload2!: (value: string) => void
+    mockUploadAvatar
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUpload1 = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUpload2 = resolve
+          }),
+      )
+
+    const { container } = render(
+      <StatefulEditorHarness
+        initialSpots={sampleSpots}
+        onError={onError}
+        onUploadingChange={onUploadingChange}
+        onSpotsChange={onSpotsChange}
+      />,
+    )
+
+    const fileInputs = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+    )
+
+    const file1 = new File(['img1'], 'beach.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['img2'], 'cave.jpg', { type: 'image/jpeg' })
+
+    // Start overlapping uploads on spot 1 and spot 2
+    fireEvent.change(fileInputs[0], { target: { files: [file1] } })
+    fireEvent.change(fileInputs[1], { target: { files: [file2] } })
+
+    await waitFor(() => {
+      expect(mockUploadAvatar).toHaveBeenCalledTimes(2)
+    })
+
+    // While upload 1 is pending, edit spot 1's name AND move spot 1 down to index 1
+    fireEvent.change(
+      screen.getByLabelText('Destination Name', {
+        selector: '#spot-name-spot-1',
+      }),
+      { target: { value: 'Santiago Bay Sunset' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move spot 1 down' }))
+
+    // Finish upload 1 while upload 2 is still in flight
+    resolveUpload1('/api/media/view?key=cms/santiago.webp')
+
+    await waitFor(() => {
+      const latest = onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]
+      expect(latest.map((s) => s.id)).toEqual(['spot-2', 'spot-1'])
+      expect(latest[1]).toEqual(
+        expect.objectContaining({
+          id: 'spot-1',
+          name: 'Santiago Bay Sunset',
+          image: '/api/media/view?key=cms/santiago.webp',
+        }),
+      )
+    })
+
+    // Controls must NOT report idle yet because upload 2 is still active
+    expect(onUploadingChange).not.toHaveBeenCalledWith(false)
+
+    // Finish upload 2 -> now uploading transitions to false
+    resolveUpload2('/api/media/view?key=cms/bukilat.webp')
+
+    await waitFor(() => {
+      expect(onUploadingChange).toHaveBeenCalledWith(false)
+      const latest = onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]
+      expect(latest[0]).toEqual(
+        expect.objectContaining({
+          id: 'spot-2',
+          image: '/api/media/view?key=cms/bukilat.webp',
+        }),
+      )
+    })
+  })
+
+  it('validates file types and handles upload errors gracefully', async () => {
     const onError = vi.fn()
     const onUploadingChange = vi.fn()
 
     const { container } = render(
-      <TouristSpotsEditor
-        spots={[{ ...sampleSpots[0], name: '' }]}
-        onChange={onChange}
+      <StatefulEditorHarness
+        initialSpots={[{ ...sampleSpots[0], name: '' }]}
         onError={onError}
         onUploadingChange={onUploadingChange}
       />,
     )
-
-    expect(screen.getByText('Untitled Destination')).toBeInTheDocument()
 
     const fileInput = container.querySelector(
       'input[type="file"]',
@@ -168,29 +317,15 @@ describe('TouristSpotsEditor', () => {
       'Please select a valid image file (JPG, PNG, WEBP, GIF).',
     )
 
-    // Valid image upload succeeds
-    mockUploadAvatar.mockResolvedValueOnce('/api/media/view?key=cms/spot.webp')
+    // Upload error handled gracefully
+    mockUploadAvatar.mockRejectedValueOnce(new Error('Upload quota exceeded'))
     const validFile = new File(['img'], 'beach.jpg', { type: 'image/jpeg' })
     fireEvent.change(fileInput, { target: { files: [validFile] } })
 
     await waitFor(() => {
       expect(mockCompressImage).toHaveBeenCalledWith(validFile, 1280, 0.82)
-      expect(onChange).toHaveBeenCalledWith([
-        expect.objectContaining({
-          id: 'spot-1',
-          image: '/api/media/view?key=cms/spot.webp',
-        }),
-      ])
-    })
-    expect(onUploadingChange).toHaveBeenCalledWith(true)
-    expect(onUploadingChange).toHaveBeenCalledWith(false)
-
-    // Upload error handled gracefully
-    mockUploadAvatar.mockRejectedValueOnce(new Error('Upload quota exceeded'))
-    fireEvent.change(fileInput, { target: { files: [validFile] } })
-
-    await waitFor(() => {
       expect(onError).toHaveBeenCalledWith('Upload quota exceeded')
+      expect(onUploadingChange).toHaveBeenCalledWith(false)
     })
   })
 })

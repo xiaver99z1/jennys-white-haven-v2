@@ -1,9 +1,171 @@
 import type {
   CmsSectionData,
   CmsSectionKey,
+  HeroCarouselConfig,
+  HeroElementPosition,
+  HeroSlideItem,
   TouristSpotCategory,
   TouristSpotItem,
 } from '#/types'
+import {
+  buildDefaultHeroContentHtml,
+  sanitizeHeroRichText,
+} from '#/lib/hero-rich-text'
+
+export const DEFAULT_HERO_POSITIONS: Readonly<
+  Record<'text' | 'cta' | 'bookingBar', HeroElementPosition>
+> = {
+  text: { x: 8, y: 36 },
+  cta: { x: 8, y: 66 },
+  bookingBar: { x: 50, y: 92 },
+}
+
+export const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
+  {
+    id: 'hero-slide-1',
+    image: '',
+    contentHtml: buildDefaultHeroContentHtml(
+      "Jenny's White Haven",
+      'An intimate rooms-only island sanctuary on the quiet shores of Camotes Island, Cebu.',
+    ),
+    showText: true,
+    textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+  },
+]
+
+export const DEFAULT_HERO_CONFIG: HeroCarouselConfig = {
+  slides: DEFAULT_HERO_SLIDES,
+  autoplay: true,
+  intervalMs: 6000,
+  showCta: true,
+  ctaPosition: { ...DEFAULT_HERO_POSITIONS.cta },
+  showBookingBar: true,
+  bookingBarPosition: { ...DEFAULT_HERO_POSITIONS.bookingBar },
+}
+
+function clampPosition(
+  raw: unknown,
+  fallback: HeroElementPosition,
+): HeroElementPosition {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ...fallback }
+  }
+  const obj = raw as Record<string, unknown>
+  const x =
+    typeof obj.x === 'number' && Number.isFinite(obj.x)
+      ? Math.min(100, Math.max(0, Math.round(obj.x * 10) / 10))
+      : fallback.x
+  const y =
+    typeof obj.y === 'number' && Number.isFinite(obj.y)
+      ? Math.min(100, Math.max(0, Math.round(obj.y * 10) / 10))
+      : fallback.y
+  return { x, y }
+}
+
+export function serializeHeroConfig(config: HeroCarouselConfig): string {
+  return JSON.stringify(config)
+}
+
+export function parseHeroConfig(
+  rawJson?: string | null,
+  fallback?: { title?: string; subtitle?: string; images?: string[] },
+): HeroCarouselConfig {
+  const buildFallbackConfig = (): HeroCarouselConfig => {
+    const legacyImages = (fallback?.images ?? []).filter(Boolean)
+    const legacyHtml = buildDefaultHeroContentHtml(
+      fallback?.title ?? "Jenny's White Haven",
+      fallback?.subtitle ??
+        'An intimate rooms-only island sanctuary on the quiet shores of Camotes Island, Cebu.',
+    )
+    const slides: HeroSlideItem[] =
+      legacyImages.length > 0
+        ? legacyImages.map((img, idx) => ({
+            id: `hero-slide-${idx + 1}`,
+            image: img,
+            contentHtml: idx === 0 ? legacyHtml : '',
+            showText: idx === 0,
+            textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+          }))
+        : [
+            {
+              id: 'hero-slide-1',
+              image: '',
+              contentHtml: legacyHtml,
+              showText: true,
+              textPosition: { ...DEFAULT_HERO_POSITIONS.text },
+            },
+          ]
+    return {
+      ...DEFAULT_HERO_CONFIG,
+      slides,
+      ctaPosition: { ...DEFAULT_HERO_POSITIONS.cta },
+      bookingBarPosition: { ...DEFAULT_HERO_POSITIONS.bookingBar },
+    }
+  }
+
+  if (!rawJson || !rawJson.trim()) {
+    return buildFallbackConfig()
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(rawJson)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return buildFallbackConfig()
+    }
+    const obj = parsed as Record<string, unknown>
+    const rawSlides = Array.isArray(obj.slides) ? obj.slides : []
+    const slides: HeroSlideItem[] = rawSlides
+      .filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+      )
+      .map((item, idx) => ({
+        id:
+          typeof item.id === 'string' && item.id.trim()
+            ? item.id.trim()
+            : `hero-slide-${idx + 1}`,
+        image: typeof item.image === 'string' ? item.image.trim() : '',
+        contentHtml:
+          typeof item.contentHtml === 'string'
+            ? sanitizeHeroRichText(item.contentHtml)
+            : '',
+        showText: typeof item.showText === 'boolean' ? item.showText : true,
+        textPosition: clampPosition(
+          item.textPosition,
+          DEFAULT_HERO_POSITIONS.text,
+        ),
+      }))
+
+    const rawInterval =
+      typeof obj.intervalMs === 'number' && Number.isFinite(obj.intervalMs)
+        ? obj.intervalMs
+        : DEFAULT_HERO_CONFIG.intervalMs
+
+    return {
+      slides: slides.length > 0 ? slides : buildFallbackConfig().slides,
+      autoplay:
+        typeof obj.autoplay === 'boolean'
+          ? obj.autoplay
+          : DEFAULT_HERO_CONFIG.autoplay,
+      intervalMs: Math.min(20000, Math.max(2000, Math.round(rawInterval))),
+      showCta:
+        typeof obj.showCta === 'boolean'
+          ? obj.showCta
+          : DEFAULT_HERO_CONFIG.showCta,
+      ctaPosition: clampPosition(obj.ctaPosition, DEFAULT_HERO_POSITIONS.cta),
+      showBookingBar:
+        typeof obj.showBookingBar === 'boolean'
+          ? obj.showBookingBar
+          : DEFAULT_HERO_CONFIG.showBookingBar,
+      bookingBarPosition: clampPosition(
+        obj.bookingBarPosition,
+        DEFAULT_HERO_POSITIONS.bookingBar,
+      ),
+    }
+  } catch {
+    return buildFallbackConfig()
+  }
+}
 
 export const TOURIST_SPOT_CATEGORIES: readonly TouristSpotCategory[] = [
   'Beach',
@@ -101,9 +263,22 @@ export function serializeTouristSpots(spots: TouristSpotItem[]): string {
   return JSON.stringify(spots)
 }
 
-export function parseTouristSpots(rawJson?: string | null): TouristSpotItem[] {
+export interface ParseTouristSpotsOptions {
+  preserveDrafts?: boolean
+}
+
+export function parseTouristSpots(
+  rawJson?: string | null,
+  options?: ParseTouristSpotsOptions,
+): TouristSpotItem[] {
   if (!rawJson || !rawJson.trim()) {
     return DEFAULT_TOURIST_SPOTS
+  }
+
+  const preserveDrafts = options?.preserveDrafts ?? false
+  const normalizeText = (value: unknown): string => {
+    if (typeof value !== 'string') return ''
+    return preserveDrafts ? value : value.trim()
   }
 
   try {
@@ -126,27 +301,18 @@ export function parseTouristSpots(rawJson?: string | null): TouristSpotItem[] {
             typeof item.id === 'string' && item.id.trim()
               ? item.id.trim()
               : `spot-${idx + 1}`,
-          name: typeof item.name === 'string' ? item.name.trim() : '',
+          name: normalizeText(item.name),
           category,
-          location:
-            typeof item.location === 'string' ? item.location.trim() : '',
-          travelTime:
-            typeof item.travelTime === 'string' ? item.travelTime.trim() : '',
-          bestTime:
-            typeof item.bestTime === 'string' ? item.bestTime.trim() : '',
-          entranceFee:
-            typeof item.entranceFee === 'string'
-              ? item.entranceFee.trim()
-              : '',
-          description:
-            typeof item.description === 'string'
-              ? item.description.trim()
-              : '',
-          tips: typeof item.tips === 'string' ? item.tips.trim() : '',
-          image: typeof item.image === 'string' ? item.image.trim() : '',
+          location: normalizeText(item.location),
+          travelTime: normalizeText(item.travelTime),
+          bestTime: normalizeText(item.bestTime),
+          entranceFee: normalizeText(item.entranceFee),
+          description: normalizeText(item.description),
+          tips: normalizeText(item.tips),
+          image: normalizeText(item.image),
         }
       })
-      .filter((spot) => Boolean(spot.name))
+      .filter((spot) => preserveDrafts || Boolean(spot.name))
   } catch {
     return DEFAULT_TOURIST_SPOTS
   }
@@ -162,14 +328,9 @@ export const CMS_SECTION_META: Record<
 > = {
   hero: {
     label: 'Hero Banner',
-    description: 'Main landing banner, headline, and primary call-to-action.',
-    metadataFields: [
-      {
-        key: 'eyebrow',
-        label: 'Location Eyebrow',
-        placeholder: 'Camotes Island · Cebu, Philippines',
-      },
-    ],
+    description:
+      'Customizable hero carousel slides, rich-text styling, visibility toggles, and draggable overlays.',
+    metadataFields: [],
   },
   story: {
     label: 'Our Sanctuary (Story)',
@@ -285,12 +446,12 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     title: "Jenny's White Haven",
     subtitle:
       'An intimate rooms-only island sanctuary on the quiet shores of Camotes Island, Cebu.',
-    body: 'Thoughtfully designed spaces, warm tropical hospitality, and unhurried days beside crystal-clear waters.',
+    body: '',
     ctaLabel: 'Explore Rooms',
     ctaHref: '/rooms',
     images: [],
     metadata: {
-      eyebrow: 'Camotes Island · Cebu, Philippines',
+      heroConfigJson: serializeHeroConfig(DEFAULT_HERO_CONFIG),
     },
     isPublished: true,
     sortOrder: 0,

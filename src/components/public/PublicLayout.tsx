@@ -7,9 +7,14 @@ import type { CmsSectionData } from '#/types'
 interface PublicLayoutProps {
   children: ReactNode
   contactSection?: CmsSectionData
+  showExploreLink?: boolean
 }
 
-export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
+export function PublicLayout({
+  children,
+  contactSection,
+  showExploreLink = true,
+}: PublicLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const meta = contactSection?.metadata ?? {}
 
@@ -47,13 +52,15 @@ export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
             >
               Rooms
             </Link>
-            <Link
-              to="/explore"
-              className="hover:text-stone-900 transition"
-              activeProps={{ className: 'text-stone-950 font-semibold' }}
-            >
-              Explore Camotes
-            </Link>
+            {showExploreLink && (
+              <Link
+                to="/explore"
+                className="hover:text-stone-900 transition"
+                activeProps={{ className: 'text-stone-950 font-semibold' }}
+              >
+                Explore Camotes
+              </Link>
+            )}
             <Link
               to="/booking-status"
               className="hover:text-stone-900 transition"
@@ -97,13 +104,15 @@ export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
             >
               Rooms
             </Link>
-            <Link
-              to="/explore"
-              className="block py-1 hover:text-stone-950"
-              onClick={() => setMenuOpen(false)}
-            >
-              Explore Camotes
-            </Link>
+            {showExploreLink && (
+              <Link
+                to="/explore"
+                className="block py-1 hover:text-stone-950"
+                onClick={() => setMenuOpen(false)}
+              >
+                Explore Camotes
+              </Link>
+            )}
             <Link
               to="/booking-status"
               className="block py-1 hover:text-stone-950"
@@ -164,9 +173,11 @@ export function PublicLayout({ children, contactSection }: PublicLayoutProps) {
               <Link to="/rooms" className="hover:text-stone-950 transition">
                 Browse Rooms &amp; Rates
               </Link>
-              <Link to="/explore" className="hover:text-stone-950 transition">
-                Camotes Island Guide
-              </Link>
+              {showExploreLink && (
+                <Link to="/explore" className="hover:text-stone-950 transition">
+                  Camotes Island Guide
+                </Link>
+              )}
               <Link
                 to="/booking-status"
                 className="hover:text-stone-950 transition"
