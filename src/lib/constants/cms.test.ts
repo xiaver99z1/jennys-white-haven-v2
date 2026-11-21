@@ -5,6 +5,7 @@ import {
   DEFAULT_HERO_CONFIG,
   DEFAULT_TOURIST_SPOTS,
   TOURIST_SPOT_CATEGORIES,
+  getSpotImages,
   parseHeroConfig,
   parseTouristSpots,
   serializeHeroConfig,
@@ -55,7 +56,22 @@ describe('CMS constants and tourist spot helpers', () => {
         description: 'Sandbar islet.',
         tips: 'Bring sunblock.',
         image: 'https://cdn.example.com/tulang.webp',
+        images: ['https://cdn.example.com/tulang.webp'],
       },
+    ])
+
+    // Multi-image deduplication & primary image syncing
+    expect(
+      getSpotImages({
+        image: 'https://cdn.example.com/1.webp',
+        images: [
+          'https://cdn.example.com/1.webp',
+          'https://cdn.example.com/2.webp',
+        ],
+      }),
+    ).toEqual([
+      'https://cdn.example.com/1.webp',
+      'https://cdn.example.com/2.webp',
     ])
 
     // Handles malformed items, invalid categories, missing optional fields, and blank names
@@ -77,6 +93,7 @@ describe('CMS constants and tourist spot helpers', () => {
         description: '',
         tips: '',
         image: '',
+        images: [],
       },
     ])
 

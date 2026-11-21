@@ -65,7 +65,11 @@ describe('ExploreGuideView', () => {
             entranceFee: 'Free',
             description: 'Quiet powdery stretch of coast.',
             tips: 'Bring drinking water.',
-            image: 'https://cdn.example.com/bakhaw.webp',
+            image: 'https://cdn.example.com/bakhaw-1.webp',
+            images: [
+              'https://cdn.example.com/bakhaw-1.webp',
+              'https://cdn.example.com/bakhaw-2.webp',
+            ],
           },
         ]),
       },
@@ -80,10 +84,40 @@ describe('ExploreGuideView', () => {
     ).toHaveAttribute('src', 'https://cdn.example.com/camotes-hero.webp')
     expect(screen.getByAltText('Bakhaw White Beach')).toHaveAttribute(
       'src',
-      'https://cdn.example.com/bakhaw.webp',
+      'https://cdn.example.com/bakhaw-1.webp',
     )
+    expect(screen.getByText('2 Photos')).toBeInTheDocument()
     // Only 1 category -> tablist hidden
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+
+    // Clicking spot opens multi-photo gallery modal with navigation and keyboard controls
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View gallery for Bakhaw White Beach' }),
+    )
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Next destination photo' }),
+    )
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    expect(screen.getByAltText('Bakhaw White Beach photo 2')).toHaveAttribute(
+      'src',
+      'https://cdn.example.com/bakhaw-2.webp',
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Previous destination photo' }),
+    )
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+
+    // Thumbnail click jumps directly to photo 2
+    fireEvent.click(screen.getByRole('button', { name: 'Select photo 2' }))
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+
+    // Keyboard Escape closes modal
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     // Empty spots list state
     rerender(

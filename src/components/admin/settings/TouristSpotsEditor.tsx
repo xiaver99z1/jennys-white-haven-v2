@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Compass,
   ImagePlus,
@@ -8,11 +10,12 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { TOURIST_SPOT_CATEGORIES } from '#/lib/constants/cms'
+import { getSpotImages, TOURIST_SPOT_CATEGORIES } from '#/lib/constants/cms'
 import { getErrorMessage } from '#/lib/formatters'
 import {
   compressImageForUpload,
   IMAGE_UPLOAD_PRESETS,
+  isSupportedImageFile,
 } from '#/lib/image-compress'
 import { uploadAvatar } from '#/server/upload'
 import type { TouristSpotCategory, TouristSpotItem } from '#/types'
@@ -37,13 +40,21 @@ export function TouristSpotsEditor({
   onUploadingChange,
 }: TouristSpotsEditorProps) {
   const [uploadingSpotIds, setUploadingSpotIds] = useState<string[]>([])
+  const [spotErrors, setSpotErrors] = useState<Record<string, string>>({})
+  const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({})
   const activeUploadsRef = useRef(0)
-  const imageVersionRef = useRef<Map<string, number>>(new Map())
+  const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
-  const bumpSpotImageVersion = (spotId: string): number => {
-    const next = (imageVersionRef.current.get(spotId) ?? 0) + 1
-    imageVersionRef.current.set(spotId, next)
-    return next
+  const setSpotError = (spotId: string, message: string | null) => {
+    setSpotErrors((prev) => {
+      if (!message) {
+        if (!(spotId in prev)) return prev
+        const { [spotId]: _removed, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [spotId]: message }
+    })
+    onError(message)
   }
 
   const handleAddSpot = () => {
@@ -61,6 +72,7 @@ export function TouristSpotsEditor({
         description: '',
         tips: '',
         image: '',
+        images: [],
       },
     ])
   }
@@ -71,6 +83,26 @@ export function TouristSpotsEditor({
   ) => {
     onChange((prev) =>
       prev.map((spot) => (spot.id === spotId ? { ...spot, ...patch } : spot)),
+    )
+  }
+
+  const handleSetSpotImages = (
+    spotId: string,
+    updater: (prevImages: string[]) => string[],
+  ) => {
+    onChange((prev) =>
+      prev.map((spot) => {
+        if (spot.id !== spotId) return spot
+        const currentImages = getSpotImages(spot)
+        const nextImages = Array.from(
+          new Set(updater(currentImages).map((u) => u.trim()).filter(Boolean)),
+        )
+        return {
+          ...spot,
+          image: nextImages[0] ?? '',
+          images: nextImages,
+        }
+      }),
     )
   }
 
@@ -90,35 +122,94 @@ export function TouristSpotsEditor({
     })
   }
 
-  const handleUploadSpotPhoto = async (spotId: string, file?: File) => {
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      onError('Please select a valid image file (JPG, PNG, WEBP, GIF).')
+  const handleMovePhoto = (
+    spotId: string,
+    photoIndex: number,
+    direction: -1 | 1,
+  ) => {
+    handleSetSpotImages(spotId, (prevImages) => {
+      const target = photoIndex + direction
+      if (target < 0 || target >= prevImages.length) return prevImages
+      const next = [...prevImages]
+      const [moved] = next.splice(photoIndex, 1)
+      next.splice(target, 0, moved)
+      return next
+    })
+  }
+
+  const handleRemovePhoto = (spotId: string, photoIndex: number) => {
+    handleSetSpotImages(spotId, (prevImages) =>
+      prevImages.filter((_, idx) => idx !== photoIndex),
+    )
+  }
+
+  const handleAddPhotoUrl = (spotId: string) => {
+    const raw = (urlDrafts[spotId] ?? '').trim()
+    if (!raw) return
+    if (raw.toLowerCase().startsWith('data:')) {
+      setSpotError(
+        spotId,
+        'Base64 data URLs cannot be stored in PostgreSQL. Please upload image files or paste an HTTP/CDN URL.',
+      )
       return
     }
+    setSpotError(spotId, null)
+    handleSetSpotImages(spotId, (prevImages) => [...prevImages, raw])
+    setUrlDrafts((prev) => ({ ...prev, [spotId]: '' }))
+  }
 
-    const uploadVersion = bumpSpotImageVersion(spotId)
+  const handleUploadSpotPhotos = async (spotId: string, files: File[]) => {
+    if (files.length === 0) return
+
+    const validFiles = files.filter((file) => isSupportedImageFile(file))
+    if (validFiles.length === 0) {
+      setSpotError(
+        spotId,
+        'Please select valid image files (JPG, PNG, WEBP, AVIF, GIF).',
+      )
+      return
+    }
+    if (validFiles.length < files.length) {
+      setSpotError(
+        spotId,
+        'Some unsupported files were skipped. Only image files (JPG, PNG, WEBP, AVIF, GIF) are allowed.',
+      )
+    } else {
+      setSpotError(spotId, null)
+    }
+
     activeUploadsRef.current += 1
     setUploadingSpotIds((prev) =>
       prev.includes(spotId) ? prev : [...prev, spotId],
     )
     onUploadingChange?.(true)
-    onError(null)
+
     try {
-      const compressed = await compressImageForUpload(
-        file,
-        IMAGE_UPLOAD_PRESETS.editorial.maxDimension,
-        IMAGE_UPLOAD_PRESETS.editorial.quality,
-      )
-      const formData = new FormData()
-      formData.append('file', compressed)
-      formData.append('scope', 'cms')
-      const url = await uploadAvatar({ data: formData })
-      if (imageVersionRef.current.get(spotId) === uploadVersion) {
-        handleUpdateSpot(spotId, { image: url })
+      const uploadedUrls: string[] = []
+      for (const file of validFiles) {
+        const compressed = await compressImageForUpload(
+          file,
+          IMAGE_UPLOAD_PRESETS.editorial.maxDimension,
+          IMAGE_UPLOAD_PRESETS.editorial.quality,
+        )
+        const formData = new FormData()
+        formData.append('file', compressed)
+        formData.append('scope', 'cms')
+        const url = await uploadAvatar({ data: formData })
+        if (url) uploadedUrls.push(url)
+      }
+
+      if (uploadedUrls.length > 0) {
+        handleSetSpotImages(spotId, (prevImages) => [
+          ...prevImages,
+          ...uploadedUrls,
+        ])
       }
     } catch (err: unknown) {
-      onError(getErrorMessage(err, 'Failed to upload tourist spot image.'))
+      setSpotError(
+        spotId,
+        getErrorMessage(err, 'Failed to upload tourist spot image.'),
+      )
     } finally {
       activeUploadsRef.current = Math.max(0, activeUploadsRef.current - 1)
       setUploadingSpotIds((prev) => prev.filter((id) => id !== spotId))
@@ -136,8 +227,8 @@ export function TouristSpotsEditor({
             Camotes Island Tourist Spots ({spots.length})
           </h3>
           <p className="text-[11px] text-stone-400">
-            Add, edit, reorder, and upload photos for places guests can visit
-            during their stay.
+            Add, edit, reorder, and upload multiple gallery photos for each
+            destination. The first photo is used as the cover.
           </p>
         </div>
         <button
@@ -160,6 +251,10 @@ export function TouristSpotsEditor({
         <div className="space-y-4">
           {spots.map((spot, idx) => {
             const isUploadingThis = uploadingSpotIds.includes(spot.id)
+            const spotImages = getSpotImages(spot)
+            const spotError = spotErrors[spot.id]
+            const draftUrl = urlDrafts[spot.id] ?? ''
+
             return (
               <div
                 key={spot.id}
@@ -173,6 +268,12 @@ export function TouristSpotsEditor({
                     <span className="text-sm font-semibold text-stone-900 truncate">
                       {spot.name.trim() || 'Untitled Destination'}
                     </span>
+                    {spotImages.length > 0 && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-stone-200/70 text-stone-600 shrink-0">
+                        {spotImages.length}{' '}
+                        {spotImages.length === 1 ? 'photo' : 'photos'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -205,77 +306,169 @@ export function TouristSpotsEditor({
                   </div>
                 </div>
 
-                {/* Photo Preview + Upload / URL */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start">
-                  <div className="sm:col-span-4">
-                    <div className="aspect-[16/10] rounded-xl overflow-hidden border border-stone-200 bg-white flex items-center justify-center">
-                      {spot.image ? (
-                        <img
-                          src={spot.image}
-                          alt={spot.name.trim() || `Spot ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
+                {/* Multi-Photo Gallery Manager */}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-stone-600">
+                      Spot Photos ({spotImages.length}) — First photo is the
+                      card cover
+                    </span>
+                    <button
+                      type="button"
+                      disabled={disabled || isUploadingThis}
+                      onClick={() => fileInputRefs.current.get(spot.id)?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
+                    >
+                      {isUploadingThis ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <div className="flex flex-col items-center gap-1 text-stone-400 text-[11px]">
-                          <Compass className="w-5 h-5" />
-                          <span>No photo yet</span>
-                        </div>
+                        <ImagePlus className="w-3.5 h-3.5" />
                       )}
-                    </div>
+                      {isUploadingThis ? 'Uploading...' : 'Upload Photos'}
+                    </button>
+                    <input
+                      ref={(node) => {
+                        if (node) {
+                          fileInputRefs.current.set(spot.id, node)
+                        } else {
+                          fileInputRefs.current.delete(spot.id)
+                        }
+                      }}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      tabIndex={-1}
+                      aria-label={`Upload photos for spot ${idx + 1}`}
+                      className="hidden"
+                      disabled={disabled || isUploadingThis}
+                      onChange={(e) => {
+                        const selectedFiles = Array.from(e.target.files ?? [])
+                        e.target.value = ''
+                        void handleUploadSpotPhotos(spot.id, selectedFiles)
+                      }}
+                    />
                   </div>
-                  <div className="sm:col-span-8 space-y-2.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition">
-                        {isUploadingThis ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <ImagePlus className="w-3.5 h-3.5" />
-                        )}
-                        {isUploadingThis
-                          ? 'Uploading...'
-                          : spot.image
-                            ? 'Replace Photo'
-                            : 'Upload Photo'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={disabled || isUploadingThis}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            e.target.value = ''
-                            void handleUploadSpotPhoto(spot.id, file)
-                          }}
-                        />
-                      </label>
-                      {spot.image && (
-                        <button
-                          type="button"
-                          disabled={disabled || isUploadingThis}
-                          onClick={() => {
-                            bumpSpotImageVersion(spot.id)
-                            handleUpdateSpot(spot.id, { image: '' })
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                        >
-                          Remove Photo
-                        </button>
-                      )}
+
+                  {spotError && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-medium text-rose-700"
+                    >
+                      {spotError}
                     </div>
+                  )}
+
+                  {/* Add Image by URL */}
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       inputMode="url"
                       aria-label={`Spot ${idx + 1} image URL`}
                       disabled={disabled || isUploadingThis}
-                      value={spot.image}
-                      onChange={(e) => {
-                        bumpSpotImageVersion(spot.id)
-                        handleUpdateSpot(spot.id, { image: e.target.value })
+                      value={draftUrl}
+                      onChange={(e) =>
+                        setUrlDrafts((prev) => ({
+                          ...prev,
+                          [spot.id]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddPhotoUrl(spot.id)
+                        }
                       }}
-                      placeholder="https://... or upload an image above"
-                      className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10 disabled:opacity-60"
+                      placeholder="https://... paste an image URL to add to gallery"
+                      className="flex-1 px-3 py-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-900/10 disabled:opacity-60"
                     />
+                    <button
+                      type="button"
+                      disabled={disabled || isUploadingThis || !draftUrl.trim()}
+                      onClick={() => handleAddPhotoUrl(spot.id)}
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-stone-200/80 hover:bg-stone-200 text-xs font-semibold text-stone-700 transition cursor-pointer disabled:opacity-40"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add URL
+                    </button>
                   </div>
+
+                  {/* Spot Gallery Thumbnails */}
+                  {spotImages.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-stone-200 bg-white py-5 px-4 flex flex-col items-center justify-center gap-1 text-stone-400 text-[11px]">
+                      <Compass className="w-5 h-5" />
+                      <span>
+                        No photos yet — upload one or multiple photos above.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {spotImages.map((src, photoIdx) => (
+                        <div
+                          key={`${src}-${photoIdx}`}
+                          className="rounded-xl overflow-hidden border border-stone-200 bg-white flex flex-col"
+                        >
+                          <div className="relative aspect-[16/10] bg-stone-100">
+                            <img
+                              src={src}
+                              alt={`${spot.name.trim() || `Spot ${idx + 1}`} photo ${photoIdx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            {photoIdx === 0 && (
+                              <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-stone-900/80 text-white text-[9px] font-semibold uppercase tracking-wider">
+                                Cover
+                              </span>
+                            )}
+                          </div>
+                          <div className="px-2 py-1.5 flex items-center justify-between gap-1 border-t border-stone-100">
+                            <span className="text-[10px] font-medium text-stone-500">
+                              #{photoIdx + 1}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                disabled={
+                                  disabled || isUploadingThis || photoIdx === 0
+                                }
+                                onClick={() =>
+                                  handleMovePhoto(spot.id, photoIdx, -1)
+                                }
+                                aria-label={`Move spot ${idx + 1} photo ${photoIdx + 1} left`}
+                                className="p-1 rounded hover:bg-stone-100 text-stone-600 disabled:opacity-30 cursor-pointer"
+                              >
+                                <ArrowLeft className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={
+                                  disabled ||
+                                  isUploadingThis ||
+                                  photoIdx === spotImages.length - 1
+                                }
+                                onClick={() =>
+                                  handleMovePhoto(spot.id, photoIdx, 1)
+                                }
+                                aria-label={`Move spot ${idx + 1} photo ${photoIdx + 1} right`}
+                                className="p-1 rounded hover:bg-stone-100 text-stone-600 disabled:opacity-30 cursor-pointer"
+                              >
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={disabled || isUploadingThis}
+                                onClick={() =>
+                                  handleRemovePhoto(spot.id, photoIdx)
+                                }
+                                aria-label={`Remove spot ${idx + 1} photo ${photoIdx + 1}`}
+                                className="p-1 rounded hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Spot Metadata Fields */}

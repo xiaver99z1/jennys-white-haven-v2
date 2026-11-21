@@ -568,6 +568,7 @@ export interface TouristSpotItem {
   description: string
   tips: string
   image: string
+  images?: string[]
 }
 
 export interface CmsSectionData {
