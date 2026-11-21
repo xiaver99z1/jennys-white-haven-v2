@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { hashPassword, verifyPassword } from 'better-auth/crypto'
 import { auth } from '#/lib/auth'
 import { authSession } from '#/lib/auth-helpers'
@@ -35,11 +35,8 @@ export function validateCreateAdminUser(data: CreateAdminUserInput) {
   return data
 }
 
-export async function createAdminUserHandler({
-  data,
-}: {
-  data: CreateAdminUserInput
-}) {
+export const createAdminUserHandler = createServerOnlyFn(
+  async ({ data }: { data: CreateAdminUserInput }) => {
   const normalizedRole = data.role.toLowerCase()
   const now = new Date()
   const session = await authSession()
@@ -135,7 +132,7 @@ export async function createAdminUserHandler({
     console.error('Error in createAdminUser:', error)
     throw new Error(error.message || 'Failed to process request.')
   }
-}
+})
 
 export const createAdminUser = createServerFn({ method: 'POST' })
   .validator(validateCreateAdminUser)
@@ -146,11 +143,8 @@ export function validateUpdateAdminUser(data: UpdateAdminUserInput) {
   return data
 }
 
-export async function updateAdminUserHandler({
-  data,
-}: {
-  data: UpdateAdminUserInput
-}) {
+export const updateAdminUserHandler = createServerOnlyFn(
+  async ({ data }: { data: UpdateAdminUserInput }) => {
   const normalizedRole = data.role.toLowerCase()
 
   try {
@@ -303,7 +297,7 @@ export async function updateAdminUserHandler({
     console.error('Error updating staff profile:', error)
     throw new Error(error.message || 'Failed to update staff profile.')
   }
-}
+})
 
 export const updateAdminUser = createServerFn({ method: 'POST' })
   .validator(validateUpdateAdminUser)
@@ -314,11 +308,8 @@ export function validateBlockAdminUser(data: AdminUserIdInput) {
   return data
 }
 
-export async function blockAdminUserHandler({
-  data,
-}: {
-  data: AdminUserIdInput
-}) {
+export const blockAdminUserHandler = createServerOnlyFn(
+  async ({ data }: { data: AdminUserIdInput }) => {
   try {
     const session = await authSession()
     const currentAdmin = await prisma.user.findUnique({
@@ -358,7 +349,7 @@ export async function blockAdminUserHandler({
     console.error('Error blocking user:', error)
     throw new Error(error.message || 'Failed to block user.')
   }
-}
+})
 
 export const blockAdminUser = createServerFn({ method: 'POST' })
   .validator(validateBlockAdminUser)
@@ -369,11 +360,8 @@ export function validateUnblockAdminUser(data: AdminUserIdInput) {
   return data
 }
 
-export async function unblockAdminUserHandler({
-  data,
-}: {
-  data: AdminUserIdInput
-}) {
+export const unblockAdminUserHandler = createServerOnlyFn(
+  async ({ data }: { data: AdminUserIdInput }) => {
   try {
     const session = await authSession()
     const currentAdmin = await prisma.user.findUnique({
@@ -409,7 +397,7 @@ export async function unblockAdminUserHandler({
     console.error('Error unblocking user:', error)
     throw new Error(error.message || 'Failed to unblock user.')
   }
-}
+})
 
 export const unblockAdminUser = createServerFn({ method: 'POST' })
   .validator(validateUnblockAdminUser)
@@ -420,11 +408,8 @@ export function validateResendVerificationEmail(data: AdminUserIdInput) {
   return data
 }
 
-export async function resendVerificationEmailHandler({
-  data,
-}: {
-  data: AdminUserIdInput
-}) {
+export const resendVerificationEmailHandler = createServerOnlyFn(
+  async ({ data }: { data: AdminUserIdInput }) => {
   const now = new Date()
   const session = await authSession()
 
@@ -518,7 +503,7 @@ export async function resendVerificationEmailHandler({
     console.error('Error resending verification email:', error)
     throw new Error(error.message || 'Failed to resend verification email.')
   }
-}
+})
 
 export const resendVerificationEmail = createServerFn({ method: 'POST' })
   .validator(validateResendVerificationEmail)

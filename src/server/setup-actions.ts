@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { hashPassword } from 'better-auth/crypto'
 import { getServerHeaders } from '#/lib/auth-helpers'
 import {
@@ -20,20 +20,17 @@ export function validateCreateInitialSuperAdmin(data: InitialSetupInput) {
   return data
 }
 
-export async function checkInitialSetupRequiredHandler() {
+export const checkInitialSetupRequiredHandler = createServerOnlyFn(async () => {
   const userCount = await prisma.user.count()
   return { needsSetup: userCount === 0 }
-}
+})
 
 export const checkInitialSetupRequired = createServerFn({
   method: 'GET',
 }).handler(checkInitialSetupRequiredHandler)
 
-export async function createInitialSuperAdminHandler({
-  data,
-}: {
-  data: InitialSetupInput
-}) {
+export const createInitialSuperAdminHandler = createServerOnlyFn(
+  async ({ data }: { data: InitialSetupInput }) => {
   const name = data.name.trim()
   const email = data.email.trim().toLowerCase()
   const { password, confirmPassword } = data
@@ -195,7 +192,7 @@ export async function createInitialSuperAdminHandler({
       role: createdUser.role,
     },
   }
-}
+})
 
 export const createInitialSuperAdmin = createServerFn({ method: 'POST' })
   .validator(validateCreateInitialSuperAdmin)
