@@ -11,7 +11,7 @@ export interface ImageUploadPreset {
  */
 export const IMAGE_UPLOAD_PRESETS = {
   avatar: { maxDimension: 400, quality: 0.82 },
-  hero: { maxDimension: 1920, quality: 0.82 },
+  hero: { maxDimension: 2560, quality: 0.88 },
   editorial: { maxDimension: 1280, quality: 0.82 },
   gallery: { maxDimension: 1200, quality: 0.82 },
   room: { maxDimension: 1440, quality: 0.82 },
@@ -96,6 +96,8 @@ export async function compressImageForUpload(
       const ctx = canvas.getContext('2d')
       if (!ctx) return file
 
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(img, 0, 0, width, height)
 
       const blob = await new Promise<Blob | null>((resolve) =>
