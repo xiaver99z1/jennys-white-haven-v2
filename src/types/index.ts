@@ -537,6 +537,10 @@ export interface HeroSlideItem {
   showText: boolean
   textPosition: HeroElementPosition
   textWidth?: number
+  mobileTextPosition?: HeroElementPosition
+  mobileTextWidth?: number
+  mobileTextScale?: number
+  mobileImageFocalX?: number
 }
 
 export interface HeroCarouselConfig {
@@ -545,8 +549,10 @@ export interface HeroCarouselConfig {
   intervalMs: number
   showCta: boolean
   ctaPosition: HeroElementPosition
+  mobileCtaPosition?: HeroElementPosition
   showBookingBar: boolean
   bookingBarPosition: HeroElementPosition
+  mobileBookingBarPosition?: HeroElementPosition
 }
 
 export type TouristSpotCategory =

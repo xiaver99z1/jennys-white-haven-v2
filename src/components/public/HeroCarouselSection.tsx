@@ -11,6 +11,10 @@ import {
   Users,
 } from 'lucide-react'
 import {
+  DEFAULT_HERO_IMAGE_FOCAL_X,
+  DEFAULT_HERO_MOBILE_POSITIONS,
+  DEFAULT_HERO_MOBILE_TEXT_SCALE,
+  DEFAULT_HERO_MOBILE_TEXT_WIDTH,
   DEFAULT_HERO_TEXT_WIDTH,
   parseHeroConfig,
 } from '#/lib/constants/cms'
@@ -27,14 +31,29 @@ interface HeroCarouselSectionProps {
   }) => void
 }
 
-function positionVars(
-  pos: HeroElementPosition,
-  widthPct?: number,
+function responsivePositionVars(
+  desktopPos: HeroElementPosition,
+  mobilePos: HeroElementPosition,
+  options?: {
+    desktopWidthPct?: number
+    mobileWidthPct?: number
+    mobileTextScale?: number
+  },
 ): CSSProperties {
   return {
-    '--hx': `${pos.x}%`,
-    '--hy': `${pos.y}%`,
-    ...(widthPct !== undefined ? { '--hw': `${widthPct}%` } : {}),
+    '--hx': `${desktopPos.x}%`,
+    '--hy': `${desktopPos.y}%`,
+    '--mhx': `${mobilePos.x}%`,
+    '--mhy': `${mobilePos.y}%`,
+    ...(options?.desktopWidthPct !== undefined
+      ? { '--hw': `${options.desktopWidthPct}%` }
+      : {}),
+    ...(options?.mobileWidthPct !== undefined
+      ? { '--mhw': `${options.mobileWidthPct}%` }
+      : {}),
+    ...(options?.mobileTextScale !== undefined
+      ? { '--mscale': String(options.mobileTextScale) }
+      : {}),
   } as CSSProperties
 }
 
@@ -123,11 +142,12 @@ export function HeroCarouselSection({
           setIsFocusPaused(false)
         }
       }}
-      className="relative min-h-[76vh] md:min-h-0 md:h-[clamp(540px,82vh,720px)] flex flex-col justify-end overflow-hidden bg-stone-900"
+      className="relative h-[520px] md:h-[clamp(540px,82vh,720px)] overflow-hidden bg-stone-900"
     >
       {/* Background Carousel Slides */}
       {config.slides.map((slide, idx) => {
         const isActive = idx === safeIndex
+        const focalX = slide.mobileImageFocalX ?? DEFAULT_HERO_IMAGE_FOCAL_X
         return (
           <div
             key={slide.id}
@@ -143,7 +163,8 @@ export function HeroCarouselSection({
                 fetchPriority={idx === 0 ? 'high' : 'auto'}
                 loading={idx === 0 ? 'eager' : 'lazy'}
                 decoding="async"
-                className="w-full h-full object-cover opacity-80"
+                style={{ '--m-focal-x': `${focalX}%` } as CSSProperties}
+                className="w-full h-full object-cover object-[var(--m-focal-x)_50%] md:object-center opacity-80"
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-stone-800 via-stone-900 to-amber-950/80" />
@@ -155,38 +176,49 @@ export function HeroCarouselSection({
       {/* Editorial Gradient Scrim */}
       <div className="absolute inset-0 z-[1] bg-gradient-to-t from-stone-950/80 via-stone-950/35 to-stone-950/20 pointer-events-none" />
 
-      {/* Carousel Prev / Next Controls */}
+      {/* Carousel Prev / Next Controls (bottom corners on mobile to avoid CTA overlap, vertically centered on desktop) */}
       {slideCount > 1 && (
         <>
           <button
             type="button"
             onClick={handlePrevSlide}
             aria-label="Previous hero slide"
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-stone-950/40 hover:bg-stone-950/70 text-[#FAF8F4] backdrop-blur-xs border border-white/15 transition cursor-pointer"
+            className="absolute left-3 bottom-3 md:bottom-auto md:left-4 md:top-1/2 md:-translate-y-1/2 z-20 p-1.5 md:p-2.5 rounded-full bg-stone-950/45 hover:bg-stone-950/75 text-[#FAF8F4] backdrop-blur-xs border border-white/15 transition cursor-pointer"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
           </button>
           <button
             type="button"
             onClick={handleNextSlide}
             aria-label="Next hero slide"
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-stone-950/40 hover:bg-stone-950/70 text-[#FAF8F4] backdrop-blur-xs border border-white/15 transition cursor-pointer"
+            className="absolute right-3 bottom-3 md:bottom-auto md:right-4 md:top-1/2 md:-translate-y-1/2 z-20 p-1.5 md:p-2.5 rounded-full bg-stone-950/45 hover:bg-stone-950/75 text-[#FAF8F4] backdrop-blur-xs border border-white/15 transition cursor-pointer"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
           </button>
         </>
       )}
 
-      {/* Content Overlay Stage: stacked on mobile, 1:1 center-anchored dragged positions on md+ */}
-      <div className="relative z-10 max-w-[1280px] mx-auto w-full px-6 pt-24 pb-16 md:p-0 md:h-full flex flex-col justify-end gap-6 md:block">
+      {/* Content Overlay Stage: customizable mobile positions (<md) & desktop positions (md+) */}
+      <div className="relative z-10 max-w-[1280px] mx-auto w-full h-full">
         {/* Per-Slide Rich Text (Title & Subtitle) */}
         {showSlideText && (
           <div
-            style={positionVars(
+            style={responsivePositionVars(
               activeSlide.textPosition,
-              activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH,
+              activeSlide.mobileTextPosition ??
+                DEFAULT_HERO_MOBILE_POSITIONS.text,
+              {
+                desktopWidthPct:
+                  activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH,
+                mobileWidthPct:
+                  activeSlide.mobileTextWidth ??
+                  DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+                mobileTextScale:
+                  activeSlide.mobileTextScale ??
+                  DEFAULT_HERO_MOBILE_TEXT_SCALE,
+              },
             )}
-            className="w-full md:w-[var(--hw)] text-[#FAF8F4] md:absolute md:z-20 md:left-[clamp(calc(var(--hw)/2),var(--hx),calc(100%-var(--hw)/2))] md:top-[clamp(3rem,var(--hy),calc(100%-3rem))] md:-translate-x-1/2 md:-translate-y-1/2"
+            className="absolute z-20 text-[#FAF8F4] [--hero-font-scale:var(--mscale)] md:[--hero-font-scale:1] w-[var(--mhw)] md:w-[var(--hw)] left-[clamp(calc(var(--mhw)/2),var(--mhx),calc(100%-var(--mhw)/2))] top-[clamp(2.25rem,var(--mhy),calc(100%-2.25rem))] md:left-[clamp(calc(var(--hw)/2),var(--hx),calc(100%-var(--hw)/2))] md:top-[clamp(3rem,var(--hy),calc(100%-3rem))] -translate-x-1/2 -translate-y-1/2"
           >
             <HeroRichTextContent
               html={activeSlide.contentHtml}
@@ -198,35 +230,42 @@ export function HeroCarouselSection({
         {/* Single Shared Explore Rooms CTA Button */}
         {showCta && (
           <div
-            style={positionVars(config.ctaPosition)}
-            className="md:absolute md:z-20 md:left-[clamp(8rem,var(--hx),calc(100%-8rem))] md:top-[clamp(2.5rem,var(--hy),calc(100%-3.5rem))] md:-translate-x-1/2 md:-translate-y-1/2"
+            style={responsivePositionVars(
+              config.ctaPosition,
+              config.mobileCtaPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.cta,
+            )}
+            className="absolute z-20 left-[clamp(5.5rem,var(--mhx),calc(100%-5.5rem))] top-[clamp(2rem,var(--mhy),calc(100%-3rem))] md:left-[clamp(8rem,var(--hx),calc(100%-8rem))] md:top-[clamp(2.5rem,var(--hy),calc(100%-3.5rem))] -translate-x-1/2 -translate-y-1/2"
           >
             <Link
               to={hero.ctaHref || '/rooms'}
-              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-100 transition shadow-lg whitespace-nowrap"
+              className="inline-flex items-center gap-2 md:gap-2.5 px-5 py-2.5 md:px-6 md:py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-[11px] md:text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-100 transition shadow-lg whitespace-nowrap"
             >
               {hero.ctaLabel}
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
             </Link>
           </div>
         )}
 
-        {/* Single Shared Check-in / Check-out Availability Search Bar */}
+        {/* Single Shared Check-in / Check-out Availability Search Bar (compact 2x2 on mobile, 4-col on desktop) */}
         {config.showBookingBar && (
           <div
-            style={positionVars(config.bookingBarPosition)}
-            className="w-full md:w-[88%] md:max-w-5xl md:absolute md:z-10 md:left-[clamp(44%,var(--hx),56%)] md:top-[clamp(4.5rem,var(--hy),calc(100%-4.5rem))] md:-translate-x-1/2 md:-translate-y-1/2"
+            style={responsivePositionVars(
+              config.bookingBarPosition,
+              config.mobileBookingBarPosition ??
+                DEFAULT_HERO_MOBILE_POSITIONS.bookingBar,
+            )}
+            className="absolute z-10 w-[92%] md:w-[88%] md:max-w-5xl left-[clamp(46%,var(--mhx),54%)] top-[clamp(4.25rem,var(--mhy),calc(100%-4.25rem))] md:left-[clamp(44%,var(--hx),56%)] md:top-[clamp(4.5rem,var(--hy),calc(100%-4.5rem))] -translate-x-1/2 -translate-y-1/2"
           >
             <form
               onSubmit={handleFormSubmit}
-              className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-2xl border border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end"
+              className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-3 sm:p-5 shadow-2xl border border-stone-200/60 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 items-end"
             >
               <div>
                 <label
                   htmlFor="hero-checkin"
-                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5"
+                  className="flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5"
                 >
-                  <Calendar className="w-3.5 h-3.5" />
+                  <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   Check-in
                 </label>
                 <input
@@ -234,16 +273,16 @@ export function HeroCarouselSection({
                   type="date"
                   value={checkIn}
                   onChange={(e) => setCheckIn(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-stone-200 bg-white text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="hero-checkout"
-                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5"
+                  className="flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5"
                 >
-                  <Calendar className="w-3.5 h-3.5" />
+                  <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   Check-out
                 </label>
                 <input
@@ -252,23 +291,23 @@ export function HeroCarouselSection({
                   value={checkOut}
                   min={checkIn || undefined}
                   onChange={(e) => setCheckOut(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-stone-200 bg-white text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="hero-guests"
-                  className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5"
+                  className="flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5"
                 >
-                  <Users className="w-3.5 h-3.5" />
+                  <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   Guests
                 </label>
                 <select
                   id="hero-guests"
                   value={guests}
                   onChange={(e) => setGuests(Number(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-stone-200 bg-white text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 >
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>
@@ -280,7 +319,7 @@ export function HeroCarouselSection({
 
               <button
                 type="submit"
-                className="w-full py-3 px-5 rounded-xl bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold transition cursor-pointer"
+                className="w-full py-2.5 px-3 sm:py-3 sm:px-5 rounded-xl bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-[10px] sm:text-xs uppercase tracking-[0.14em] sm:tracking-[0.18em] font-semibold transition cursor-pointer whitespace-nowrap"
               >
                 Check Availability
               </button>
@@ -291,7 +330,7 @@ export function HeroCarouselSection({
 
       {/* Carousel Slide Indicators + Accessible Autoplay Pause/Play Control */}
       {slideCount > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
+        <div className="absolute bottom-3.5 md:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
           {config.autoplay && (
             <button
               type="button"

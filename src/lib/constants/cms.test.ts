@@ -117,6 +117,7 @@ describe('CMS constants and tourist spot helpers', () => {
 
   it('removes hero eyebrow metadata and parses/clamps hero carousel config with legacy fallback', () => {
     expect(CMS_SECTION_META.hero.metadataFields).toEqual([])
+    expect(DEFAULT_CMS_SECTIONS.find((s) => s.key === 'hero')?.title).toBe('')
 
     const fallbackConfig = parseHeroConfig(undefined, {
       title: 'Legacy Title',
@@ -134,6 +135,8 @@ describe('CMS constants and tourist spot helpers', () => {
         ...DEFAULT_HERO_CONFIG,
         intervalMs: 500,
         ctaPosition: { x: -20, y: 150 },
+        mobileCtaPosition: { x: 140, y: -10 },
+        mobileBookingBarPosition: { x: -5, y: 200 },
         slides: [
           {
             id: 's1',
@@ -142,16 +145,26 @@ describe('CMS constants and tourist spot helpers', () => {
             showText: false,
             textPosition: { x: 200, y: -5 },
             textWidth: 150,
+            mobileTextPosition: { x: -10, y: 120 },
+            mobileTextWidth: 10,
+            mobileTextScale: 0.1,
+            mobileImageFocalX: 180,
           },
         ],
       }),
     )
     expect(clamped.intervalMs).toBe(2000)
     expect(clamped.ctaPosition).toEqual({ x: 0, y: 100 })
+    expect(clamped.mobileCtaPosition).toEqual({ x: 100, y: 0 })
+    expect(clamped.mobileBookingBarPosition).toEqual({ x: 0, y: 100 })
     expect(clamped.slides[0].image).toBe('cms/slide.webp')
     expect(clamped.slides[0].contentHtml).toBe('<p>Hello</p>')
     expect(clamped.slides[0].textPosition).toEqual({ x: 100, y: 0 })
     expect(clamped.slides[0].textWidth).toBe(95)
+    expect(clamped.slides[0].mobileTextPosition).toEqual({ x: 0, y: 100 })
+    expect(clamped.slides[0].mobileTextWidth).toBe(20)
+    expect(clamped.slides[0].mobileTextScale).toBe(0.35)
+    expect(clamped.slides[0].mobileImageFocalX).toBe(100)
 
     // Invalid JSON falls back safely
     expect(parseHeroConfig('invalid-json').slides.length).toBeGreaterThanOrEqual(

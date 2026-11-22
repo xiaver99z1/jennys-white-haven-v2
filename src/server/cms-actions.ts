@@ -138,8 +138,8 @@ function mergeWithDefaults(
         : { ...def.metadata, ...rowMeta }
     return {
       key: def.key,
-      title: row.title,
-      subtitle: row.subtitle ?? '',
+      title: def.key === 'hero' ? '' : row.title,
+      subtitle: def.key === 'hero' ? '' : (row.subtitle ?? ''),
       body: row.body ?? '',
       ctaLabel: row.ctaLabel ?? '',
       ctaHref: row.ctaHref ?? '',
@@ -215,7 +215,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       throw new Error('Invalid CMS section key.')
     }
 
-    const title = data.title.trim()
+    const rawTitle = data.title.trim()
+    const rawSubtitle = data.subtitle?.trim() || ''
+    const title = data.key === 'hero' ? '' : rawTitle
+    const subtitle = data.key === 'hero' ? null : rawSubtitle || null
 
     const def = DEFAULT_CMS_SECTIONS.find((s) => s.key === data.key)!
     if (data.images.some((u) => isBase64DataUrl(u))) {
@@ -234,10 +237,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     }
 
     const extraMediaKeys: string[] = []
-    if (data.key === 'hero' && cleanMeta.heroConfigJson) {
+    if (data.key === 'hero') {
       const parsedHero = parseHeroConfig(cleanMeta.heroConfigJson, {
-        title,
-        subtitle: data.subtitle,
+        title: rawTitle,
+        subtitle: rawSubtitle,
         images: cleanImages,
       })
       if (parsedHero.slides.some((slide) => isBase64DataUrl(slide.image))) {
@@ -318,7 +321,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
         create: {
           key: data.key,
           title,
-          subtitle: data.subtitle?.trim() || null,
+          subtitle,
           body: data.body?.trim() || null,
           ctaLabel: data.ctaLabel?.trim() || null,
           ctaHref: data.ctaHref?.trim() || null,
@@ -330,7 +333,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
         },
         update: {
           title,
-          subtitle: data.subtitle?.trim() || null,
+          subtitle,
           body: data.body?.trim() || null,
           ctaLabel: data.ctaLabel?.trim() || null,
           ctaHref: data.ctaHref?.trim() || null,
@@ -387,8 +390,8 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       success: true,
       section: {
         key: data.key,
-        title: saved.title,
-        subtitle: saved.subtitle ?? '',
+        title: data.key === 'hero' ? '' : saved.title,
+        subtitle: data.key === 'hero' ? '' : (saved.subtitle ?? ''),
         body: saved.body ?? '',
         ctaLabel: saved.ctaLabel ?? '',
         ctaHref: saved.ctaHref ?? '',
@@ -398,8 +401,8 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
             ? resolveExploreMetadata(savedMeta)
             : data.key === 'hero'
               ? resolveHeroMetadata(savedMeta, {
-                  title: saved.title,
-                  subtitle: saved.subtitle ?? '',
+                  title: rawTitle,
+                  subtitle: rawSubtitle,
                   images: savedImages,
                 })
               : savedMeta,

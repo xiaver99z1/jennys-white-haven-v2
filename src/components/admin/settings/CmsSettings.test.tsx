@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { CmsSettings } from './CmsSettings'
 import { DEFAULT_CMS_SECTIONS } from '#/lib/constants/cms'
 
@@ -44,10 +50,15 @@ describe('CmsSettings', () => {
     mockInvalidate.mockResolvedValue(undefined)
   })
 
-  it('renders HeroCarouselEditor for hero and loads other sections into the form', () => {
-    render(<CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />)
+  it('renders HeroCarouselEditor for hero, hides any legacy hero title in the sidebar, and loads other sections into the form', () => {
+    const sectionsWithLegacyHeroTitle = DEFAULT_CMS_SECTIONS.map((s) =>
+      s.key === 'hero' ? { ...s, title: 'J' } : s,
+    )
+    render(<CmsSettings initialSections={sectionsWithLegacyHeroTitle} />)
 
     expect(screen.getByText('Website Content & Settings')).toBeInTheDocument()
+    const heroSidebarBtn = screen.getByRole('button', { name: /Hero Banner/i })
+    expect(within(heroSidebarBtn).queryByText('J')).not.toBeInTheDocument()
     expect(
       screen.getByLabelText('Interactive hero preview canvas'),
     ).toBeInTheDocument()

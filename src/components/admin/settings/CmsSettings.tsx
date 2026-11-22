@@ -292,13 +292,15 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                   <div className="text-xs font-semibold truncate">
                     {sectionMeta.label}
                   </div>
-                  <div
-                    className={`hidden lg:block text-[11px] truncate ${
-                      isSelected ? 'text-stone-300' : 'text-stone-400'
-                    }`}
-                  >
-                    {section.title}
-                  </div>
+                  {section.key !== 'hero' && section.title && (
+                    <div
+                      className={`hidden lg:block text-[11px] truncate ${
+                        isSelected ? 'text-stone-300' : 'text-stone-400'
+                      }`}
+                    >
+                      {section.title}
+                    </div>
+                  )}
                 </div>
                 <span
                   className={`hidden lg:inline-flex shrink-0 items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
