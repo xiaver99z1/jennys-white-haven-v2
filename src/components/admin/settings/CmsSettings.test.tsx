@@ -178,6 +178,13 @@ describe('CmsSettings', () => {
       screen.getByText(/Camotes Island Tourist Spots/i),
     ).toBeInTheDocument()
 
+    // Expand Spot 1 accordion to edit its fields
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Expand spot 1: Santiago Bay White Beach',
+      }),
+    )
+
     // Typing trailing spaces and clearing a name must not trim or remove the spot
     const firstSpotName = screen.getByDisplayValue('Santiago Bay White Beach')
     fireEvent.change(firstSpotName, { target: { value: 'Santiago Bay ' } })
@@ -191,12 +198,18 @@ describe('CmsSettings', () => {
     ).toBeInTheDocument()
     expect(mockUpsertCmsSection).not.toHaveBeenCalled()
 
-    // Restore valid name + add a relative uploaded photo URL, then save
+    // Restore valid name + open Spot 1 photos modal to add a relative uploaded photo URL, then save
     fireEvent.change(firstSpotName, { target: { value: 'Santiago Bay Beach' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage photos for spot 1' }),
+    )
     fireEvent.change(screen.getByLabelText('Spot 1 image URL'), {
       target: { value: '/api/media/view?key=cms%2Fsantiago.webp' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close spot photos modal' }),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Save Changes/i }))
 

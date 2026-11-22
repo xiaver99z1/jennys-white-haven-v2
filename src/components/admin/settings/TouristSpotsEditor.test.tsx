@@ -90,7 +90,7 @@ describe('TouristSpotsEditor', () => {
     vi.clearAllMocks()
   })
 
-  it('renders empty state and adds a new tourist spot', () => {
+  it('renders empty state and auto-expands a newly added tourist spot', () => {
     const onError = vi.fn()
     const onSpotsChange = vi.fn()
 
@@ -114,9 +114,13 @@ describe('TouristSpotsEditor', () => {
         images: [],
       }),
     ])
+    // Newly added spot auto-expands its form fields
+    expect(
+      screen.getByDisplayValue('New Camotes Destination'),
+    ).toBeInTheDocument()
   })
 
-  it('edits spot fields, adds/reorders/removes multiple gallery photos, and reorders/deletes spots', () => {
+  it('collapses spots by default, expands via accordion, and manages gallery photos inside the modal', () => {
     const onError = vi.fn()
     const onSpotsChange = vi.fn()
 
@@ -126,6 +130,21 @@ describe('TouristSpotsEditor', () => {
         onError={onError}
         onSpotsChange={onSpotsChange}
       />,
+    )
+
+    // Spots start collapsed (no inputs mounted yet, ordering buttons visible)
+    expect(
+      screen.queryByLabelText('Destination Name', {
+        selector: '#spot-name-spot-1',
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Move spot 1 down' }),
+    ).toBeInTheDocument()
+
+    // Expand Spot 1 via accordion toggle (named after its destination for assistive technology)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand spot 1: Santiago Bay' }),
     )
 
     const nameInput = screen.getByLabelText('Destination Name', {
@@ -176,13 +195,19 @@ describe('TouristSpotsEditor', () => {
       { target: { value: 'Try grilled fish' } },
     )
 
-    // Rejects Base64 data URLs and external image URLs
+    // Open Spot 1 Photos Modal
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage photos for spot 1' }),
+    )
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // Rejects Base64 data URLs and external image URLs inside modal
     const urlInput = screen.getByLabelText('Spot 1 image URL')
     expect(urlInput).toHaveAttribute('type', 'text')
     fireEvent.change(urlInput, {
       target: { value: 'data:image/png;base64,abc' },
     })
-    fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
+    fireEvent.click(screen.getByRole('button', { name: /Add URL/i }))
     expect(onError).toHaveBeenCalledWith(
       expect.stringMatching(/Base64 data URLs cannot be stored/i),
     )
@@ -190,7 +215,7 @@ describe('TouristSpotsEditor', () => {
     fireEvent.change(urlInput, {
       target: { value: 'https://external.example.com/santiago.webp' },
     })
-    fireEvent.click(screen.getAllByRole('button', { name: /Add URL/i })[0])
+    fireEvent.click(screen.getByRole('button', { name: /Add URL/i }))
     expect(onError).toHaveBeenCalledWith(
       expect.stringMatching(/External image URLs are not allowed/i),
     )
@@ -198,10 +223,23 @@ describe('TouristSpotsEditor', () => {
     fireEvent.change(urlInput, {
       target: { value: '/api/media/view?key=cms%2Fsantiago.webp' },
     })
+    urlInput.focus()
     fireEvent.keyDown(urlInput, { key: 'Enter' })
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[0].images,
     ).toEqual(['/api/media/view?key=cms%2Fsantiago.webp'])
+    // Focus stays on the URL input after adding a photo instead of jumping to Close button
+    expect(urlInput).toHaveFocus()
+
+    // Close Spot 1 modal with Escape
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Expand All -> opens Spot 2 as well, then open Spot 2 Photos Modal
+    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage photos for spot 2' }),
+    )
 
     // Reorder photo 2 left on spot 2 so it becomes the new Cover
     fireEvent.click(
@@ -222,7 +260,19 @@ describe('TouristSpotsEditor', () => {
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[1].images,
     ).toEqual(['/api/media/view?key=cms/bukilat-1.webp'])
 
-    // Move spot 1 down, then back up, then delete spot 1
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close spot photos modal' }),
+    )
+
+    // Collapse All hides expanded panels
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse All' }))
+    expect(
+      screen.queryByLabelText('Destination Name', {
+        selector: '#spot-name-spot-1',
+      }),
+    ).not.toBeInTheDocument()
+
+    // Move spot 1 down, then back up, then delete spot 1 while collapsed
     fireEvent.click(screen.getByRole('button', { name: 'Move spot 1 down' }))
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[]).map((s) => s.id),
@@ -263,6 +313,10 @@ describe('TouristSpotsEditor', () => {
         onUploadingChange={onUploadingChange}
         onSpotsChange={onSpotsChange}
       />,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand spot 1: Santiago Bay' }),
     )
 
     const spot1Input = screen.getByLabelText<HTMLInputElement>(
@@ -323,6 +377,12 @@ describe('TouristSpotsEditor', () => {
         onUploadingChange={onUploadingChange}
         onSpotsChange={onSpotsChange}
       />,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Expand spot 1: Untitled Destination',
+      }),
     )
 
     const fileInput = screen.getByLabelText<HTMLInputElement>(
