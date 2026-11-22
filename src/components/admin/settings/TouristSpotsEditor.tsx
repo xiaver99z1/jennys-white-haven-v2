@@ -101,9 +101,9 @@ export function TouristSpotsEditor({
     activeModalSpotIndex !== -1 ? spots[activeModalSpotIndex] : null
 
   useEffect(() => {
-    if (!activeModalSpot) return
+    if (!photoModalSpotId) return
     modalCloseBtnRef.current?.focus()
-  }, [activeModalSpot])
+  }, [photoModalSpotId])
 
   useEffect(() => {
     if (!activeModalSpot) return
@@ -353,6 +353,8 @@ export function TouristSpotsEditor({
             const coverImage = spotImages[0]
             const spotError = spotErrors[spot.id]
 
+            const spotTitle = spot.name.trim() || 'Untitled Destination'
+
             return (
               <div
                 key={spot.id}
@@ -386,7 +388,7 @@ export function TouristSpotsEditor({
                   <button
                     type="button"
                     aria-expanded={isExpanded}
-                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} spot ${idx + 1}`}
+                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} spot ${idx + 1}: ${spotTitle}`}
                     onClick={() => toggleExpandSpot(spot.id)}
                     className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer group"
                   >
@@ -403,7 +405,7 @@ export function TouristSpotsEditor({
                       />
                     )}
                     <span className="text-sm font-semibold text-stone-900 group-hover:text-amber-900 transition truncate">
-                      {spot.name.trim() || 'Untitled Destination'}
+                      {spotTitle}
                     </span>
                     <span className="hidden sm:inline-flex text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
                       {spot.category}

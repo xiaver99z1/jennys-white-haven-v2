@@ -142,8 +142,10 @@ describe('TouristSpotsEditor', () => {
       screen.getByRole('button', { name: 'Move spot 1 down' }),
     ).toBeInTheDocument()
 
-    // Expand Spot 1 via accordion toggle
-    fireEvent.click(screen.getByRole('button', { name: 'Expand spot 1' }))
+    // Expand Spot 1 via accordion toggle (named after its destination for assistive technology)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand spot 1: Santiago Bay' }),
+    )
 
     const nameInput = screen.getByLabelText('Destination Name', {
       selector: '#spot-name-spot-1',
@@ -221,10 +223,13 @@ describe('TouristSpotsEditor', () => {
     fireEvent.change(urlInput, {
       target: { value: '/api/media/view?key=cms%2Fsantiago.webp' },
     })
+    urlInput.focus()
     fireEvent.keyDown(urlInput, { key: 'Enter' })
     expect(
       (onSpotsChange.mock.lastCall?.[0] as TouristSpotItem[])[0].images,
     ).toEqual(['/api/media/view?key=cms%2Fsantiago.webp'])
+    // Focus stays on the URL input after adding a photo instead of jumping to Close button
+    expect(urlInput).toHaveFocus()
 
     // Close Spot 1 modal with Escape
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -310,7 +315,9 @@ describe('TouristSpotsEditor', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand spot 1' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand spot 1: Santiago Bay' }),
+    )
 
     const spot1Input = screen.getByLabelText<HTMLInputElement>(
       'Upload photos for spot 1',
@@ -372,7 +379,11 @@ describe('TouristSpotsEditor', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand spot 1' }))
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Expand spot 1: Untitled Destination',
+      }),
+    )
 
     const fileInput = screen.getByLabelText<HTMLInputElement>(
       'Upload photos for spot 1',

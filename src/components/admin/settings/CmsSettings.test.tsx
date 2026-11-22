@@ -179,7 +179,11 @@ describe('CmsSettings', () => {
     ).toBeInTheDocument()
 
     // Expand Spot 1 accordion to edit its fields
-    fireEvent.click(screen.getByRole('button', { name: 'Expand spot 1' }))
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Expand spot 1: Santiago Bay White Beach',
+      }),
+    )
 
     // Typing trailing spaces and clearing a name must not trim or remove the spot
     const firstSpotName = screen.getByDisplayValue('Santiago Bay White Beach')
