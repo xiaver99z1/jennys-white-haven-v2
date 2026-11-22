@@ -1391,9 +1391,25 @@ export function HeroCarouselEditor({
           {/* Slide Background Photo */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-stone-600">
-                Slide Background Photo
-              </span>
+              <div>
+                <span className="block text-[11px] font-semibold text-stone-600">
+                  Slide Background Photo
+                </span>
+                <p className="text-[11px] text-stone-500">
+                  Recommended:{' '}
+                  <strong className="font-semibold text-stone-700">
+                    2560 × 1440 px (16:9 QHD)
+                  </strong>{' '}
+                  · Min{' '}
+                  <strong className="font-semibold text-stone-700">
+                    1920 × 1080 px
+                  </strong>
+                  . Static photos (JPG, PNG, WebP) are auto-optimized to
+                  high-definition WebP (88% quality, ~250–380 KB) for crisp
+                  large-screen display and fast mobile loading; GIFs and
+                  unconverted files remain in their original format.
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer transition">
                   {isUploadingActive ? (

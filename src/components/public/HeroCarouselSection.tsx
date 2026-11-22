@@ -142,7 +142,7 @@ export function HeroCarouselSection({
           setIsFocusPaused(false)
         }
       }}
-      className="relative h-[520px] md:h-[clamp(540px,82vh,720px)] overflow-hidden bg-stone-900"
+      className="relative h-[clamp(480px,calc(100svh-4rem),600px)] md:h-[calc(100svh-5rem)] md:min-h-[540px] overflow-hidden bg-stone-900"
     >
       {/* Background Carousel Slides */}
       {config.slides.map((slide, idx) => {
@@ -163,6 +163,7 @@ export function HeroCarouselSection({
                 fetchPriority={idx === 0 ? 'high' : 'auto'}
                 loading={idx === 0 ? 'eager' : 'lazy'}
                 decoding="async"
+                sizes="100vw"
                 style={{ '--m-focal-x': `${focalX}%` } as CSSProperties}
                 className="w-full h-full object-cover object-[var(--m-focal-x)_50%] md:object-center opacity-80"
               />

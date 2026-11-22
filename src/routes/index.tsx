@@ -55,9 +55,9 @@ function LandingPage() {
 
       {/* Story / Sanctuary Section */}
       {story && (
-        <section className="max-w-7xl mx-auto px-6 lg:px-10 py-24 lg:py-32">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-            <div className="lg:col-span-6 space-y-6">
+        <section className="max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 lg:py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            <div className="lg:col-span-6 space-y-4 sm:space-y-5">
               {story.metadata.eyebrow && (
                 <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
                   {story.metadata.eyebrow}
@@ -102,10 +102,10 @@ function LandingPage() {
 
       {/* Featured Rooms Section */}
       {roomsSection && (
-        <section className="bg-[#F3EFE7] py-24 lg:py-28">
-          <div className="max-w-7xl mx-auto px-6 lg:px-10 space-y-12">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-              <div className="space-y-3 max-w-xl">
+        <section className="bg-[#F3EFE7] py-12 sm:py-16 lg:py-20">
+          <div className="max-w-7xl mx-auto px-6 lg:px-10 space-y-8 lg:space-y-10">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 sm:gap-6">
+              <div className="space-y-2.5 max-w-xl">
                 {roomsSection.metadata.eyebrow && (
                   <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
                     {roomsSection.metadata.eyebrow}
@@ -131,7 +131,7 @@ function LandingPage() {
             </div>
 
             {featuredRooms.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
                 {featuredRooms.map((room) => (
                   <Link
                     key={room.id}
@@ -195,8 +195,8 @@ function LandingPage() {
 
       {/* Amenities Section */}
       {amenities && (
-        <section className="max-w-7xl mx-auto px-6 lg:px-10 py-24 lg:py-28">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <section className="max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 lg:py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             {amenities.images[0] && (
               <div className="lg:col-span-6 order-2 lg:order-1">
                 <div className="aspect-[16/11] rounded-3xl overflow-hidden bg-stone-200 shadow-lg">
@@ -211,7 +211,7 @@ function LandingPage() {
               </div>
             )}
 
-            <div className="lg:col-span-6 order-1 lg:order-2 space-y-6">
+            <div className="lg:col-span-6 order-1 lg:order-2 space-y-4 sm:space-y-5">
               <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
                 Included With Every Stay
               </p>
@@ -248,8 +248,8 @@ function LandingPage() {
 
       {/* Gallery Section */}
       {gallery && gallery.images.length > 0 && (
-        <section className="bg-[#F3EFE7] py-24">
-          <div className="max-w-7xl mx-auto px-6 lg:px-10 space-y-10">
+        <section className="bg-[#F3EFE7] py-12 sm:py-16 lg:py-20">
+          <div className="max-w-7xl mx-auto px-6 lg:px-10 space-y-8">
             <div className="max-w-xl space-y-2">
               {gallery.metadata.eyebrow && (
                 <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
@@ -286,8 +286,8 @@ function LandingPage() {
 
       {/* Contact / Reservation Reminder Band */}
       {contact && (
-        <section className="max-w-7xl mx-auto px-6 lg:px-10 py-20">
-          <div className="rounded-3xl bg-stone-900 text-[#FAF8F4] p-10 sm:p-14 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+        <section className="max-w-7xl mx-auto px-6 lg:px-10 py-10 sm:py-14 lg:py-16">
+          <div className="rounded-3xl bg-stone-900 text-[#FAF8F4] p-7 sm:p-10 lg:p-12 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 lg:gap-8">
             <div className="space-y-3 max-w-xl">
               <p className="text-[11px] uppercase tracking-[0.26em] text-amber-200/90 flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5" />

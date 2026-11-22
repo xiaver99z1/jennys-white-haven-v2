@@ -18,7 +18,7 @@ vi.mock('#/server/upload', () => ({
 vi.mock('#/lib/image-compress', () => ({
   compressImageForUpload: mockCompressImage,
   IMAGE_UPLOAD_PRESETS: {
-    hero: { maxDimension: 1920, quality: 0.82 },
+    hero: { maxDimension: 2560, quality: 0.88 },
   },
 }))
 
@@ -341,7 +341,7 @@ describe('HeroCarouselEditor', () => {
     resolveUpload('/api/media/view?key=cms/hero1.webp')
 
     await waitFor(() => {
-      expect(mockCompressImage).toHaveBeenCalledWith(imgFile, 1920, 0.82)
+      expect(mockCompressImage).toHaveBeenCalledWith(imgFile, 2560, 0.88)
       expect(urlInput).toHaveValue('/api/media/view?key=cms/hero1.webp')
       expect(urlInput).not.toBeDisabled()
     })

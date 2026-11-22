@@ -168,7 +168,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
     activePhotoIndex < activeSpotImages.length ? activePhotoIndex : 0
 
   return (
-    <div className="pb-24">
+    <div className="pb-14 sm:pb-20">
       {/* Editorial Hero Header */}
       <section className="relative overflow-hidden border-b border-stone-200/70 bg-[#F3EFE7]">
         {heroImage && (
@@ -185,8 +185,8 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
           </div>
         )}
 
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-          <div className="max-w-3xl space-y-5">
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 lg:py-20">
+          <div className="max-w-3xl space-y-4">
             <p className="text-[11px] uppercase tracking-[0.28em] text-amber-900/80 font-semibold">
               {meta.eyebrow || 'Island Guide · Camotes, Cebu'}
             </p>
@@ -206,7 +206,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
           </div>
 
           {meta.travelNote && (
-            <div className="mt-10 max-w-3xl rounded-2xl bg-white/80 backdrop-blur-xs border border-stone-200/80 px-5 py-4 flex items-start gap-3">
+            <div className="mt-6 sm:mt-8 max-w-3xl rounded-2xl bg-white/80 backdrop-blur-xs border border-stone-200/80 px-5 py-4 flex items-start gap-3">
               <Compass className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
               <p className="text-xs sm:text-sm text-stone-700 leading-relaxed">
                 {meta.travelNote}
@@ -217,7 +217,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
       </section>
 
       {/* Filter Bar + Tourist Spots Showcase */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 lg:pt-16 space-y-10">
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-8 sm:pt-12 lg:pt-14 space-y-8">
         {categories.length > 1 && (
           <div
             role="tablist"

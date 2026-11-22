@@ -22,7 +22,7 @@ export function PublicLayout({
     <div className="min-h-screen flex flex-col bg-[#FAF8F4] text-stone-900 selection:bg-amber-200/60">
       {/* Minimal Aman-inspired Header */}
       <header className="sticky top-0 z-40 bg-[#FAF8F4]/90 backdrop-blur-md border-b border-stone-200/60">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 md:h-20 flex items-center justify-between">
           <Link
             to="/"
             className="flex flex-col leading-none group"
@@ -136,7 +136,7 @@ export function PublicLayout({
 
       {/* Calm Editorial Footer */}
       <footer className="border-t border-stone-200/80 bg-[#F3EFE7] text-stone-700">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16 grid grid-cols-1 md:grid-cols-3 gap-12">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 sm:py-12 lg:py-14 grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
           <div className="space-y-3">
             <p className="font-serif text-xl text-stone-900">
               Jenny&apos;s White Haven
