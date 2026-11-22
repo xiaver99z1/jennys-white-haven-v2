@@ -15,16 +15,24 @@ import {
   GripVertical,
   ImagePlus,
   Loader2,
+  Monitor,
   Plus,
   RotateCcw,
+  Smartphone,
   Trash2,
   Users,
 } from 'lucide-react'
 import {
+  DEFAULT_HERO_IMAGE_FOCAL_X,
+  DEFAULT_HERO_MOBILE_POSITIONS,
+  DEFAULT_HERO_MOBILE_TEXT_SCALE,
+  DEFAULT_HERO_MOBILE_TEXT_WIDTH,
   DEFAULT_HERO_POSITIONS,
   DEFAULT_HERO_TEXT_WIDTH,
   HERO_CANVAS_HEIGHT,
   HERO_CANVAS_WIDTH,
+  HERO_MOBILE_CANVAS_HEIGHT,
+  HERO_MOBILE_CANVAS_WIDTH,
   MAX_HERO_TEXT_WIDTH,
   MIN_HERO_TEXT_WIDTH,
 } from '#/lib/constants/cms'
@@ -48,6 +56,16 @@ export type HeroConfigUpdater = (
 ) => HeroCarouselConfig
 
 type DragTarget = 'text' | 'cta' | 'bookingBar'
+type PreviewDevice = 'desktop' | 'mobile'
+
+const MOBILE_TEXT_SCALE_OPTIONS = [
+  { label: '45%', value: 0.45 },
+  { label: '55% (Auto)', value: 0.55 },
+  { label: '65%', value: 0.65 },
+  { label: '75%', value: 0.75 },
+  { label: '85%', value: 0.85 },
+  { label: '100%', value: 1 },
+]
 
 interface HeroCarouselEditorProps {
   config: HeroCarouselConfig
@@ -83,6 +101,7 @@ export function HeroCarouselEditor({
   const [selectedSlideId, setSelectedSlideId] = useState<string>(
     config.slides[0]?.id ?? 'hero-slide-1',
   )
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop')
   const [uploadingSlideIds, setUploadingSlideIds] = useState<string[]>([])
   const [draggingTarget, setDraggingTarget] = useState<DragTarget | null>(null)
   const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(
@@ -90,6 +109,14 @@ export function HeroCarouselEditor({
   )
   const [snappedCenterX, setSnappedCenterX] = useState(false)
   const [previewScale, setPreviewScale] = useState(0.5)
+
+  const isMobilePreview = previewDevice === 'mobile'
+  const canvasWidth = isMobilePreview
+    ? HERO_MOBILE_CANVAS_WIDTH
+    : HERO_CANVAS_WIDTH
+  const canvasHeight = isMobilePreview
+    ? HERO_MOBILE_CANVAS_HEIGHT
+    : HERO_CANVAS_HEIGHT
 
   const activeUploadsRef = useRef(0)
   const imageVersionRef = useRef<Map<string, number>>(new Map())
@@ -116,7 +143,7 @@ export function HeroCarouselEditor({
     const updateScale = () => {
       const width = el.getBoundingClientRect().width
       if (width > 0) {
-        setPreviewScale(width / HERO_CANVAS_WIDTH)
+        setPreviewScale(width / canvasWidth)
       }
     }
     updateScale()
@@ -124,7 +151,7 @@ export function HeroCarouselEditor({
     const observer = new ResizeObserver(updateScale)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [canvasWidth])
 
   const activeSlideIndex = Math.max(
     0,
@@ -132,6 +159,24 @@ export function HeroCarouselEditor({
   )
   const activeSlide = config.slides[activeSlideIndex] ?? config.slides[0]
   const isUploadingActive = uploadingSlideIds.includes(activeSlide.id)
+
+  const activeTextPos = isMobilePreview
+    ? (activeSlide.mobileTextPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.text)
+    : activeSlide.textPosition
+  const activeTextWidth = isMobilePreview
+    ? (activeSlide.mobileTextWidth ?? DEFAULT_HERO_MOBILE_TEXT_WIDTH)
+    : (activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH)
+  const activeMobileTextScale =
+    activeSlide.mobileTextScale ?? DEFAULT_HERO_MOBILE_TEXT_SCALE
+  const activeMobileFocalX =
+    activeSlide.mobileImageFocalX ?? DEFAULT_HERO_IMAGE_FOCAL_X
+  const activeCtaPos = isMobilePreview
+    ? (config.mobileCtaPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.cta)
+    : config.ctaPosition
+  const activeBookingPos = isMobilePreview
+    ? (config.mobileBookingBarPosition ??
+      DEFAULT_HERO_MOBILE_POSITIONS.bookingBar)
+    : config.bookingBarPosition
 
   function updateSlide(slideId: string, patch: Partial<HeroSlideItem>) {
     onChange((prev) => ({
@@ -155,6 +200,10 @@ export function HeroCarouselEditor({
           showText: true,
           textPosition: { ...DEFAULT_HERO_POSITIONS.text },
           textWidth: DEFAULT_HERO_TEXT_WIDTH,
+          mobileTextPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.text },
+          mobileTextWidth: DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+          mobileTextScale: DEFAULT_HERO_MOBILE_TEXT_SCALE,
+          mobileImageFocalX: DEFAULT_HERO_IMAGE_FOCAL_X,
         },
       ],
     }))
@@ -242,7 +291,7 @@ export function HeroCarouselEditor({
 
     const stageRect = viewport.getBoundingClientRect()
     const scale =
-      stageRect.width > 0 ? stageRect.width / HERO_CANVAS_WIDTH : previewScale
+      stageRect.width > 0 ? stageRect.width / canvasWidth : previewScale
     const elRect = e.currentTarget.getBoundingClientRect()
 
     const elWidth = elRect.width / scale
@@ -276,39 +325,52 @@ export function HeroCarouselEditor({
 
     const stageRect = viewport.getBoundingClientRect()
     const scale =
-      stageRect.width > 0 ? stageRect.width / HERO_CANVAS_WIDTH : previewScale
+      stageRect.width > 0 ? stageRect.width / canvasWidth : previewScale
 
     const nextCenterX =
       (e.clientX - stageRect.left) / scale - drag.grabOffsetX
     const nextCenterY =
       (e.clientY - stageRect.top) / scale - drag.grabOffsetY
 
-    const halfW = Math.min(drag.elWidth / 2, HERO_CANVAS_WIDTH / 2)
-    const halfH = Math.min(drag.elHeight / 2, HERO_CANVAS_HEIGHT / 2)
+    const halfW = Math.min(drag.elWidth / 2, canvasWidth / 2)
+    const halfH = Math.min(drag.elHeight / 2, canvasHeight / 2)
 
     const clampedX = Math.min(
-      HERO_CANVAS_WIDTH - halfW,
+      canvasWidth - halfW,
       Math.max(halfW, nextCenterX),
     )
     const clampedY = Math.min(
-      HERO_CANVAS_HEIGHT - halfH,
+      canvasHeight - halfH,
       Math.max(halfH, nextCenterY),
     )
 
-    let pctX = Math.round((clampedX / HERO_CANVAS_WIDTH) * 1000) / 10
+    let pctX = Math.round((clampedX / canvasWidth) * 1000) / 10
     const isNearCenter = Math.abs(pctX - 50) <= 1.5
     if (isNearCenter) pctX = 50
     setSnappedCenterX(isNearCenter)
 
-    const pctY = Math.round((clampedY / HERO_CANVAS_HEIGHT) * 1000) / 10
+    const pctY = Math.round((clampedY / canvasHeight) * 1000) / 10
     const nextPos: HeroElementPosition = { x: pctX, y: pctY }
 
     if (drag.target === 'text') {
-      updateSlide(drag.slideId, { textPosition: nextPos })
+      updateSlide(
+        drag.slideId,
+        isMobilePreview
+          ? { mobileTextPosition: nextPos }
+          : { textPosition: nextPos },
+      )
     } else if (drag.target === 'cta') {
-      onChange((prev) => ({ ...prev, ctaPosition: nextPos }))
+      onChange((prev) =>
+        isMobilePreview
+          ? { ...prev, mobileCtaPosition: nextPos }
+          : { ...prev, ctaPosition: nextPos },
+      )
     } else {
-      onChange((prev) => ({ ...prev, bookingBarPosition: nextPos }))
+      onChange((prev) =>
+        isMobilePreview
+          ? { ...prev, mobileBookingBarPosition: nextPos }
+          : { ...prev, bookingBarPosition: nextPos },
+      )
     }
   }
 
@@ -332,10 +394,9 @@ export function HeroCarouselEditor({
   ) {
     if (disabled) return
     e.stopPropagation()
-    const currentWidthPct = activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH
-    const currentWidthPx = (currentWidthPct / 100) * HERO_CANVAS_WIDTH
-    const currentCenterPx =
-      (activeSlide.textPosition.x / 100) * HERO_CANVAS_WIDTH
+    const currentWidthPct = activeTextWidth
+    const currentWidthPx = (currentWidthPct / 100) * canvasWidth
+    const currentCenterPx = (activeTextPos.x / 100) * canvasWidth
     const leftEdgePx = currentCenterPx - currentWidthPx / 2
     const rightEdgePx = currentCenterPx + currentWidthPx / 2
 
@@ -359,11 +420,11 @@ export function HeroCarouselEditor({
 
     const stageRect = viewport.getBoundingClientRect()
     const scale =
-      stageRect.width > 0 ? stageRect.width / HERO_CANVAS_WIDTH : previewScale
+      stageRect.width > 0 ? stageRect.width / canvasWidth : previewScale
     const pointerCanvasX = (e.clientX - stageRect.left) / scale
 
-    const minWidthPx = (MIN_HERO_TEXT_WIDTH / 100) * HERO_CANVAS_WIDTH
-    const maxWidthPx = (MAX_HERO_TEXT_WIDTH / 100) * HERO_CANVAS_WIDTH
+    const minWidthPx = (MIN_HERO_TEXT_WIDTH / 100) * canvasWidth
+    const maxWidthPx = (MAX_HERO_TEXT_WIDTH / 100) * canvasWidth
 
     let nextLeftPx: number
     let nextRightPx: number
@@ -371,14 +432,14 @@ export function HeroCarouselEditor({
     if (resize.side === 'right') {
       nextLeftPx = Math.max(0, resize.anchorEdgePx)
       nextRightPx = Math.min(
-        HERO_CANVAS_WIDTH,
+        canvasWidth,
         Math.max(nextLeftPx + minWidthPx, pointerCanvasX),
       )
       if (nextRightPx - nextLeftPx > maxWidthPx) {
         nextRightPx = nextLeftPx + maxWidthPx
       }
     } else {
-      nextRightPx = Math.min(HERO_CANVAS_WIDTH, resize.anchorEdgePx)
+      nextRightPx = Math.min(canvasWidth, resize.anchorEdgePx)
       nextLeftPx = Math.max(
         0,
         Math.min(nextRightPx - minWidthPx, pointerCanvasX),
@@ -392,25 +453,31 @@ export function HeroCarouselEditor({
       MAX_HERO_TEXT_WIDTH,
       Math.max(
         MIN_HERO_TEXT_WIDTH,
-        Math.round(((nextRightPx - nextLeftPx) / HERO_CANVAS_WIDTH) * 1000) /
-          10,
+        Math.round(((nextRightPx - nextLeftPx) / canvasWidth) * 1000) / 10,
       ),
     )
     const nextCenterX =
-      Math.round((((nextLeftPx + nextRightPx) / 2) / HERO_CANVAS_WIDTH) * 1000) /
-      10
+      Math.round((((nextLeftPx + nextRightPx) / 2) / canvasWidth) * 1000) / 10
 
     onChange((prev) => ({
       ...prev,
-      slides: prev.slides.map((s) =>
-        s.id === resize.slideId
-          ? {
-              ...s,
-              textWidth: nextWidthPct,
-              textPosition: { ...s.textPosition, x: nextCenterX },
-            }
-          : s,
-      ),
+      slides: prev.slides.map((s) => {
+        if (s.id !== resize.slideId) return s
+        if (isMobilePreview) {
+          const prevPos =
+            s.mobileTextPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.text
+          return {
+            ...s,
+            mobileTextWidth: nextWidthPct,
+            mobileTextPosition: { ...prevPos, x: nextCenterX },
+          }
+        }
+        return {
+          ...s,
+          textWidth: nextWidthPct,
+          textPosition: { ...s.textPosition, x: nextCenterX },
+        }
+      }),
     }))
   }
 
@@ -449,34 +516,71 @@ export function HeroCarouselEditor({
     if (target === 'text') {
       onChange((prev) => ({
         ...prev,
-        slides: prev.slides.map((s) =>
-          s.id === activeSlide.id
-            ? {
-                ...s,
-                textPosition: {
-                  x: clampPct(s.textPosition.x + dx),
-                  y: clampPct(s.textPosition.y + dy),
-                },
-              }
-            : s,
-        ),
+        slides: prev.slides.map((s) => {
+          if (s.id !== activeSlide.id) return s
+          if (isMobilePreview) {
+            const cur =
+              s.mobileTextPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.text
+            return {
+              ...s,
+              mobileTextPosition: {
+                x: clampPct(cur.x + dx),
+                y: clampPct(cur.y + dy),
+              },
+            }
+          }
+          return {
+            ...s,
+            textPosition: {
+              x: clampPct(s.textPosition.x + dx),
+              y: clampPct(s.textPosition.y + dy),
+            },
+          }
+        }),
       }))
     } else if (target === 'cta') {
-      onChange((prev) => ({
-        ...prev,
-        ctaPosition: {
-          x: clampPct(prev.ctaPosition.x + dx),
-          y: clampPct(prev.ctaPosition.y + dy),
-        },
-      }))
+      onChange((prev) => {
+        if (isMobilePreview) {
+          const cur =
+            prev.mobileCtaPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.cta
+          return {
+            ...prev,
+            mobileCtaPosition: {
+              x: clampPct(cur.x + dx),
+              y: clampPct(cur.y + dy),
+            },
+          }
+        }
+        return {
+          ...prev,
+          ctaPosition: {
+            x: clampPct(prev.ctaPosition.x + dx),
+            y: clampPct(prev.ctaPosition.y + dy),
+          },
+        }
+      })
     } else {
-      onChange((prev) => ({
-        ...prev,
-        bookingBarPosition: {
-          x: clampPct(prev.bookingBarPosition.x + dx),
-          y: clampPct(prev.bookingBarPosition.y + dy),
-        },
-      }))
+      onChange((prev) => {
+        if (isMobilePreview) {
+          const cur =
+            prev.mobileBookingBarPosition ??
+            DEFAULT_HERO_MOBILE_POSITIONS.bookingBar
+          return {
+            ...prev,
+            mobileBookingBarPosition: {
+              x: clampPct(cur.x + dx),
+              y: clampPct(cur.y + dy),
+            },
+          }
+        }
+        return {
+          ...prev,
+          bookingBarPosition: {
+            x: clampPct(prev.bookingBarPosition.x + dx),
+            y: clampPct(prev.bookingBarPosition.y + dy),
+          },
+        }
+      })
     }
   }
 
@@ -503,6 +607,15 @@ export function HeroCarouselEditor({
       ...prev,
       slides: prev.slides.map((s) => {
         if (s.id !== activeSlide.id) return s
+        if (isMobilePreview) {
+          const currentWidth =
+            s.mobileTextWidth ?? DEFAULT_HERO_MOBILE_TEXT_WIDTH
+          const nextWidth = Math.min(
+            MAX_HERO_TEXT_WIDTH,
+            Math.max(MIN_HERO_TEXT_WIDTH, currentWidth + delta),
+          )
+          return { ...s, mobileTextWidth: nextWidth }
+        }
         const currentWidth = s.textWidth ?? DEFAULT_HERO_TEXT_WIDTH
         const nextWidth = Math.min(
           MAX_HERO_TEXT_WIDTH,
@@ -514,6 +627,28 @@ export function HeroCarouselEditor({
   }
 
   function handleResetPositions() {
+    if (isMobilePreview) {
+      onChange((prev) => ({
+        ...prev,
+        mobileCtaPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.cta },
+        mobileBookingBarPosition: {
+          ...DEFAULT_HERO_MOBILE_POSITIONS.bookingBar,
+        },
+        slides: prev.slides.map((s) =>
+          s.id === activeSlide.id
+            ? {
+                ...s,
+                mobileTextPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.text },
+                mobileTextWidth: DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+                mobileTextScale: DEFAULT_HERO_MOBILE_TEXT_SCALE,
+                mobileImageFocalX: DEFAULT_HERO_IMAGE_FOCAL_X,
+              }
+            : s,
+        ),
+      }))
+      return
+    }
+
     onChange((prev) => ({
       ...prev,
       ctaPosition: { ...DEFAULT_HERO_POSITIONS.cta },
@@ -536,39 +671,176 @@ export function HeroCarouselEditor({
 
   return (
     <div className="space-y-6">
-      {/* 1. True 1:1 Scaled 1280×720 WYSIWYG Hero Canvas */}
-      <div className="space-y-2.5">
+      {/* 1. True 1:1 Scaled Desktop (1280×720) & Mobile (390×520) WYSIWYG Hero Canvas */}
+      <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-              Live Hero Canvas — Drag Elements to Position
+              Live Hero Canvas — Drag Elements to Position (
+              {isMobilePreview ? 'Mobile View' : 'Desktop View'})
             </h3>
             <p className="text-[11px] text-stone-400">
-              Scaled 1:1 desktop preview (1280×720). Drag slide text, Explore
-              Rooms button, or Check-in/Check-out bar to place them accurately.
+              {isMobilePreview
+                ? 'Scaled 1:1 mobile phone preview (390×520). Drag text, button, or compact 2×2 booking bar and tune mobile text scale & photo framing independently from desktop.'
+                : 'Scaled 1:1 desktop preview (1280×720). Drag slide text, Explore Rooms button, or Check-in/Check-out bar to place them accurately.'}
             </p>
           </div>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={handleResetPositions}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 text-[11px] font-semibold text-stone-600 cursor-pointer disabled:opacity-50"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset Positions
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Desktop / Mobile View Switcher */}
+            <div
+              role="group"
+              aria-label="Preview device mode"
+              className="inline-flex items-center rounded-xl border border-stone-200 bg-stone-100 p-0.5"
+            >
+              <button
+                type="button"
+                aria-pressed={!isMobilePreview}
+                onClick={() => setPreviewDevice('desktop')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                  !isMobilePreview
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                Desktop (1280×720)
+              </button>
+              <button
+                type="button"
+                aria-pressed={isMobilePreview}
+                onClick={() => setPreviewDevice('mobile')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                  isMobilePreview
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                Mobile (390×520)
+              </button>
+            </div>
+
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={handleResetPositions}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 text-[11px] font-semibold text-stone-600 cursor-pointer disabled:opacity-50"
+            >
+              <RotateCcw className="w-3 h-3" />
+              {isMobilePreview
+                ? 'Reset Mobile Layout'
+                : 'Reset Positions'}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile View Responsive Controls Bar (Text Scale + Photo Focal Point) */}
+        {isMobilePreview && (
+          <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+            <div>
+              <span className="block text-[11px] font-semibold text-stone-700 mb-1.5">
+                Slide {activeSlideIndex + 1} Mobile Text Size Scale
+              </span>
+              <div
+                role="group"
+                aria-label="Mobile text size scale"
+                className="flex flex-wrap items-center gap-1"
+              >
+                {MOBILE_TEXT_SCALE_OPTIONS.map((opt) => {
+                  const isSelected =
+                    Math.abs(activeMobileTextScale - opt.value) < 0.02
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={disabled}
+                      aria-pressed={isSelected}
+                      onClick={() =>
+                        updateSlide(activeSlide.id, {
+                          mobileTextScale: opt.value,
+                        })
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-stone-900 text-white'
+                          : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label
+                  htmlFor="mobile-focal-x"
+                  className="text-[11px] font-semibold text-stone-700"
+                >
+                  Mobile Photo Framing (Left ↔ Right):{' '}
+                  <span className="text-amber-900 font-bold">
+                    {Math.round(activeMobileFocalX)}%
+                  </span>
+                </label>
+                <div className="flex items-center gap-1">
+                  {[
+                    { label: 'Left', val: 25 },
+                    { label: 'Center', val: 50 },
+                    { label: 'Right', val: 75 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() =>
+                        updateSlide(activeSlide.id, {
+                          mobileImageFocalX: preset.val,
+                        })
+                      }
+                      className="px-2 py-0.5 rounded-md border border-stone-200 bg-white hover:bg-stone-100 text-[10px] font-semibold text-stone-600 cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input
+                id="mobile-focal-x"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                disabled={disabled}
+                aria-label="Mobile photo horizontal focal point"
+                value={activeMobileFocalX}
+                onChange={(e) =>
+                  updateSlide(activeSlide.id, {
+                    mobileImageFocalX: Number(e.target.value),
+                  })
+                }
+                className="w-full accent-stone-900 cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
 
         <div
           ref={viewportRef}
           aria-label="Interactive hero preview canvas"
-          className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden border border-stone-200 bg-stone-900 select-none touch-none"
+          className={
+            isMobilePreview
+              ? 'relative w-full max-w-[360px] mx-auto aspect-[390/520] rounded-[28px] overflow-hidden border-4 border-stone-800 shadow-xl bg-stone-900 select-none touch-none'
+              : 'relative w-full aspect-[16/9] rounded-2xl overflow-hidden border border-stone-200 bg-stone-900 select-none touch-none'
+          }
         >
-          {/* Scaled canonical 1280×720 stage matching public HeroCarouselSection 1:1 */}
+          {/* Scaled canonical stage matching public HeroCarouselSection 1:1 */}
           <div
             style={{
-              width: HERO_CANVAS_WIDTH,
-              height: HERO_CANVAS_HEIGHT,
+              width: canvasWidth,
+              height: canvasHeight,
               transform: `scale(${previewScale})`,
               transformOrigin: 'top left',
             }}
@@ -578,6 +850,11 @@ export function HeroCarouselEditor({
               <img
                 src={activeSlide.image}
                 alt={`Slide ${activeSlideIndex + 1} preview`}
+                style={
+                  isMobilePreview
+                    ? { objectPosition: `${activeMobileFocalX}% 50%` }
+                    : undefined
+                }
                 className="absolute inset-0 w-full h-full object-cover opacity-80 pointer-events-none"
               />
             ) : (
@@ -593,16 +870,21 @@ export function HeroCarouselEditor({
               />
             )}
 
-            {/* Draggable & Resizable Slide Text Overlay (exact real-size HeroRichTextContent) */}
+            {/* Draggable & Resizable Slide Text Overlay */}
             {showPreviewText && (
               <div
                 role="group"
                 tabIndex={disabled ? -1 : 0}
                 aria-label="Draggable hero text"
-                style={{
-                  ...centerAnchorStyle(activeSlide.textPosition),
-                  width: `${activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH}%`,
-                }}
+                style={
+                  {
+                    ...centerAnchorStyle(activeTextPos),
+                    width: `${activeTextWidth}%`,
+                    '--hero-font-scale': isMobilePreview
+                      ? String(activeMobileTextScale)
+                      : '1',
+                  } as CSSProperties
+                }
                 onPointerDown={(e) => handleDragStart('text', e)}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
@@ -615,12 +897,9 @@ export function HeroCarouselEditor({
               >
                 <div className="absolute -top-7 left-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-950/85 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap pointer-events-none">
                   <GripVertical className="w-3.5 h-3.5" />
-                  Slide Text ({Math.round(activeSlide.textPosition.x)}%,{' '}
-                  {Math.round(activeSlide.textPosition.y)}%) · W{' '}
-                  {Math.round(
-                    activeSlide.textWidth ?? DEFAULT_HERO_TEXT_WIDTH,
-                  )}
-                  %
+                  Slide Text ({Math.round(activeTextPos.x)}%,{' '}
+                  {Math.round(activeTextPos.y)}%) · W{' '}
+                  {Math.round(activeTextWidth)}%
                 </div>
 
                 {/* Left Width Resize Handle */}
@@ -662,13 +941,13 @@ export function HeroCarouselEditor({
               </div>
             )}
 
-            {/* Draggable Explore Rooms CTA Overlay (exact real-size button) */}
+            {/* Draggable Explore Rooms CTA Overlay */}
             {showPreviewCta && (
               <div
                 role="group"
                 tabIndex={disabled ? -1 : 0}
                 aria-label="Draggable Explore Rooms button"
-                style={centerAnchorStyle(config.ctaPosition)}
+                style={centerAnchorStyle(activeCtaPos)}
                 onPointerDown={(e) => handleDragStart('cta', e)}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
@@ -681,28 +960,40 @@ export function HeroCarouselEditor({
               >
                 <div className="absolute -top-7 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-950/85 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap pointer-events-none">
                   <GripVertical className="w-3.5 h-3.5" />
-                  CTA ({Math.round(config.ctaPosition.x)}%,{' '}
-                  {Math.round(config.ctaPosition.y)}%)
+                  CTA ({Math.round(activeCtaPos.x)}%,{' '}
+                  {Math.round(activeCtaPos.y)}%)
                 </div>
-                <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold shadow-lg whitespace-nowrap pointer-events-none">
+                <div
+                  className={`inline-flex items-center rounded-full bg-[#FAF8F4] text-stone-900 uppercase tracking-[0.18em] font-semibold shadow-lg whitespace-nowrap pointer-events-none ${
+                    isMobilePreview
+                      ? 'gap-2 px-5 py-2.5 text-[11px]'
+                      : 'gap-2.5 px-6 py-3 text-xs'
+                  }`}
+                >
                   {ctaLabel}
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight
+                    className={
+                      isMobilePreview ? 'w-3.5 h-3.5' : 'w-4 h-4'
+                    }
+                  />
                 </div>
               </div>
             )}
 
-            {/* Draggable Check-in / Check-out Bar Overlay (exact real-size 4-column bar) */}
+            {/* Draggable Check-in / Check-out Bar Overlay (2×2 on mobile, 4-col on desktop) */}
             {config.showBookingBar && (
               <div
                 role="group"
                 tabIndex={disabled ? -1 : 0}
                 aria-label="Draggable check-in and check-out section"
-                style={centerAnchorStyle(config.bookingBarPosition)}
+                style={centerAnchorStyle(activeBookingPos)}
                 onPointerDown={(e) => handleDragStart('bookingBar', e)}
                 onPointerMove={handleDragMove}
                 onPointerUp={handleDragEnd}
                 onKeyDown={(e) => handleNudgeTarget('bookingBar', e)}
-                className={`absolute z-10 w-[88%] max-w-5xl rounded-2xl border-2 border-dashed cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-amber-300 ${
+                className={`absolute z-10 ${
+                  isMobilePreview ? 'w-[92%]' : 'w-[88%] max-w-5xl'
+                } rounded-2xl border-2 border-dashed cursor-grab active:cursor-grabbing focus:outline-none focus:ring-2 focus:ring-amber-300 ${
                   draggingTarget === 'bookingBar'
                     ? 'border-amber-400'
                     : 'border-white/40 hover:border-amber-300/80'
@@ -710,38 +1001,98 @@ export function HeroCarouselEditor({
               >
                 <div className="absolute -top-7 left-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-950/85 text-[11px] uppercase tracking-wider text-amber-200 whitespace-nowrap pointer-events-none">
                   <GripVertical className="w-3.5 h-3.5" />
-                  Booking Bar ({Math.round(config.bookingBarPosition.x)}%,{' '}
-                  {Math.round(config.bookingBarPosition.y)}%)
+                  Booking Bar ({Math.round(activeBookingPos.x)}%,{' '}
+                  {Math.round(activeBookingPos.y)}%)
                 </div>
-                <div className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-5 shadow-2xl border border-stone-200/60 grid grid-cols-4 gap-3 items-end pointer-events-none">
+                <div
+                  className={`bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl shadow-2xl border border-stone-200/60 grid items-end pointer-events-none ${
+                    isMobilePreview
+                      ? 'p-3 grid-cols-2 gap-2'
+                      : 'p-5 grid-cols-4 gap-3'
+                  }`}
+                >
                   <div>
-                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5">
-                      <Calendar className="w-3.5 h-3.5" />
+                    <div
+                      className={`flex items-center gap-1 uppercase text-stone-500 font-semibold ${
+                        isMobilePreview
+                          ? 'text-[10px] tracking-[0.16em] mb-1'
+                          : 'text-[11px] tracking-[0.18em] mb-1.5'
+                      }`}
+                    >
+                      <Calendar
+                        className={
+                          isMobilePreview ? 'w-3 h-3' : 'w-3.5 h-3.5'
+                        }
+                      />
                       Check-in
                     </div>
-                    <div className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-400">
+                    <div
+                      className={`rounded-xl border border-stone-200 bg-white text-stone-400 ${
+                        isMobilePreview
+                          ? 'px-2.5 py-2 text-xs'
+                          : 'px-3 py-2.5 text-sm'
+                      }`}
+                    >
                       dd/mm/yyyy
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5">
-                      <Calendar className="w-3.5 h-3.5" />
+                    <div
+                      className={`flex items-center gap-1 uppercase text-stone-500 font-semibold ${
+                        isMobilePreview
+                          ? 'text-[10px] tracking-[0.16em] mb-1'
+                          : 'text-[11px] tracking-[0.18em] mb-1.5'
+                      }`}
+                    >
+                      <Calendar
+                        className={
+                          isMobilePreview ? 'w-3 h-3' : 'w-3.5 h-3.5'
+                        }
+                      />
                       Check-out
                     </div>
-                    <div className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-400">
+                    <div
+                      className={`rounded-xl border border-stone-200 bg-white text-stone-400 ${
+                        isMobilePreview
+                          ? 'px-2.5 py-2 text-xs'
+                          : 'px-3 py-2.5 text-sm'
+                      }`}
+                    >
                       dd/mm/yyyy
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold mb-1.5">
-                      <Users className="w-3.5 h-3.5" />
+                    <div
+                      className={`flex items-center gap-1 uppercase text-stone-500 font-semibold ${
+                        isMobilePreview
+                          ? 'text-[10px] tracking-[0.16em] mb-1'
+                          : 'text-[11px] tracking-[0.18em] mb-1.5'
+                      }`}
+                    >
+                      <Users
+                        className={
+                          isMobilePreview ? 'w-3 h-3' : 'w-3.5 h-3.5'
+                        }
+                      />
                       Guests
                     </div>
-                    <div className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-800">
+                    <div
+                      className={`rounded-xl border border-stone-200 bg-white text-stone-800 ${
+                        isMobilePreview
+                          ? 'px-2.5 py-2 text-xs'
+                          : 'px-3 py-2.5 text-sm'
+                      }`}
+                    >
                       2 Guests
                     </div>
                   </div>
-                  <div className="w-full py-3 px-5 rounded-xl bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold text-center">
+                  <div
+                    className={`w-full rounded-xl bg-stone-900 text-[#FAF8F4] uppercase font-semibold text-center whitespace-nowrap ${
+                      isMobilePreview
+                        ? 'py-2.5 px-3 text-[10px] tracking-[0.14em]'
+                        : 'py-3 px-5 text-xs tracking-[0.18em]'
+                    }`}
+                  >
                     Check Availability
                   </div>
                 </div>

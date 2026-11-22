@@ -56,6 +56,10 @@ describe('HeroCarouselSection', () => {
                 '<p><span style="font-size: 48px; font-weight: bold">Slide One Title</span></p>',
               showText: true,
               textPosition: { x: 10, y: 30 },
+              mobileTextPosition: { x: 48, y: 24 },
+              mobileTextWidth: 84,
+              mobileTextScale: 0.6,
+              mobileImageFocalX: 35,
             },
             {
               id: 's2',
@@ -74,6 +78,8 @@ describe('HeroCarouselSection', () => {
 
     expect(screen.queryByText('Should Never Appear')).not.toBeInTheDocument()
     expect(screen.getByText('Slide One Title')).toBeInTheDocument()
+    const slide1Img = screen.getByAltText('Hero slide 1')
+    expect(slide1Img.getAttribute('style')).toContain('--m-focal-x: 35%')
     expect(screen.getAllByRole('link', { name: /Explore Rooms/i })).toHaveLength(
       1,
     )

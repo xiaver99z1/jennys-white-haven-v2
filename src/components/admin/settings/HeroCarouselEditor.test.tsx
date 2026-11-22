@@ -223,6 +223,65 @@ describe('HeroCarouselEditor', () => {
       DEFAULT_HERO_CONFIG.bookingBarPosition,
     )
     expect(reset.slides[0].textWidth).toBe(72)
+
+    // Switch to Mobile (390×520) view and customize mobile positions, text width, text scale, and photo focal point
+    fireEvent.click(
+      screen.getByRole('button', { name: /Mobile \(390×520\)/i }),
+    )
+    // Mobile viewport is 390x520 => 1.0x scale of canonical 390x520 mobile stage
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 390,
+      height: 520,
+      right: 390,
+      bottom: 520,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+
+    dragItem('Draggable hero text', 195, 130)
+    dragItem('Draggable Explore Rooms button', 195, 260)
+    dragItem('Draggable check-in and check-out section', 195, 416)
+
+    // Mobile text resize + keyboard nudge + scale + photo focal point
+    fireEvent.pointerDown(rightHandle, { pointerId: 4, clientX: 350, clientY: 130 })
+    fireEvent.pointerMove(rightHandle, { pointerId: 4, clientX: 370, clientY: 130 })
+    fireEvent.pointerUp(rightHandle, { pointerId: 4, clientX: 370, clientY: 130 })
+
+    fireEvent.keyDown(screen.getByLabelText('Draggable hero text'), {
+      key: 'ArrowDown',
+    })
+    fireEvent.keyDown(screen.getByLabelText('Draggable Explore Rooms button'), {
+      key: 'ArrowRight',
+    })
+    fireEvent.keyDown(
+      screen.getByLabelText('Draggable check-in and check-out section'),
+      { key: 'ArrowUp' },
+    )
+    fireEvent.keyDown(rightHandle, { key: 'ArrowLeft' })
+
+    fireEvent.click(screen.getByRole('button', { name: '65%' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Left' }))
+    fireEvent.change(
+      screen.getByLabelText('Mobile photo horizontal focal point'),
+      { target: { value: '35' } },
+    )
+
+    const afterMobileEdit = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(afterMobileEdit.slides[0].mobileTextScale).toBe(0.65)
+    expect(afterMobileEdit.slides[0].mobileImageFocalX).toBe(35)
+    expect(afterMobileEdit.mobileCtaPosition?.x).toBe(51)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Reset Mobile Layout/i }),
+    )
+    const afterMobileReset =
+      onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(afterMobileReset.slides[0].mobileTextScale).toBe(0.55)
+    expect(afterMobileReset.slides[0].mobileImageFocalX).toBe(50)
+    expect(afterMobileReset.slides[0].mobileTextWidth).toBe(86)
   })
 
   it('uploads compressed slide photos, supports relative URLs, and handles upload errors', async () => {

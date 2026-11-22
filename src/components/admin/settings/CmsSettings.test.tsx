@@ -44,10 +44,15 @@ describe('CmsSettings', () => {
     mockInvalidate.mockResolvedValue(undefined)
   })
 
-  it('renders HeroCarouselEditor for hero and loads other sections into the form', () => {
-    render(<CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />)
+  it('renders HeroCarouselEditor for hero, hides any legacy hero title in the sidebar, and loads other sections into the form', () => {
+    const sectionsWithLegacyHeroTitle = DEFAULT_CMS_SECTIONS.map((s) =>
+      s.key === 'hero' ? { ...s, title: 'J' } : s,
+    )
+    render(<CmsSettings initialSections={sectionsWithLegacyHeroTitle} />)
 
     expect(screen.getByText('Website Content & Settings')).toBeInTheDocument()
+    const heroSidebarBtn = screen.getByRole('button', { name: /Hero Banner/i })
+    expect(heroSidebarBtn).not.toHaveTextContent(/^J$/)
     expect(
       screen.getByLabelText('Interactive hero preview canvas'),
     ).toBeInTheDocument()

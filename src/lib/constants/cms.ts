@@ -15,7 +15,12 @@ import {
 
 export const HERO_CANVAS_WIDTH = 1280
 export const HERO_CANVAS_HEIGHT = 720
+export const HERO_MOBILE_CANVAS_WIDTH = 390
+export const HERO_MOBILE_CANVAS_HEIGHT = 520
 export const DEFAULT_HERO_TEXT_WIDTH = 72
+export const DEFAULT_HERO_MOBILE_TEXT_WIDTH = 86
+export const DEFAULT_HERO_MOBILE_TEXT_SCALE = 0.55
+export const DEFAULT_HERO_IMAGE_FOCAL_X = 50
 export const MIN_HERO_TEXT_WIDTH = 20
 export const MAX_HERO_TEXT_WIDTH = 95
 
@@ -27,6 +32,14 @@ export const DEFAULT_HERO_POSITIONS: Readonly<
   bookingBar: { x: 50, y: 80 },
 }
 
+export const DEFAULT_HERO_MOBILE_POSITIONS: Readonly<
+  Record<'text' | 'cta' | 'bookingBar', HeroElementPosition>
+> = {
+  text: { x: 50, y: 26 },
+  cta: { x: 50, y: 47 },
+  bookingBar: { x: 50, y: 76 },
+}
+
 export const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
   {
     id: 'hero-slide-1',
@@ -35,6 +48,10 @@ export const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
     showText: true,
     textPosition: { ...DEFAULT_HERO_POSITIONS.text },
     textWidth: DEFAULT_HERO_TEXT_WIDTH,
+    mobileTextPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.text },
+    mobileTextWidth: DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+    mobileTextScale: DEFAULT_HERO_MOBILE_TEXT_SCALE,
+    mobileImageFocalX: DEFAULT_HERO_IMAGE_FOCAL_X,
   },
 ]
 
@@ -44,8 +61,10 @@ export const DEFAULT_HERO_CONFIG: HeroCarouselConfig = {
   intervalMs: 6000,
   showCta: true,
   ctaPosition: { ...DEFAULT_HERO_POSITIONS.cta },
+  mobileCtaPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.cta },
   showBookingBar: true,
   bookingBarPosition: { ...DEFAULT_HERO_POSITIONS.bookingBar },
+  mobileBookingBarPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.bookingBar },
 }
 
 function clampPosition(
@@ -67,14 +86,31 @@ function clampPosition(
   return { x, y }
 }
 
-function clampTextWidth(raw: unknown): number {
+function clampTextWidth(
+  raw: unknown,
+  fallback: number = DEFAULT_HERO_TEXT_WIDTH,
+): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) {
-    return DEFAULT_HERO_TEXT_WIDTH
+    return fallback
   }
   return Math.min(
     MAX_HERO_TEXT_WIDTH,
     Math.max(MIN_HERO_TEXT_WIDTH, Math.round(raw * 10) / 10),
   )
+}
+
+function clampMobileTextScale(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return DEFAULT_HERO_MOBILE_TEXT_SCALE
+  }
+  return Math.min(1, Math.max(0.35, Math.round(raw * 100) / 100))
+}
+
+function clampFocalPercentage(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+    return DEFAULT_HERO_IMAGE_FOCAL_X
+  }
+  return Math.min(100, Math.max(0, Math.round(raw)))
 }
 
 export function serializeHeroConfig(config: HeroCarouselConfig): string {
@@ -101,6 +137,10 @@ export function parseHeroConfig(
             showText: idx === 0,
             textPosition: { ...DEFAULT_HERO_POSITIONS.text },
             textWidth: DEFAULT_HERO_TEXT_WIDTH,
+            mobileTextPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.text },
+            mobileTextWidth: DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+            mobileTextScale: DEFAULT_HERO_MOBILE_TEXT_SCALE,
+            mobileImageFocalX: DEFAULT_HERO_IMAGE_FOCAL_X,
           }))
         : [
             {
@@ -110,13 +150,21 @@ export function parseHeroConfig(
               showText: true,
               textPosition: { ...DEFAULT_HERO_POSITIONS.text },
               textWidth: DEFAULT_HERO_TEXT_WIDTH,
+              mobileTextPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.text },
+              mobileTextWidth: DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+              mobileTextScale: DEFAULT_HERO_MOBILE_TEXT_SCALE,
+              mobileImageFocalX: DEFAULT_HERO_IMAGE_FOCAL_X,
             },
           ]
     return {
       ...DEFAULT_HERO_CONFIG,
       slides,
       ctaPosition: { ...DEFAULT_HERO_POSITIONS.cta },
+      mobileCtaPosition: { ...DEFAULT_HERO_MOBILE_POSITIONS.cta },
       bookingBarPosition: { ...DEFAULT_HERO_POSITIONS.bookingBar },
+      mobileBookingBarPosition: {
+        ...DEFAULT_HERO_MOBILE_POSITIONS.bookingBar,
+      },
     }
   }
 
@@ -151,7 +199,17 @@ export function parseHeroConfig(
           item.textPosition,
           DEFAULT_HERO_POSITIONS.text,
         ),
-        textWidth: clampTextWidth(item.textWidth),
+        textWidth: clampTextWidth(item.textWidth, DEFAULT_HERO_TEXT_WIDTH),
+        mobileTextPosition: clampPosition(
+          item.mobileTextPosition,
+          DEFAULT_HERO_MOBILE_POSITIONS.text,
+        ),
+        mobileTextWidth: clampTextWidth(
+          item.mobileTextWidth,
+          DEFAULT_HERO_MOBILE_TEXT_WIDTH,
+        ),
+        mobileTextScale: clampMobileTextScale(item.mobileTextScale),
+        mobileImageFocalX: clampFocalPercentage(item.mobileImageFocalX),
       }))
 
     const rawInterval =
@@ -171,6 +229,10 @@ export function parseHeroConfig(
           ? obj.showCta
           : DEFAULT_HERO_CONFIG.showCta,
       ctaPosition: clampPosition(obj.ctaPosition, DEFAULT_HERO_POSITIONS.cta),
+      mobileCtaPosition: clampPosition(
+        obj.mobileCtaPosition,
+        DEFAULT_HERO_MOBILE_POSITIONS.cta,
+      ),
       showBookingBar:
         typeof obj.showBookingBar === 'boolean'
           ? obj.showBookingBar
@@ -178,6 +240,10 @@ export function parseHeroConfig(
       bookingBarPosition: clampPosition(
         obj.bookingBarPosition,
         DEFAULT_HERO_POSITIONS.bookingBar,
+      ),
+      mobileBookingBarPosition: clampPosition(
+        obj.mobileBookingBarPosition,
+        DEFAULT_HERO_MOBILE_POSITIONS.bookingBar,
       ),
     }
   } catch {
@@ -497,9 +563,8 @@ export const CMS_SECTION_META: Record<
 export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
   {
     key: 'hero',
-    title: "Jenny's White Haven",
-    subtitle:
-      'An intimate rooms-only island sanctuary on the quiet shores of Camotes Island, Cebu.',
+    title: '',
+    subtitle: '',
     body: '',
     ctaLabel: 'Explore Rooms',
     ctaHref: '/rooms',

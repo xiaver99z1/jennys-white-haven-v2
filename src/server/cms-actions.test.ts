@@ -107,9 +107,9 @@ describe('cms-actions', () => {
 
     const sections = await getPublicCmsSectionsHandler()
 
-    expect(sections.find((s) => s.key === 'hero')?.title).toBe(
-      'Custom Hero Title',
-    )
+    const heroSection = sections.find((s) => s.key === 'hero')
+    expect(heroSection?.title).toBe('')
+    expect(heroSection?.metadata.heroConfigJson).toContain('Custom Hero Title')
     expect(sections.find((s) => s.key === 'gallery')).toBeUndefined()
     expect(sections).toHaveLength(DEFAULT_CMS_SECTIONS.length - 1)
   })
@@ -141,10 +141,10 @@ describe('cms-actions', () => {
     expect(gallery?.updatedByName).toBe('Jenny Owner')
   })
 
-  it('validates and upserts a CMS section', async () => {
+  it('validates and upserts a CMS section and strips legacy hero title', async () => {
     const input = validateUpsertCmsSection({
       key: 'hero',
-      title: '  Island Calm  ',
+      title: '  J  ',
       subtitle: '  By the sea  ',
       body: '',
       ctaLabel: 'Explore',
@@ -156,8 +156,8 @@ describe('cms-actions', () => {
 
     mockUpsert.mockResolvedValue({
       key: 'hero',
-      title: 'Island Calm',
-      subtitle: 'By the sea',
+      title: '',
+      subtitle: null,
       body: null,
       ctaLabel: 'Explore',
       ctaHref: '/rooms',
@@ -172,7 +172,8 @@ describe('cms-actions', () => {
     const res = await upsertCmsSectionHandler({ data: input })
 
     expect(res.success).toBe(true)
-    expect(res.section.title).toBe('Island Calm')
+    expect(res.section.title).toBe('')
+    expect(res.section.subtitle).toBe('')
     expect(res.section.images).toEqual(['https://example.com/1.jpg'])
     expect(mockLogActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'CMS_SECTION_UPDATED' }),
