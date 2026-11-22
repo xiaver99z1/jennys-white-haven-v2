@@ -215,9 +215,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       throw new Error('Invalid CMS section key.')
     }
 
-    const title = data.key === 'hero' ? '' : data.title.trim()
-    const subtitle =
-      data.key === 'hero' ? null : data.subtitle?.trim() || null
+    const rawTitle = data.title.trim()
+    const rawSubtitle = data.subtitle?.trim() || ''
+    const title = data.key === 'hero' ? '' : rawTitle
+    const subtitle = data.key === 'hero' ? null : rawSubtitle || null
 
     const def = DEFAULT_CMS_SECTIONS.find((s) => s.key === data.key)!
     if (data.images.some((u) => isBase64DataUrl(u))) {
@@ -236,10 +237,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     }
 
     const extraMediaKeys: string[] = []
-    if (data.key === 'hero' && cleanMeta.heroConfigJson) {
+    if (data.key === 'hero') {
       const parsedHero = parseHeroConfig(cleanMeta.heroConfigJson, {
-        title,
-        subtitle: data.subtitle,
+        title: rawTitle,
+        subtitle: rawSubtitle,
         images: cleanImages,
       })
       if (parsedHero.slides.some((slide) => isBase64DataUrl(slide.image))) {
@@ -400,8 +401,8 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
             ? resolveExploreMetadata(savedMeta)
             : data.key === 'hero'
               ? resolveHeroMetadata(savedMeta, {
-                  title: saved.title,
-                  subtitle: saved.subtitle ?? '',
+                  title: rawTitle,
+                  subtitle: rawSubtitle,
                   images: savedImages,
                 })
               : savedMeta,

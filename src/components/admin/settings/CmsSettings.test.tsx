@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { CmsSettings } from './CmsSettings'
 import { DEFAULT_CMS_SECTIONS } from '#/lib/constants/cms'
 
@@ -52,7 +58,7 @@ describe('CmsSettings', () => {
 
     expect(screen.getByText('Website Content & Settings')).toBeInTheDocument()
     const heroSidebarBtn = screen.getByRole('button', { name: /Hero Banner/i })
-    expect(heroSidebarBtn).not.toHaveTextContent(/^J$/)
+    expect(within(heroSidebarBtn).queryByText('J')).not.toBeInTheDocument()
     expect(
       screen.getByLabelText('Interactive hero preview canvas'),
     ).toBeInTheDocument()

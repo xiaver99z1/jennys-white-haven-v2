@@ -125,6 +125,9 @@ export function HeroCarouselEditor({
     target: DragTarget
     slideId: string
     pointerId: number
+    isMobile: boolean
+    canvasWidth: number
+    canvasHeight: number
     grabOffsetX: number
     grabOffsetY: number
     elWidth: number
@@ -134,8 +137,19 @@ export function HeroCarouselEditor({
     side: 'left' | 'right'
     slideId: string
     pointerId: number
+    isMobile: boolean
+    canvasWidth: number
     anchorEdgePx: number
   } | null>(null)
+
+  function switchPreviewDevice(nextDevice: PreviewDevice) {
+    dragStateRef.current = null
+    resizeStateRef.current = null
+    setDraggingTarget(null)
+    setResizingSide(null)
+    setSnappedCenterX(false)
+    setPreviewDevice(nextDevice)
+  }
 
   useEffect(() => {
     const el = viewportRef.current
@@ -307,6 +321,9 @@ export function HeroCarouselEditor({
       target,
       slideId: activeSlide.id,
       pointerId: e.pointerId,
+      isMobile: isMobilePreview,
+      canvasWidth,
+      canvasHeight,
       grabOffsetX: pointerCanvasX - elCenterX,
       grabOffsetY: pointerCanvasY - elCenterY,
       elWidth,
@@ -325,49 +342,51 @@ export function HeroCarouselEditor({
 
     const stageRect = viewport.getBoundingClientRect()
     const scale =
-      stageRect.width > 0 ? stageRect.width / canvasWidth : previewScale
+      stageRect.width > 0
+        ? stageRect.width / drag.canvasWidth
+        : previewScale
 
     const nextCenterX =
       (e.clientX - stageRect.left) / scale - drag.grabOffsetX
     const nextCenterY =
       (e.clientY - stageRect.top) / scale - drag.grabOffsetY
 
-    const halfW = Math.min(drag.elWidth / 2, canvasWidth / 2)
-    const halfH = Math.min(drag.elHeight / 2, canvasHeight / 2)
+    const halfW = Math.min(drag.elWidth / 2, drag.canvasWidth / 2)
+    const halfH = Math.min(drag.elHeight / 2, drag.canvasHeight / 2)
 
     const clampedX = Math.min(
-      canvasWidth - halfW,
+      drag.canvasWidth - halfW,
       Math.max(halfW, nextCenterX),
     )
     const clampedY = Math.min(
-      canvasHeight - halfH,
+      drag.canvasHeight - halfH,
       Math.max(halfH, nextCenterY),
     )
 
-    let pctX = Math.round((clampedX / canvasWidth) * 1000) / 10
+    let pctX = Math.round((clampedX / drag.canvasWidth) * 1000) / 10
     const isNearCenter = Math.abs(pctX - 50) <= 1.5
     if (isNearCenter) pctX = 50
     setSnappedCenterX(isNearCenter)
 
-    const pctY = Math.round((clampedY / canvasHeight) * 1000) / 10
+    const pctY = Math.round((clampedY / drag.canvasHeight) * 1000) / 10
     const nextPos: HeroElementPosition = { x: pctX, y: pctY }
 
     if (drag.target === 'text') {
       updateSlide(
         drag.slideId,
-        isMobilePreview
+        drag.isMobile
           ? { mobileTextPosition: nextPos }
           : { textPosition: nextPos },
       )
     } else if (drag.target === 'cta') {
       onChange((prev) =>
-        isMobilePreview
+        drag.isMobile
           ? { ...prev, mobileCtaPosition: nextPos }
           : { ...prev, ctaPosition: nextPos },
       )
     } else {
       onChange((prev) =>
-        isMobilePreview
+        drag.isMobile
           ? { ...prev, mobileBookingBarPosition: nextPos }
           : { ...prev, bookingBarPosition: nextPos },
       )
@@ -404,6 +423,8 @@ export function HeroCarouselEditor({
       side,
       slideId: activeSlide.id,
       pointerId: e.pointerId,
+      isMobile: isMobilePreview,
+      canvasWidth,
       anchorEdgePx: side === 'right' ? leftEdgePx : rightEdgePx,
     }
     setResizingSide(side)
@@ -420,11 +441,13 @@ export function HeroCarouselEditor({
 
     const stageRect = viewport.getBoundingClientRect()
     const scale =
-      stageRect.width > 0 ? stageRect.width / canvasWidth : previewScale
+      stageRect.width > 0
+        ? stageRect.width / resize.canvasWidth
+        : previewScale
     const pointerCanvasX = (e.clientX - stageRect.left) / scale
 
-    const minWidthPx = (MIN_HERO_TEXT_WIDTH / 100) * canvasWidth
-    const maxWidthPx = (MAX_HERO_TEXT_WIDTH / 100) * canvasWidth
+    const minWidthPx = (MIN_HERO_TEXT_WIDTH / 100) * resize.canvasWidth
+    const maxWidthPx = (MAX_HERO_TEXT_WIDTH / 100) * resize.canvasWidth
 
     let nextLeftPx: number
     let nextRightPx: number
@@ -432,14 +455,14 @@ export function HeroCarouselEditor({
     if (resize.side === 'right') {
       nextLeftPx = Math.max(0, resize.anchorEdgePx)
       nextRightPx = Math.min(
-        canvasWidth,
+        resize.canvasWidth,
         Math.max(nextLeftPx + minWidthPx, pointerCanvasX),
       )
       if (nextRightPx - nextLeftPx > maxWidthPx) {
         nextRightPx = nextLeftPx + maxWidthPx
       }
     } else {
-      nextRightPx = Math.min(canvasWidth, resize.anchorEdgePx)
+      nextRightPx = Math.min(resize.canvasWidth, resize.anchorEdgePx)
       nextLeftPx = Math.max(
         0,
         Math.min(nextRightPx - minWidthPx, pointerCanvasX),
@@ -453,17 +476,20 @@ export function HeroCarouselEditor({
       MAX_HERO_TEXT_WIDTH,
       Math.max(
         MIN_HERO_TEXT_WIDTH,
-        Math.round(((nextRightPx - nextLeftPx) / canvasWidth) * 1000) / 10,
+        Math.round(((nextRightPx - nextLeftPx) / resize.canvasWidth) * 1000) /
+          10,
       ),
     )
     const nextCenterX =
-      Math.round((((nextLeftPx + nextRightPx) / 2) / canvasWidth) * 1000) / 10
+      Math.round(
+        (((nextLeftPx + nextRightPx) / 2) / resize.canvasWidth) * 1000,
+      ) / 10
 
     onChange((prev) => ({
       ...prev,
       slides: prev.slides.map((s) => {
         if (s.id !== resize.slideId) return s
-        if (isMobilePreview) {
+        if (resize.isMobile) {
           const prevPos =
             s.mobileTextPosition ?? DEFAULT_HERO_MOBILE_POSITIONS.text
           return {
@@ -696,7 +722,7 @@ export function HeroCarouselEditor({
               <button
                 type="button"
                 aria-pressed={!isMobilePreview}
-                onClick={() => setPreviewDevice('desktop')}
+                onClick={() => switchPreviewDevice('desktop')}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
                   !isMobilePreview
                     ? 'bg-white text-stone-900 shadow-xs'
@@ -709,7 +735,7 @@ export function HeroCarouselEditor({
               <button
                 type="button"
                 aria-pressed={isMobilePreview}
-                onClick={() => setPreviewDevice('mobile')}
+                onClick={() => switchPreviewDevice('mobile')}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
                   isMobilePreview
                     ? 'bg-white text-stone-900 shadow-xs'

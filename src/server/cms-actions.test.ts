@@ -174,6 +174,7 @@ describe('cms-actions', () => {
     expect(res.success).toBe(true)
     expect(res.section.title).toBe('')
     expect(res.section.subtitle).toBe('')
+    expect(res.section.metadata.heroConfigJson).toContain('By the sea')
     expect(res.section.images).toEqual(['https://example.com/1.jpg'])
     expect(mockLogActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'CMS_SECTION_UPDATED' }),

@@ -270,15 +270,29 @@ describe('HeroCarouselEditor', () => {
     )
 
     const afterMobileEdit = onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(afterMobileEdit.slides[0].mobileTextPosition?.y).toBe(26)
+    expect(afterMobileEdit.slides[0].mobileTextWidth).toBe(85.9)
     expect(afterMobileEdit.slides[0].mobileTextScale).toBe(0.65)
     expect(afterMobileEdit.slides[0].mobileImageFocalX).toBe(35)
-    expect(afterMobileEdit.mobileCtaPosition?.x).toBe(51)
+    expect(afterMobileEdit.mobileCtaPosition).toEqual({ x: 51, y: 50 })
+    expect(afterMobileEdit.mobileBookingBarPosition).toEqual({ x: 50, y: 79 })
+    // Desktop positions remain untouched by mobile edits
+    expect(afterMobileEdit.ctaPosition).toEqual(DEFAULT_HERO_CONFIG.ctaPosition)
+    expect(afterMobileEdit.bookingBarPosition).toEqual(
+      DEFAULT_HERO_CONFIG.bookingBarPosition,
+    )
 
     fireEvent.click(
       screen.getByRole('button', { name: /Reset Mobile Layout/i }),
     )
     const afterMobileReset =
       onConfigChange.mock.lastCall?.[0] as HeroCarouselConfig
+    expect(afterMobileReset.slides[0].mobileTextPosition).toEqual({
+      x: 50,
+      y: 26,
+    })
+    expect(afterMobileReset.mobileCtaPosition).toEqual({ x: 50, y: 47 })
+    expect(afterMobileReset.mobileBookingBarPosition).toEqual({ x: 50, y: 76 })
     expect(afterMobileReset.slides[0].mobileTextScale).toBe(0.55)
     expect(afterMobileReset.slides[0].mobileImageFocalX).toBe(50)
     expect(afterMobileReset.slides[0].mobileTextWidth).toBe(86)

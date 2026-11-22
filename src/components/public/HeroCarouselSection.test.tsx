@@ -77,7 +77,16 @@ describe('HeroCarouselSection', () => {
     render(<HeroCarouselSection hero={hero} onSearch={onSearch} />)
 
     expect(screen.queryByText('Should Never Appear')).not.toBeInTheDocument()
-    expect(screen.getByText('Slide One Title')).toBeInTheDocument()
+    const titleSpan = screen.getByText('Slide One Title')
+    expect(titleSpan).toBeInTheDocument()
+    expect(titleSpan.getAttribute('style')).toContain(
+      'max(12px, calc(48px * var(--hero-font-scale, 1)))',
+    )
+    const textContainer = titleSpan.closest('[style*="--mhx"]')
+    expect(textContainer?.getAttribute('style')).toContain('--mhx: 48%')
+    expect(textContainer?.getAttribute('style')).toContain('--mhy: 24%')
+    expect(textContainer?.getAttribute('style')).toContain('--mhw: 84%')
+    expect(textContainer?.getAttribute('style')).toContain('--mscale: 0.6')
     const slide1Img = screen.getByAltText('Hero slide 1')
     expect(slide1Img.getAttribute('style')).toContain('--m-focal-x: 35%')
     expect(screen.getAllByRole('link', { name: /Explore Rooms/i })).toHaveLength(
