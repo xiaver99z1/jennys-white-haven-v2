@@ -183,6 +183,10 @@ export function AdminSidebar({
                       to="/admin/reports/guests"
                       label="Guests & Insights"
                     />
+                    <SubNavItem
+                      to="/admin/reports/analytics"
+                      label="Website Analytics"
+                    />
                   </div>
                 )}
               </div>

@@ -516,6 +516,50 @@ export interface GuestsReportData {
   }>
 }
 
+export interface AnalyticsReportData {
+  range: ReportRangeMeta
+  kpis: {
+    totalViews: number
+    uniqueVisitors: number
+    topCountryName: string | null
+    topCountryShare: number
+    mobileShare: number
+    avgViewsPerVisitor: number
+  }
+  dailyTrend: Array<{
+    date: string
+    views: number
+    visitors: number
+  }>
+  byCountry: Array<{
+    countryCode: string
+    countryName: string
+    views: number
+    visitors: number
+    share: number
+  }>
+  byPage: Array<{
+    path: string
+    views: number
+    visitors: number
+    share: number
+  }>
+  byDevice: Array<{
+    deviceType: string
+    count: number
+    share: number
+  }>
+  byReferrer: Array<{
+    referrer: string
+    count: number
+    share: number
+  }>
+  integrations: {
+    gaConfigured: boolean
+    vercelAnalyticsReady: boolean
+  }
+}
+
 export type CmsSectionKey =
   | 'hero'
   | 'story'
