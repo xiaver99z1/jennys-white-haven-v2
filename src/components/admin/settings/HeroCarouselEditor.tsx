@@ -1404,9 +1404,10 @@ export function HeroCarouselEditor({
                   <strong className="font-semibold text-stone-700">
                     1920 × 1080 px
                   </strong>
-                  . Auto-optimized to high-definition WebP (88% quality,
-                  ~250–380 KB) for crisp large-screen display and fast mobile
-                  loading.
+                  . Static photos (JPG, PNG, WebP) are auto-optimized to
+                  high-definition WebP (88% quality, ~250–380 KB) for crisp
+                  large-screen display and fast mobile loading; GIFs and
+                  unconverted files remain in their original format.
                 </p>
               </div>
               <div className="flex items-center gap-2">
