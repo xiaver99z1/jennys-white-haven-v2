@@ -19,6 +19,7 @@ export function PublicLayout({
   const [menuOpen, setMenuOpen] = useState(false)
   const [cookieModalOpen, setCookieModalOpen] = useState(false)
   const cookieTriggerRef = useRef<HTMLElement | null>(null)
+  const footerCookieBtnRef = useRef<HTMLButtonElement>(null)
   const meta = contactSection?.metadata ?? {}
 
   function handleOpenCookiePreferences(trigger?: HTMLElement | null) {
@@ -30,11 +31,15 @@ export function PublicLayout({
     setCookieModalOpen(true)
   }
 
-  function handleCloseCookiePreferences() {
+  function handleCloseCookiePreferences(options?: { saved?: boolean }) {
     setCookieModalOpen(false)
     const trigger = cookieTriggerRef.current
     cookieTriggerRef.current = null
-    trigger?.focus()
+    if (trigger?.isConnected) {
+      trigger.focus()
+    } else if (options?.saved) {
+      footerCookieBtnRef.current?.focus()
+    }
   }
 
   return (
@@ -204,6 +209,7 @@ export function PublicLayout({
                 Check Booking Status
               </Link>
               <button
+                ref={footerCookieBtnRef}
                 type="button"
                 onClick={(e) => handleOpenCookiePreferences(e.currentTarget)}
                 className="text-left hover:text-stone-950 transition cursor-pointer"

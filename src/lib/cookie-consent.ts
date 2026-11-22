@@ -14,6 +14,11 @@ export type EditableCookieCategories = Pick<
   'functional' | 'performance' | 'targeting'
 >
 
+export interface SaveCookieConsentResult {
+  persisted: boolean
+  preferences: CookieConsentPreferences
+}
+
 export const DEFAULT_EDITABLE_COOKIE_CATEGORIES: EditableCookieCategories = {
   functional: true,
   performance: true,
@@ -66,39 +71,64 @@ export function readCookieConsent(): CookieConsentPreferences | null {
 
 export function saveCookieConsent(
   categories: EditableCookieCategories,
-): CookieConsentPreferences {
+): SaveCookieConsentResult {
+  const now = new Date().toISOString()
   const saved: CookieConsentPreferences = {
     necessary: true,
     functional: Boolean(categories.functional),
     performance: Boolean(categories.performance),
     targeting: Boolean(categories.targeting),
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   }
 
-  if (typeof window !== 'undefined') {
-    try {
-      window.localStorage.setItem(
-        COOKIE_CONSENT_STORAGE_KEY,
-        JSON.stringify(saved),
-      )
-      if (typeof document !== 'undefined') {
-        const mode =
-          saved.functional && saved.performance && saved.targeting
-            ? 'all'
-            : !saved.functional && !saved.performance && !saved.targeting
-              ? 'necessary'
-              : 'custom'
-        document.cookie = `jwh_consent=${mode}; Path=/; Max-Age=31536000; SameSite=Lax`
-      }
-      window.dispatchEvent(
-        new CustomEvent<CookieConsentPreferences>(COOKIE_CONSENT_EVENT, {
-          detail: saved,
-        }),
-      )
-    } catch {
-      // Ignore storage quota / private browsing errors
+  if (typeof window === 'undefined') {
+    return { persisted: false, preferences: saved }
+  }
+
+  try {
+    window.localStorage.setItem(
+      COOKIE_CONSENT_STORAGE_KEY,
+      JSON.stringify(saved),
+    )
+    if (typeof document !== 'undefined') {
+      const mode =
+        saved.functional && saved.performance && saved.targeting
+          ? 'all'
+          : !saved.functional && !saved.performance && !saved.targeting
+            ? 'necessary'
+            : 'custom'
+      document.cookie = `jwh_consent=${mode}; Path=/; Max-Age=31536000; SameSite=Lax`
     }
+    window.dispatchEvent(
+      new CustomEvent<CookieConsentPreferences>(COOKIE_CONSENT_EVENT, {
+        detail: saved,
+      }),
+    )
+    return { persisted: true, preferences: saved }
+  } catch {
+    // Fail closed so no stale broader consent remains active if storage fails
+    try {
+      window.localStorage.removeItem(COOKIE_CONSENT_STORAGE_KEY)
+    } catch {
+      // Ignore secondary storage errors
+    }
+    if (typeof document !== 'undefined') {
+      try {
+        document.cookie = 'jwh_consent=; Path=/; Max-Age=0; SameSite=Lax'
+      } catch {
+        // Ignore cookie write errors
+      }
+    }
+    const fallbackNecessary: CookieConsentPreferences = {
+      necessary: true,
+      ...NECESSARY_ONLY_COOKIE_CATEGORIES,
+      updatedAt: now,
+    }
+    window.dispatchEvent(
+      new CustomEvent<CookieConsentPreferences>(COOKIE_CONSENT_EVENT, {
+        detail: fallbackNecessary,
+      }),
+    )
+    return { persisted: false, preferences: fallbackNecessary }
   }
-
-  return saved
 }

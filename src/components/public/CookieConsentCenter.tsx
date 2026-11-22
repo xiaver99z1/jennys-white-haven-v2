@@ -12,7 +12,7 @@ import type { EditableCookieCategories } from '#/lib/cookie-consent'
 interface CookieConsentCenterProps {
   isPreferencesOpen: boolean
   onOpenPreferences: (trigger?: HTMLElement | null) => void
-  onClosePreferences: () => void
+  onClosePreferences: (options?: { saved?: boolean }) => void
 }
 
 type CategoryKey = 'necessary' | keyof EditableCookieCategories
@@ -56,6 +56,7 @@ export function CookieConsentCenter({
   const [hasMounted, setHasMounted] = useState(false)
   const [hasSavedConsent, setHasSavedConsent] = useState(true)
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [expandedKeys, setExpandedKeys] = useState<CategoryKey[]>([])
   const [draft, setDraft] = useState<EditableCookieCategories>(
     DEFAULT_EDITABLE_COOKIE_CATEGORIES,
@@ -63,6 +64,9 @@ export function CookieConsentCenter({
 
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const bannerPrefsBtnRef = useRef<HTMLButtonElement>(null)
+  const openedFromBannerRef = useRef(false)
+  const wasPreferencesOpenRef = useRef(false)
 
   useEffect(() => {
     setHasMounted(true)
@@ -81,20 +85,32 @@ export function CookieConsentCenter({
   }, [])
 
   useEffect(() => {
-    if (!isPreferencesOpen) return
-    const stored = readCookieConsent()
-    if (stored) {
-      setDraft({
-        functional: stored.functional,
-        performance: stored.performance,
-        targeting: stored.targeting,
-      })
+    if (isPreferencesOpen) {
+      wasPreferencesOpenRef.current = true
+      setSaveError(null)
+      const stored = readCookieConsent()
+      if (stored) {
+        setDraft({
+          functional: stored.functional,
+          performance: stored.performance,
+          targeting: stored.targeting,
+        })
+      }
+      closeBtnRef.current?.focus()
+    } else if (wasPreferencesOpenRef.current) {
+      wasPreferencesOpenRef.current = false
+      if (openedFromBannerRef.current && !hasSavedConsent) {
+        openedFromBannerRef.current = false
+        bannerPrefsBtnRef.current?.focus()
+      } else {
+        openedFromBannerRef.current = false
+      }
     }
-    closeBtnRef.current?.focus()
-  }, [isPreferencesOpen])
+  }, [isPreferencesOpen, hasSavedConsent])
 
   const handleCloseModal = useCallback(() => {
-    onClosePreferences()
+    setSaveError(null)
+    onClosePreferences({ saved: false })
   }, [onClosePreferences])
 
   useEffect(() => {
@@ -130,10 +146,20 @@ export function CookieConsentCenter({
   }, [isPreferencesOpen, handleCloseModal])
 
   function applyAndSave(categories: EditableCookieCategories) {
-    saveCookieConsent(categories)
+    const result = saveCookieConsent(categories)
+    if (!result.persisted) {
+      setSaveError(
+        'We could not save your cookie preferences because browser storage is blocked or full. Only strictly necessary cookies remain active for this session.',
+      )
+      setDraft(NECESSARY_ONLY_COOKIE_CATEGORIES)
+      setHasSavedConsent(false)
+      return
+    }
+    setSaveError(null)
     setDraft(categories)
     setHasSavedConsent(true)
-    onClosePreferences()
+    openedFromBannerRef.current = false
+    onClosePreferences({ saved: true })
   }
 
   function toggleAccordion(key: CategoryKey) {
@@ -167,12 +193,21 @@ export function CookieConsentCenter({
                 practices in accordance with the Philippine Data Privacy Act of
                 2012 (RA 10173).
               </p>
+              {saveError && (
+                <p role="alert" className="text-xs font-medium text-rose-700">
+                  {saveError}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <button
+                ref={bannerPrefsBtnRef}
                 type="button"
-                onClick={(e) => onOpenPreferences(e.currentTarget)}
+                onClick={(e) => {
+                  openedFromBannerRef.current = true
+                  onOpenPreferences(e.currentTarget)
+                }}
                 className="px-4 py-2.5 rounded-none sm:rounded-lg border border-stone-800 bg-transparent hover:bg-stone-200/60 text-stone-900 text-[11px] uppercase tracking-[0.18em] font-semibold transition cursor-pointer"
               >
                 Cookie Preferences
@@ -297,6 +332,15 @@ export function CookieConsentCenter({
 
               {/* Manage Consent Preferences Accordion Table */}
               <div className="space-y-3">
+                {saveError && (
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800"
+                  >
+                    {saveError}
+                  </div>
+                )}
+
                 <h3 className="font-serif text-base sm:text-lg text-stone-900 font-semibold">
                   Manage Consent Preferences
                 </h3>

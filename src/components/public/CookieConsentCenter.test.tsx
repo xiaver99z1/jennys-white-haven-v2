@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { CookieConsentCenter } from './CookieConsentCenter'
 import { readCookieConsent } from '#/lib/cookie-consent'
@@ -25,6 +25,10 @@ describe('CookieConsentCenter', () => {
     window.localStorage.clear()
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('shows bottom cookie banner on first visit and saves all cookies when clicking Agree', () => {
     render(<ConsentHarness />)
 
@@ -47,17 +51,28 @@ describe('CookieConsentCenter', () => {
     )
   })
 
-  it('opens Privacy Preferences Center modal, toggles categories and accordions, and saves custom choices', () => {
+  it('opens Privacy Preferences Center modal, restores focus to banner on dismiss, and saves custom choices', () => {
     render(<ConsentHarness />)
 
-    // Click Cookie Preferences in the bottom banner
+    // Click Cookie Preferences in the bottom banner, then dismiss with Escape
     fireEvent.click(
       screen.getByRole('button', { name: 'Cookie Preferences' }),
     )
-
     expect(
       screen.getByRole('dialog', { name: 'Privacy Preferences Center' }),
     ).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(
+      screen.queryByRole('dialog', { name: 'Privacy Preferences Center' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Cookie Preferences' }),
+    ).toHaveFocus()
+
+    // Reopen from banner to customize choices
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Cookie Preferences' }),
+    )
     expect(screen.getByText('Always Active')).toBeInTheDocument()
 
     // Expand category description and Privacy & Cookie Notice
@@ -117,5 +132,29 @@ describe('CookieConsentCenter', () => {
         targeting: false,
       }),
     )
+  })
+
+  it('keeps dialog open and shows an alert when browser storage fails to save preferences', () => {
+    render(<ConsentHarness />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Cookie Preferences' }),
+    )
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError', 'QuotaExceededError')
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm My Choices' }),
+    )
+
+    expect(
+      screen.getByRole('dialog', { name: 'Privacy Preferences Center' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /could not save your cookie preferences/i,
+    )
+    expect(readCookieConsent()).toBeNull()
   })
 })
