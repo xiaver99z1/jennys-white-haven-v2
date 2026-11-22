@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
+import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
 import type { CmsSectionData } from '#/types'
 
 interface PublicLayoutProps {
@@ -16,7 +17,30 @@ export function PublicLayout({
   showExploreLink = true,
 }: PublicLayoutProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [cookieModalOpen, setCookieModalOpen] = useState(false)
+  const cookieTriggerRef = useRef<HTMLElement | null>(null)
+  const footerCookieBtnRef = useRef<HTMLButtonElement>(null)
   const meta = contactSection?.metadata ?? {}
+
+  function handleOpenCookiePreferences(trigger?: HTMLElement | null) {
+    cookieTriggerRef.current =
+      trigger ??
+      (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null)
+    setCookieModalOpen(true)
+  }
+
+  function handleCloseCookiePreferences(options?: { saved?: boolean }) {
+    setCookieModalOpen(false)
+    const trigger = cookieTriggerRef.current
+    cookieTriggerRef.current = null
+    if (trigger?.isConnected) {
+      trigger.focus()
+    } else if (options?.saved) {
+      footerCookieBtnRef.current?.focus()
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F4] text-stone-900 selection:bg-amber-200/60">
@@ -184,6 +208,14 @@ export function PublicLayout({
               >
                 Check Booking Status
               </Link>
+              <button
+                ref={footerCookieBtnRef}
+                type="button"
+                onClick={(e) => handleOpenCookiePreferences(e.currentTarget)}
+                className="text-left hover:text-stone-950 transition cursor-pointer"
+              >
+                Cookie Preferences
+              </button>
               <Link
                 to="/admin/login"
                 className="text-xs text-stone-500 hover:text-stone-800 transition pt-2"
@@ -199,6 +231,12 @@ export function PublicLayout({
           Island, Cebu
         </div>
       </footer>
+
+      <CookieConsentCenter
+        isPreferencesOpen={cookieModalOpen}
+        onOpenPreferences={handleOpenCookiePreferences}
+        onClosePreferences={handleCloseCookiePreferences}
+      />
     </div>
   )
 }
