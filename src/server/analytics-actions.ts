@@ -229,11 +229,18 @@ export const getAnalyticsReportHandler = createServerOnlyFn(
           createdAt: true,
         },
       })
-    } catch (err) {
-      console.warn(
-        'Failed to query analytics page views (run `pnpm db:push` to sync schema):',
-        err,
-      )
+    } catch (err: unknown) {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? (err as { code?: unknown }).code
+          : undefined
+      if (code === 'P2021') {
+        console.warn(
+          'Analytics page_view table not yet synced (run `pnpm db:push`).',
+        )
+      } else {
+        throw err
+      }
     }
 
     const totalViews = views.length
@@ -346,9 +353,12 @@ export const getAnalyticsReportHandler = createServerOnlyFn(
       totalViews > 0 ? Math.round((mobileCount / totalViews) * 100) : 0
 
     const topCountry = byCountry.length > 0 ? byCountry[0] : null
-    const gaConfigured = Boolean(
-      (process.env.VITE_GA_MEASUREMENT_ID || '').trim(),
-    )
+    const gaId = (
+      (import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined) ||
+      process.env.VITE_GA_MEASUREMENT_ID ||
+      ''
+    ).trim()
+    const gaConfigured = /^G-[A-Z0-9]+$/i.test(gaId)
 
     return {
       range: {

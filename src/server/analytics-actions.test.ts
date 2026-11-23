@@ -168,5 +168,17 @@ describe('analytics-actions', () => {
       expect.objectContaining({ deviceType: 'mobile', count: 2 }),
     )
     expect(report.dailyTrend).toHaveLength(2)
+
+    // Gracefully returns empty report only for P2021 (table not yet pushed), rethrows other DB errors
+    mockFindMany.mockRejectedValueOnce({ code: 'P2021' })
+    const missingTableReport = await getAnalyticsReportHandler({
+      data: { preset: 'last7' },
+    })
+    expect(missingTableReport.kpis.totalViews).toBe(0)
+
+    mockFindMany.mockRejectedValueOnce(new Error('DB connection lost'))
+    await expect(
+      getAnalyticsReportHandler({ data: { preset: 'last7' } }),
+    ).rejects.toThrow('DB connection lost')
   })
 })
