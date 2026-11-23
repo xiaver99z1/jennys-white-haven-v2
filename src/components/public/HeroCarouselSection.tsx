@@ -3,7 +3,6 @@ import type { CSSProperties, FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Pause,
@@ -20,6 +19,7 @@ import {
 } from '#/lib/constants/cms'
 import { hasVisibleRichText } from '#/lib/hero-rich-text'
 import { HeroRichTextContent } from '#/components/public/HeroRichTextContent'
+import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import type { CmsSectionData, HeroElementPosition } from '#/types'
 
 interface HeroCarouselSectionProps {
@@ -261,40 +261,17 @@ export function HeroCarouselSection({
               onSubmit={handleFormSubmit}
               className="bg-[#FAF8F4]/95 backdrop-blur-md rounded-2xl p-3 sm:p-5 shadow-2xl border border-stone-200/60 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 items-end"
             >
-              <div>
-                <label
-                  htmlFor="hero-checkin"
-                  className="flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5"
-                >
-                  <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  Check-in
-                </label>
-                <input
-                  id="hero-checkin"
-                  type="date"
-                  value={checkIn}
-                  onChange={(e) => setCheckIn(e.target.value)}
-                  className="w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-stone-200 bg-white text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="hero-checkout"
-                  className="flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5"
-                >
-                  <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  Check-out
-                </label>
-                <input
-                  id="hero-checkout"
-                  type="date"
-                  value={checkOut}
-                  min={checkIn || undefined}
-                  onChange={(e) => setCheckOut(e.target.value)}
-                  className="w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-stone-200 bg-white text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-                />
-              </div>
+              <StayDateRangePicker
+                idPrefix="hero"
+                compact
+                checkIn={checkIn}
+                checkOut={checkOut}
+                onChange={({ checkIn: nextIn, checkOut: nextOut }) => {
+                  setCheckIn(nextIn)
+                  setCheckOut(nextOut)
+                }}
+                className="col-span-2"
+              />
 
               <div>
                 <label

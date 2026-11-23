@@ -34,10 +34,12 @@
     "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.7.7",
+    "date-fns": "^4.4.0",
     "lucide-react": "^1.56.0",
     "nitro": "3.0.260610-beta",
     "nodemailer": "^10.6.0",
     "react": "^19.2.0",
+    "react-day-picker": "^10.0.2",
     "react-dom": "^19.2.0",
     "sonner": "^2.0.8",
     "tailwindcss": "^4.1.18"
