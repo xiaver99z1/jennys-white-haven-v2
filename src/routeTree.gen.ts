@@ -28,6 +28,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as RoomsIndexRouteImport } from './routes/rooms/index'
 import { Route as RoomsIdRouteImport } from './routes/rooms/$id'
 import { Route as AdminReportsIndexRouteImport } from './routes/admin/reports/index'
+import { Route as AdminReportsAnalyticsRouteImport } from './routes/admin/reports/analytics'
 import { Route as AdminReportsBookingsRouteImport } from './routes/admin/reports/bookings'
 import { Route as AdminReportsGuestsRouteImport } from './routes/admin/reports/guests'
 import { Route as AdminReportsOccupancyRouteImport } from './routes/admin/reports/occupancy'
@@ -130,6 +131,11 @@ const AdminReportsIndexRoute = AdminReportsIndexRouteImport.update({
   path: '/reports/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminReportsAnalyticsRoute = AdminReportsAnalyticsRouteImport.update({
+  id: '/reports/analytics',
+  path: '/reports/analytics',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminReportsBookingsRoute = AdminReportsBookingsRouteImport.update({
   id: '/reports/bookings',
   path: '/reports/bookings',
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/rooms/$id': typeof RoomsIdRoute
   '/admin/': typeof AdminIndexRoute
   '/rooms/': typeof RoomsIndexRoute
+  '/admin/reports/analytics': typeof AdminReportsAnalyticsRoute
   '/admin/reports/bookings': typeof AdminReportsBookingsRoute
   '/admin/reports/guests': typeof AdminReportsGuestsRoute
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/rooms/$id': typeof RoomsIdRoute
   '/admin': typeof AdminIndexRoute
   '/rooms': typeof RoomsIndexRoute
+  '/admin/reports/analytics': typeof AdminReportsAnalyticsRoute
   '/admin/reports/bookings': typeof AdminReportsBookingsRoute
   '/admin/reports/guests': typeof AdminReportsGuestsRoute
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/rooms/$id': typeof RoomsIdRoute
   '/admin/': typeof AdminIndexRoute
   '/rooms/': typeof RoomsIndexRoute
+  '/admin/reports/analytics': typeof AdminReportsAnalyticsRoute
   '/admin/reports/bookings': typeof AdminReportsBookingsRoute
   '/admin/reports/guests': typeof AdminReportsGuestsRoute
   '/admin/reports/occupancy': typeof AdminReportsOccupancyRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/rooms/$id'
     | '/admin/'
     | '/rooms/'
+    | '/admin/reports/analytics'
     | '/admin/reports/bookings'
     | '/admin/reports/guests'
     | '/admin/reports/occupancy'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/rooms/$id'
     | '/admin'
     | '/rooms'
+    | '/admin/reports/analytics'
     | '/admin/reports/bookings'
     | '/admin/reports/guests'
     | '/admin/reports/occupancy'
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/rooms/$id'
     | '/admin/'
     | '/rooms/'
+    | '/admin/reports/analytics'
     | '/admin/reports/bookings'
     | '/admin/reports/guests'
     | '/admin/reports/occupancy'
@@ -473,6 +485,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminReportsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/reports/analytics': {
+      id: '/admin/reports/analytics'
+      path: '/reports/analytics'
+      fullPath: '/admin/reports/analytics'
+      preLoaderRoute: typeof AdminReportsAnalyticsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/reports/bookings': {
       id: '/admin/reports/bookings'
       path: '/reports/bookings'
@@ -529,6 +548,7 @@ interface AdminRouteRouteChildren {
   AdminSetupRoute: typeof AdminSetupRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminReportsAnalyticsRoute: typeof AdminReportsAnalyticsRoute
   AdminReportsBookingsRoute: typeof AdminReportsBookingsRoute
   AdminReportsGuestsRoute: typeof AdminReportsGuestsRoute
   AdminReportsOccupancyRoute: typeof AdminReportsOccupancyRoute
@@ -547,6 +567,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminSetupRoute: AdminSetupRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminReportsAnalyticsRoute: AdminReportsAnalyticsRoute,
   AdminReportsBookingsRoute: AdminReportsBookingsRoute,
   AdminReportsGuestsRoute: AdminReportsGuestsRoute,
   AdminReportsOccupancyRoute: AdminReportsOccupancyRoute,

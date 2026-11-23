@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
+import { AnalyticsTracker } from '#/components/public/AnalyticsTracker'
 import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
 import type { CmsSectionData } from '#/types'
 
@@ -237,6 +238,7 @@ export function PublicLayout({
         onOpenPreferences={handleOpenCookiePreferences}
         onClosePreferences={handleCloseCookiePreferences}
       />
+      <AnalyticsTracker />
     </div>
   )
 }

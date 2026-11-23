@@ -355,3 +355,24 @@ model BusinessMedia {
   @@index([sectionId, sortOrder])
   @@map("business_media")
 }
+
+// ======================
+// Privacy-Safe Website Analytics
+// ======================
+
+model PageView {
+  id          String   @id @default(cuid())
+  path        String
+  visitorHash String
+  country     String   @default("UNKNOWN")
+  city        String?
+  deviceType  String   @default("desktop") // "mobile" | "tablet" | "desktop"
+  referrer    String   @default("Direct")
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([country, createdAt])
+  @@index([path, createdAt])
+  @@index([visitorHash, createdAt])
+  @@map("page_view")
+}
