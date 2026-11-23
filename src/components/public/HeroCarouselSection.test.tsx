@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
+import { addDays, format, startOfToday } from 'date-fns'
 import type { ReactNode } from 'react'
 import { HeroCarouselSection } from './HeroCarouselSection'
 import {
@@ -146,21 +147,30 @@ describe('HeroCarouselSection', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Go to slide 1' }))
     expect(screen.getByText('Slide One Title')).toBeInTheDocument()
 
-    // Submit availability form
-    fireEvent.change(screen.getByLabelText(/Check-in/i), {
-      target: { value: '2026-12-01' },
-    })
-    fireEvent.change(screen.getByLabelText(/Check-out/i), {
-      target: { value: '2026-12-03' },
-    })
+    // Submit availability form via dual-month StayDateRangePicker calendar
+    const today = startOfToday()
+    const checkInDate = addDays(today, 2)
+    const checkOutDate = addDays(today, 4)
+
+    fireEvent.click(screen.getByLabelText(/Check-in/i))
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: new RegExp(format(checkInDate, 'MMMM do, yyyy'), 'i'),
+      }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: new RegExp(format(checkOutDate, 'MMMM do, yyyy'), 'i'),
+      }),
+    )
     fireEvent.change(screen.getByLabelText(/Guests/i), {
       target: { value: '4' },
     })
     fireEvent.click(screen.getByRole('button', { name: /Check Availability/i }))
 
     expect(onSearch).toHaveBeenCalledWith({
-      checkIn: '2026-12-01',
-      checkOut: '2026-12-03',
+      checkIn: format(checkInDate, 'yyyy-MM-dd'),
+      checkOut: format(checkOutDate, 'yyyy-MM-dd'),
       guests: 4,
     })
   })

@@ -142,18 +142,41 @@ describe('EditBookingModal', () => {
     fireEvent.change(roomSelect, { target: { value: 'room-1' } })
     expect(saveBtn).toBeDisabled()
 
-    // 3. checkIn
-    const checkInInput = screen.getByLabelText(/check-in date/i)
-    fireEvent.change(checkInInput, { target: { value: '2026-11-13' } })
+    // 3. checkIn & checkOut via StayDateRangePicker calendar
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+    })
+    const checkOutBtn = screen.getByLabelText(/check-out date/i)
+    fireEvent.click(checkOutBtn)
+    fireEvent.click(
+      screen.getByRole('button', { name: /November 15th, 2026/i }),
+    )
     expect(saveBtn).toBeEnabled()
-    fireEvent.change(checkInInput, { target: { value: '2026-11-12' } })
+
+    fireEvent.click(checkOutBtn)
+    fireEvent.click(
+      screen.getByRole('button', { name: /November 14th, 2026/i }),
+    )
     expect(saveBtn).toBeDisabled()
 
-    // 4. checkOut
-    const checkOutInput = screen.getByLabelText(/check-out date/i)
-    fireEvent.change(checkOutInput, { target: { value: '2026-11-15' } })
+    const checkInBtn = screen.getByLabelText(/check-in date/i)
+    fireEvent.click(checkInBtn)
+    fireEvent.click(
+      screen.getByRole('button', { name: /November 13th, 2026/i }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: /November 14th, 2026/i }),
+    )
     expect(saveBtn).toBeEnabled()
-    fireEvent.change(checkOutInput, { target: { value: '2026-11-14' } })
+
+    fireEvent.click(checkInBtn)
+    fireEvent.click(
+      screen.getByRole('button', { name: /November 12th, 2026/i }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: /November 14th, 2026/i }),
+    )
     expect(saveBtn).toBeDisabled()
 
     // 5. guestsCount

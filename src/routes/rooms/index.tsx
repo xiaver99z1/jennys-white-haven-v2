@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Calendar, Search, Users } from 'lucide-react'
+import { Search, Users } from 'lucide-react'
 import { getPublicCmsSections } from '#/server/cms-actions'
 import { getPublicRooms } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
+import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { EmptyState } from '#/components/common/EmptyState'
 import { formatPeso, isValidCalendarDate } from '#/lib/formatters'
 
@@ -111,40 +112,16 @@ function PublicRoomsPage() {
           onSubmit={handleFilterSubmit}
           className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end"
         >
-          <div>
-            <label
-              htmlFor="rooms-checkin"
-              className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Check-in
-            </label>
-            <input
-              id="rooms-checkin"
-              type="date"
-              value={checkIn}
-              onChange={(e) => setCheckIn(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="rooms-checkout"
-              className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Check-out
-            </label>
-            <input
-              id="rooms-checkout"
-              type="date"
-              value={checkOut}
-              min={checkIn || undefined}
-              onChange={(e) => setCheckOut(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
-            />
-          </div>
+          <StayDateRangePicker
+            idPrefix="rooms"
+            checkIn={checkIn}
+            checkOut={checkOut}
+            onChange={({ checkIn: nextIn, checkOut: nextOut }) => {
+              setCheckIn(nextIn)
+              setCheckOut(nextOut)
+            }}
+            className="sm:col-span-2"
+          />
 
           <div>
             <label

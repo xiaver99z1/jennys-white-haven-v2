@@ -109,6 +109,11 @@ export function validatePublicRoomId(data: { id: string }) {
   return data
 }
 
+function toPhIsoDate(date: Date): string {
+  const phOffsetMs = 8 * 60 * 60 * 1000
+  return new Date(date.getTime() + phOffsetMs).toISOString().slice(0, 10)
+}
+
 export async function getPublicRoomByIdHandler({
   data,
 }: {
@@ -117,7 +122,35 @@ export async function getPublicRoomByIdHandler({
   const room = await prisma.room.findFirst({
     where: { id: data.id, deletedAt: null },
   })
-  return room ? serializeRoom(room) : null
+  if (!room) return null
+
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+
+  let bookedRanges: Array<{ checkIn: string; checkOut: string }> = []
+  try {
+    const activeBookings = await prisma.booking.findMany({
+      where: {
+        roomId: room.id,
+        deletedAt: null,
+        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+        checkOut: { gt: startOfToday },
+      },
+      select: { checkIn: true, checkOut: true },
+      orderBy: { checkIn: 'asc' },
+    })
+    bookedRanges = activeBookings.map((b) => ({
+      checkIn: toPhIsoDate(new Date(b.checkIn)),
+      checkOut: toPhIsoDate(new Date(b.checkOut)),
+    }))
+  } catch {
+    bookedRanges = []
+  }
+
+  return {
+    ...serializeRoom(room),
+    bookedRanges,
+  }
 }
 
 export const getPublicRoomById = createServerFn({ method: 'GET' })

@@ -424,6 +424,7 @@ export function BookingsList({
         }}
         rooms={rooms}
         guests={guests}
+        existingBookings={initialBookings}
       />
 
       {/* Edit Booking Modal */}
@@ -432,6 +433,7 @@ export function BookingsList({
         booking={editingBooking}
         rooms={rooms}
         guests={guests}
+        existingBookings={initialBookings}
         onClose={() => setEditingBooking(null)}
         onSaveStart={(id) => setSavingId(id)}
         onSaveError={() => setSavingId(null)}

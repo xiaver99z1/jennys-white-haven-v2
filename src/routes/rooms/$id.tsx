@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, Loader2, Sparkles, Users } from 'lucide-react'
 import { getPublicCmsSections } from '#/server/cms-actions'
 import { createPublicBooking, getPublicRoomById } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
+import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import {
   formatPeso,
   getErrorMessage,
@@ -109,6 +110,10 @@ function PublicRoomDetailPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!room) return
+    if (!checkIn || !checkOut) {
+      setError('Please select both check-in and check-out dates.')
+      return
+    }
     setIsSubmitting(true)
     setError(null)
     try {
@@ -315,41 +320,17 @@ function PublicRoomDetailPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label
-                        htmlFor="book-checkin"
-                        className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
-                      >
-                        Check-in
-                      </label>
-                      <input
-                        id="book-checkin"
-                        type="date"
-                        required
-                        value={checkIn}
-                        onChange={(e) => setCheckIn(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="book-checkout"
-                        className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
-                      >
-                        Check-out
-                      </label>
-                      <input
-                        id="book-checkout"
-                        type="date"
-                        required
-                        value={checkOut}
-                        min={checkIn || undefined}
-                        onChange={(e) => setCheckOut(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
-                      />
-                    </div>
-                  </div>
+                  <StayDateRangePicker
+                    idPrefix="book"
+                    checkIn={checkIn}
+                    checkOut={checkOut}
+                    bookedRanges={room.bookedRanges}
+                    required
+                    onChange={({ checkIn: nextIn, checkOut: nextOut }) => {
+                      setCheckIn(nextIn)
+                      setCheckOut(nextOut)
+                    }}
+                  />
 
                   <div>
                     <label

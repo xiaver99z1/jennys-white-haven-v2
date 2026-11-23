@@ -1,19 +1,22 @@
 import { useState, useMemo } from 'react'
 import { createBooking } from '#/server/booking-actions'
 import { X, CalendarPlus } from 'lucide-react'
+import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import {
   BOOKING_STATUSES,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
 } from '#/lib/constants/rooms'
 import type {
+  BookedDateRange,
   BookingGuestOption,
+  BookingItem,
   BookingRoomOption,
   BookingStatus,
   PaymentMethod,
   PaymentStatus,
 } from '#/types'
-import { formatLocalDate, formatPeso } from '#/lib/formatters'
+import { formatDateInput, formatLocalDate, formatPeso } from '#/lib/formatters'
 
 export type { BookingGuestOption, BookingRoomOption }
 export { formatLocalDate }
@@ -24,6 +27,7 @@ interface AddBookingModalProps {
   onSuccess: () => Promise<void> | void
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
+  existingBookings?: BookingItem[]
 }
 
 const getDefaultDates = () => {
@@ -45,6 +49,7 @@ export function AddBookingModal({
   onSuccess,
   rooms,
   guests,
+  existingBookings = [],
 }: AddBookingModalProps) {
   const defaultDates = getDefaultDates()
   const [loading, setLoading] = useState(false)
@@ -66,6 +71,23 @@ export function AddBookingModal({
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === formData.roomId),
     [rooms, formData.roomId],
+  )
+
+  const roomBookedRanges = useMemo<BookedDateRange[]>(
+    () =>
+      existingBookings
+        .filter(
+          (b) =>
+            b.roomId === formData.roomId &&
+            !b.deletedAt &&
+            ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status),
+        )
+        .map((b) => ({
+          checkIn: formatDateInput(b.checkIn),
+          checkOut: formatDateInput(b.checkOut),
+        }))
+        .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut)),
+    [existingBookings, formData.roomId],
   )
 
   const nights = useMemo(() => {
@@ -225,43 +247,21 @@ export function AddBookingModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label
-                  htmlFor="add-booking-checkin"
-                  className="block font-semibold text-stone-700 mb-1"
-                >
-                  Check-In Date <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="add-booking-checkin"
-                  type="date"
-                  required
-                  value={formData.checkIn}
-                  onChange={(e) =>
-                    setFormData({ ...formData, checkIn: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="add-booking-checkout"
-                  className="block font-semibold text-stone-700 mb-1"
-                >
-                  Check-Out Date <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="add-booking-checkout"
-                  type="date"
-                  required
-                  value={formData.checkOut}
-                  onChange={(e) =>
-                    setFormData({ ...formData, checkOut: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+              <StayDateRangePicker
+                idPrefix="add-booking"
+                checkInLabel="Check-In Date"
+                checkOutLabel="Check-Out Date"
+                checkIn={formData.checkIn}
+                checkOut={formData.checkOut}
+                bookedRanges={roomBookedRanges}
+                allowPastDates
+                required
+                onChange={({ checkIn, checkOut }) =>
+                  setFormData((prev) => ({ ...prev, checkIn, checkOut }))
+                }
+                className="sm:col-span-2"
+              />
               <div>
                 <label
                   htmlFor="add-booking-guests-count"

@@ -636,6 +636,11 @@ export interface CmsSectionData {
   updatedByName?: string | null
 }
 
+export interface BookedDateRange {
+  checkIn: string
+  checkOut: string
+}
+
 export interface PublicRoomItem {
   id: string
   roomNumber: string
@@ -647,6 +652,7 @@ export interface PublicRoomItem {
   amenities: string[]
   images: string[]
   status: RoomStatus
+  bookedRanges?: BookedDateRange[]
 }
 
 export interface PublicBookingLookupResult {

@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { addDays, format, startOfToday } from 'date-fns'
 import { AddBookingModal } from './AddBookingModal'
 import { createBooking } from '#/server/booking-actions'
 
@@ -75,10 +76,44 @@ describe('AddBookingModal', () => {
     expect(screen.getByText('₱0')).toBeInTheDocument()
   })
 
-  it('calculates stay summary, updates all fields, and submits successfully', async () => {
+  it('calculates stay summary, disables room booked dates, updates all fields, and submits successfully', async () => {
     vi.mocked(createBooking).mockResolvedValueOnce({ success: true } as any)
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+    })
 
-    render(<AddBookingModal {...defaultProps} />)
+    const today = startOfToday()
+    const checkInDate = addDays(today, 2)
+    const checkOutDate = addDays(today, 5)
+    const bookedStart = addDays(today, 8)
+    const bookedEnd = addDays(today, 10)
+
+    render(
+      <AddBookingModal
+        {...defaultProps}
+        existingBookings={[
+          {
+            id: 'existing-1',
+            bookingReference: 'JWH-EXIST-01',
+            roomId: 'room-2',
+            guestId: 'guest-1',
+            checkIn: format(bookedStart, 'yyyy-MM-dd'),
+            checkOut: format(bookedEnd, 'yyyy-MM-dd'),
+            nights: 2,
+            guestsCount: 2,
+            totalAmount: 13000,
+            amountPaid: 0,
+            paymentStatus: 'UNPAID',
+            paymentMethod: null,
+            status: 'CONFIRMED',
+            specialRequests: null,
+            room: mockRooms[1],
+            guest: mockGuests[0],
+          },
+        ]}
+      />,
+    )
 
     fireEvent.change(screen.getByLabelText(/guest \*/i), {
       target: { value: 'guest-2' },
@@ -86,13 +121,21 @@ describe('AddBookingModal', () => {
     fireEvent.change(screen.getByLabelText(/room \*/i), {
       target: { value: 'room-2' },
     })
-    fireEvent.change(screen.getByLabelText(/check-in date/i), {
-      target: { value: '2026-12-01' },
-    })
-    // Same date first to cover diff <= 0 invalid stay message & disabled button
-    fireEvent.change(screen.getByLabelText(/check-out date/i), {
-      target: { value: '2026-12-01' },
-    })
+
+    // Open calendar and verify booked date is disabled for Room 102
+    fireEvent.click(screen.getByLabelText(/check-in date/i))
+    expect(
+      screen.getByRole('button', {
+        name: new RegExp(format(bookedStart, 'MMMM do, yyyy'), 'i'),
+      }),
+    ).toBeDisabled()
+
+    // Picking only Check-in clears Check-out -> shows invalid stay message & disables submit
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: new RegExp(format(checkInDate, 'MMMM do, yyyy'), 'i'),
+      }),
+    )
     expect(
       screen.getByText('Check-out date must be after check-in date'),
     ).toBeInTheDocument()
@@ -100,10 +143,12 @@ describe('AddBookingModal', () => {
       screen.getByRole('button', { name: /create booking/i }),
     ).toBeDisabled()
 
-    // 3 nights -> 3 * 6500 = 19,500
-    fireEvent.change(screen.getByLabelText(/check-out date/i), {
-      target: { value: '2026-12-04' },
-    })
+    // Select check-out 3 nights later -> 3 * 6500 = 19,500
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: new RegExp(format(checkOutDate, 'MMMM do, yyyy'), 'i'),
+      }),
+    )
     expect(screen.getByText('₱19,500')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText(/guests count/i), {
@@ -132,8 +177,8 @@ describe('AddBookingModal', () => {
         data: {
           roomId: 'room-2',
           guestId: 'guest-2',
-          checkIn: '2026-12-01',
-          checkOut: '2026-12-04',
+          checkIn: format(checkInDate, 'yyyy-MM-dd'),
+          checkOut: format(checkOutDate, 'yyyy-MM-dd'),
           guestsCount: 4,
           totalAmount: 19500,
           amountPaid: 10000,
