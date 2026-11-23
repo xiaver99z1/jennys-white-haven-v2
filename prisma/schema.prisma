@@ -376,3 +376,35 @@ model PageView {
   @@index([visitorHash, createdAt])
   @@map("page_view")
 }
+
+// ======================
+// Guest Reviews & Moderation
+// ======================
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  HIDDEN
+}
+
+model Review {
+  id               String       @id @default(cuid())
+  guestName        String
+  guestLocation    String?
+  roomName         String?
+  bookingReference String?
+  isVerifiedStay   Boolean      @default(false)
+  rating           Int
+  title            String?
+  comment          String       @db.Text
+  status           ReviewStatus @default(PENDING)
+  isFeatured       Boolean      @default(false)
+  adminReply       String?      @db.Text
+  adminRepliedAt   DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([status, isFeatured, createdAt])
+  @@index([status, rating])
+  @@map("review")
+}

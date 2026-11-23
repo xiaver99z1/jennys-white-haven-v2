@@ -1,27 +1,29 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ArrowRight, MapPin, Sparkles } from 'lucide-react'
+import { ArrowRight, MapPin, ShieldCheck, Sparkles, Star } from 'lucide-react'
 import { getPublicCmsSections } from '#/server/cms-actions'
 import { getPublicRooms } from '#/server/public-actions'
+import { getPublicReviews } from '#/server/review-actions'
 import { HeroCarouselSection } from '#/components/public/HeroCarouselSection'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { formatPeso } from '#/lib/formatters'
 
 export const Route = createFileRoute('/')({
+  loader: async () => {
+    const [sections, rooms, reviewsSummary] = await Promise.all([
+      getPublicCmsSections(),
+      getPublicRooms({ data: {} }),
+      getPublicReviews(),
+    ])
+    return { sections, rooms, reviewsSummary }
+  },
   head: () => ({
     meta: [{ title: "Jenny's White Haven | Camotes Island, Cebu" }],
   }),
-  loader: async () => {
-    const [sections, rooms] = await Promise.all([
-      getPublicCmsSections(),
-      getPublicRooms({ data: {} }),
-    ])
-    return { sections, rooms }
-  },
   component: LandingPage,
 })
 
 function LandingPage() {
-  const { sections, rooms } = Route.useLoaderData()
+  const { sections, rooms, reviewsSummary } = Route.useLoaderData()
   const navigate = useNavigate()
 
   const byKey = new Map(sections.map((s) => [s.key, s]))
@@ -283,6 +285,133 @@ function LandingPage() {
           </div>
         </section>
       )}
+
+      {/* Guest Reviews Highlight Section */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 lg:py-20 space-y-8 lg:space-y-10">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 sm:gap-6">
+          <div className="space-y-2.5 max-w-xl">
+            <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
+              Guest Experiences
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-serif text-stone-900">
+              Words From Our Guests
+            </h2>
+            {reviewsSummary.totalCount > 0 ? (
+              <div className="flex items-center gap-2 pt-1 text-sm text-stone-600">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-4 h-4 ${
+                        star <= Math.round(reviewsSummary.averageRating)
+                          ? 'fill-amber-500 text-amber-500'
+                          : 'text-stone-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="font-semibold text-stone-900">
+                  {reviewsSummary.averageRating.toFixed(1)}
+                </span>
+                <span>
+                  · {reviewsSummary.totalCount}{' '}
+                  {reviewsSummary.totalCount === 1 ? 'review' : 'reviews'}
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm sm:text-base text-stone-600 leading-relaxed">
+                Reflections from travelers who have unwound with us on Camotes
+                Island.
+              </p>
+            )}
+          </div>
+
+          <Link
+            to="/reviews"
+            className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] font-semibold text-stone-900 hover:text-amber-900 transition self-start sm:self-auto"
+          >
+            {reviewsSummary.totalCount > 0
+              ? 'View All Reviews'
+              : 'Share Your Stay'}
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {reviewsSummary.reviews.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+            {reviewsSummary.reviews.slice(0, 3).map((review) => (
+              <Link
+                key={review.id}
+                to="/reviews"
+                className="group bg-white rounded-3xl border border-stone-200/80 p-6 sm:p-7 flex flex-col justify-between space-y-5 hover:shadow-lg transition duration-300"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-4 h-4 ${
+                            star <= review.rating
+                              ? 'fill-amber-500 text-amber-500'
+                              : 'text-stone-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {review.isVerifiedStay && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <ShieldCheck className="w-3 h-3" />
+                        Verified
+                      </span>
+                    )}
+                  </div>
+                  {review.title && (
+                    <h3 className="text-lg font-serif text-stone-900 group-hover:text-amber-900 transition">
+                      {review.title}
+                    </h3>
+                  )}
+                  <p className="text-sm text-stone-600 leading-relaxed line-clamp-4">
+                    “{review.comment}”
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-stone-100 text-xs text-stone-500">
+                  <p className="font-semibold text-stone-900">
+                    {review.guestName}
+                  </p>
+                  {(review.guestLocation || review.roomName) && (
+                    <p className="mt-0.5">
+                      {[review.guestLocation, review.roomName]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-3xl bg-[#F3EFE7] border border-stone-200/80 p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div className="space-y-2 max-w-xl">
+              <p className="font-serif text-2xl text-stone-900">
+                Stayed at Jenny&apos;s White Haven recently?
+              </p>
+              <p className="text-sm text-stone-600 leading-relaxed">
+                We would love to hear about your island stay. Share a short note
+                about your room and experience for future guests.
+              </p>
+            </div>
+            <Link
+              to="/reviews"
+              hash="write-review"
+              className="px-6 py-3 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-900 transition self-start sm:self-auto shrink-0"
+            >
+              Write the First Review
+            </Link>
+          </div>
+        )}
+      </section>
 
       {/* Contact / Reservation Reminder Band */}
       {contact && (

@@ -556,6 +556,18 @@ export const CMS_SECTION_META: Record<
         placeholder:
           'GCash: 0917-000-0000 (Jenny White Haven) · 50% deposit confirms your stay.',
       },
+      {
+        key: 'mapEmbedUrl',
+        label: 'Google Maps Embed URL',
+        placeholder:
+          'https://maps.google.com/maps?q=Santiago+Bay+San+Francisco+Camotes+Island+Cebu&output=embed',
+      },
+      {
+        key: 'mapDirectionsUrl',
+        label: 'Google Maps Directions Link',
+        placeholder:
+          'https://www.google.com/maps/search/?api=1&query=Santiago+Bay+San+Francisco+Camotes+Island+Cebu',
+      },
     ],
   },
 }
@@ -669,6 +681,10 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
       checkOutTime: '12:00 PM',
       paymentInfo:
         'GCash / Bank Transfer accepted. A 50% deposit confirms your reservation.',
+      mapEmbedUrl:
+        'https://maps.google.com/maps?q=Santiago+Bay+San+Francisco+Camotes+Island+Cebu&t=&z=14&ie=UTF8&iwloc=&output=embed',
+      mapDirectionsUrl:
+        'https://www.google.com/maps/search/?api=1&query=Santiago+Bay+San+Francisco+Camotes+Island+Cebu',
     },
     isPublished: true,
     sortOrder: 6,
