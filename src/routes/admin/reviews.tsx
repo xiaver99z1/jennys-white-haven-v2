@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { hasPermission } from '#/lib/permissions'
@@ -13,6 +13,36 @@ const checkReviewsAccess = createServerFn({ method: 'GET' }).handler(
     return session?.user ?? null
   },
 )
+
+function AdminReviewsError({
+  error,
+  reset,
+}: {
+  error: unknown
+  reset: () => void
+}) {
+  const router = useRouter()
+
+  return (
+    <div className="max-w-lg mx-auto my-12 bg-white rounded-2xl border border-rose-200 p-6 space-y-3 text-center">
+      <h2 className="text-base font-bold text-stone-900">
+        Unable to load Guest Reviews
+      </h2>
+      <p className="text-xs text-rose-600">
+        {getErrorMessage(error, 'Failed to load guest reviews.')}
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          void router.invalidate().finally(() => reset())
+        }}
+        className="px-4 py-2 rounded-xl bg-stone-900 text-white text-xs font-semibold cursor-pointer"
+      >
+        Retry
+      </button>
+    </div>
+  )
+}
 
 export const Route = createFileRoute('/admin/reviews')({
   beforeLoad: async () => {
@@ -29,23 +59,7 @@ export const Route = createFileRoute('/admin/reviews')({
       Loading guest reviews...
     </div>
   ),
-  errorComponent: ({ error, reset }) => (
-    <div className="max-w-lg mx-auto my-12 bg-white rounded-2xl border border-rose-200 p-6 space-y-3 text-center">
-      <h2 className="text-base font-bold text-stone-900">
-        Unable to load Guest Reviews
-      </h2>
-      <p className="text-xs text-rose-600">
-        {getErrorMessage(error, 'Failed to load guest reviews.')}
-      </p>
-      <button
-        type="button"
-        onClick={() => reset()}
-        className="px-4 py-2 rounded-xl bg-stone-900 text-white text-xs font-semibold cursor-pointer"
-      >
-        Retry
-      </button>
-    </div>
-  ),
+  errorComponent: AdminReviewsError,
   component: AdminReviewsPage,
 })
 

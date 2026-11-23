@@ -142,4 +142,24 @@ describe('ReviewsManager', () => {
     })
     expect(screen.queryByText('Ana Lopez')).toBeNull()
   })
+
+  it('keeps the reply draft intact when saving an owner reply fails', async () => {
+    moderateReviewMock.mockRejectedValueOnce(new Error('Network error'))
+
+    render(<ReviewsManager initialReviews={[sampleReviews[1]]} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    const textarea = screen.getByLabelText<HTMLTextAreaElement>(
+      'Public Host Response',
+    )
+    fireEvent.change(textarea, {
+      target: { value: 'Draft reply that should stay on error.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Reply' }))
+
+    expect(await screen.findByText('Network error')).toBeTruthy()
+    expect(
+      screen.getByLabelText<HTMLTextAreaElement>('Public Host Response').value,
+    ).toBe('Draft reply that should stay on error.')
+  })
 })

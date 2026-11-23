@@ -156,7 +156,8 @@ export const submitPublicReviewHandler = createServerOnlyFn(
         where: {
           bookingReference,
           deletedAt: null,
-          status: { not: 'CANCELLED' },
+          status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+          checkIn: { lte: new Date() },
         },
         include: {
           room: { select: { name: true } },

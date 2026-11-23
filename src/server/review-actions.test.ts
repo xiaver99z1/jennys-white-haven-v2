@@ -162,6 +162,17 @@ describe('review-actions', () => {
       id: 'rev-1',
       isVerifiedStay: true,
     })
+    expect(mockBookingFindFirst).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        bookingReference: 'JWH-20261120-ABCD',
+        deletedAt: null,
+        status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+        checkIn: { lte: expect.any(Date) },
+      }),
+      include: {
+        room: { select: { name: true } },
+      },
+    })
     expect(mockReviewCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         guestName: 'Maria Santos',

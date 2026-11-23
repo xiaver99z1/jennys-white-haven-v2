@@ -69,7 +69,7 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
       adminReply?: string | null
     },
     successMessage: string,
-  ) {
+  ): Promise<boolean> {
     setBusyId(id)
     setNotice(null)
     try {
@@ -79,11 +79,13 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
       )
       setNotice({ type: 'success', text: successMessage })
       void router.invalidate()
+      return true
     } catch (err) {
       setNotice({
         type: 'error',
         text: getErrorMessage(err, 'Failed to update review.'),
       })
+      return false
     } finally {
       setBusyId(null)
     }
@@ -95,15 +97,17 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
   }
 
   async function handleSaveReply(review: AdminReviewItem) {
-    await handleModerate(
+    const saved = await handleModerate(
       review.id,
       { adminReply: replyDraft },
       replyDraft.trim()
         ? `Saved reply to ${review.guestName}'s review.`
         : `Removed reply from ${review.guestName}'s review.`,
     )
-    setReplyingId(null)
-    setReplyDraft('')
+    if (saved) {
+      setReplyingId(null)
+      setReplyDraft('')
+    }
   }
 
   async function handleConfirmDelete() {
