@@ -16,6 +16,9 @@ import {
 import type { PublicBookingLookupResult } from '#/types'
 
 export const Route = createFileRoute('/booking-status')({
+  head: () => ({
+    meta: [{ title: "Booking Status | Jenny's White Haven" }],
+  }),
   loader: async () => {
     const sections = await getPublicCmsSections()
     return { sections }

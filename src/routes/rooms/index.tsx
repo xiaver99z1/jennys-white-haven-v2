@@ -17,6 +17,9 @@ interface RoomsSearch {
 }
 
 export const Route = createFileRoute('/rooms/')({
+  head: () => ({
+    meta: [{ title: "Rooms | Jenny's White Haven" }],
+  }),
   validateSearch: (search: Record<string, unknown>): RoomsSearch => ({
     checkIn:
       typeof search.checkIn === 'string' && isValidCalendarDate(search.checkIn)

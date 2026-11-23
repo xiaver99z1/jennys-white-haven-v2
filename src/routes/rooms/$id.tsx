@@ -43,6 +43,15 @@ export const Route = createFileRoute('/rooms/$id')({
     ])
     return { room, sections }
   },
+  head: ({ loaderData }) => ({
+    meta: [
+      {
+        title: loaderData?.room
+          ? `${loaderData.room.name} | Rooms | Jenny's White Haven`
+          : "Room Details | Jenny's White Haven",
+      },
+    ],
+  }),
   component: PublicRoomDetailPage,
 })
 

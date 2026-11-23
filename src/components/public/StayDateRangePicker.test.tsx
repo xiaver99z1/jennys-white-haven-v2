@@ -92,13 +92,15 @@ describe('StayDateRangePicker', () => {
     })
     expect(bookedDayBtn).toBeDisabled()
 
-    // Select check-in and check-out
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: new RegExp(format(checkInDate, 'MMMM do, yyyy'), 'i'),
-      }),
-    )
+    // Select check-in -> immediately highlighted as dark pill before check-out is chosen
+    const checkInCellButton = screen.getByRole('button', {
+      name: new RegExp(format(checkInDate, 'MMMM do, yyyy'), 'i'),
+    })
+    fireEvent.click(checkInCellButton)
     expect(checkInBtn).toHaveTextContent(format(checkInDate, 'MMM d, yyyy'))
+    expect(checkInCellButton.closest('td')?.className).toContain(
+      '[&>button]:bg-stone-900',
+    )
 
     fireEvent.click(
       screen.getByRole('button', {
