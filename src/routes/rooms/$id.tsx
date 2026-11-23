@@ -324,6 +324,7 @@ function PublicRoomDetailPage() {
                     idPrefix="book"
                     checkIn={checkIn}
                     checkOut={checkOut}
+                    bookedRanges={room.bookedRanges}
                     required
                     onChange={({ checkIn: nextIn, checkOut: nextOut }) => {
                       setCheckIn(nextIn)

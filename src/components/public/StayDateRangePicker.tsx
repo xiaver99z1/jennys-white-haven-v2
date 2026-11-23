@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DayPicker } from 'react-day-picker'
-import type { DateRange } from 'react-day-picker'
-import { format, startOfToday } from 'date-fns'
+import type { DateRange, Matcher } from 'react-day-picker'
+import { addDays, format, startOfToday } from 'date-fns'
 import { ArrowLeft, ArrowRight, Calendar, X } from 'lucide-react'
+import type { BookedDateRange } from '#/types'
 
 export interface StayDateRangePickerProps {
   checkIn: string
   checkOut: string
   onChange: (next: { checkIn: string; checkOut: string }) => void
+  bookedRanges?: BookedDateRange[]
+  allowPastDates?: boolean
   idPrefix?: string
+  checkInLabel?: string
+  checkOutLabel?: string
   compact?: boolean
   required?: boolean
   className?: string
@@ -52,11 +57,46 @@ export function computeStayNights(checkIn?: string, checkOut?: string): number {
   return Math.round(diffMs / 86_400_000)
 }
 
+function toOccupiedNightMatchers(
+  bookedRanges?: BookedDateRange[],
+): Array<{ from: Date; to: Date }> {
+  if (!bookedRanges || bookedRanges.length === 0) return []
+  const ranges: Array<{ from: Date; to: Date }> = []
+  for (const item of bookedRanges) {
+    const start = parseLocalIsoDate(item.checkIn)
+    const end = parseLocalIsoDate(item.checkOut)
+    if (!start || !end) continue
+    const lastNight = addDays(end, -1)
+    if (lastNight.getTime() >= start.getTime()) {
+      ranges.push({ from: start, to: lastNight })
+    }
+  }
+  return ranges
+}
+
+function rangeIntersectsOccupied(
+  from: Date,
+  to: Date,
+  occupiedRanges: Array<{ from: Date; to: Date }>,
+): boolean {
+  const lastNight = addDays(to, -1)
+  if (lastNight.getTime() < from.getTime()) return false
+  return occupiedRanges.some(
+    (occ) =>
+      occ.from.getTime() <= lastNight.getTime() &&
+      occ.to.getTime() >= from.getTime(),
+  )
+}
+
 export function StayDateRangePicker({
   checkIn,
   checkOut,
   onChange,
+  bookedRanges,
+  allowPastDates = false,
   idPrefix = 'stay',
+  checkInLabel = 'Check-in',
+  checkOutLabel = 'Check-out',
   compact = false,
   required = false,
   className = '',
@@ -73,8 +113,40 @@ export function StayDateRangePicker({
 
   const triggerWrapperRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
   const checkInBtnRef = useRef<HTMLButtonElement>(null)
   const checkOutBtnRef = useRef<HTMLButtonElement>(null)
+
+  const today = useMemo(() => startOfToday(), [])
+
+  const occupiedNightRanges = useMemo(
+    () => toOccupiedNightMatchers(bookedRanges),
+    [bookedRanges],
+  )
+
+  const disabledMatchers = useMemo<Matcher[]>(() => {
+    const matchers: Matcher[] = []
+    if (!allowPastDates) {
+      matchers.push({ before: today })
+    }
+    for (const occ of occupiedNightRanges) {
+      matchers.push(occ)
+    }
+    return matchers
+  }, [allowPastDates, today, occupiedNightRanges])
+
+  const selectedRange = useMemo<DateRange | undefined>(() => {
+    const from = parseLocalIsoDate(checkIn)
+    const to = parseLocalIsoDate(checkOut)
+    if (!from && !to) return undefined
+    return { from, to }
+  }, [checkIn, checkOut])
+
+  const nights = computeStayNights(checkIn, checkOut)
+
+  const [displayMonth, setDisplayMonth] = useState<Date>(
+    () => parseLocalIsoDate(checkIn) ?? today,
+  )
 
   const closeCalendar = useCallback(
     (restoreFocus = false) => {
@@ -88,21 +160,6 @@ export function StayDateRangePicker({
       }
     },
     [activeField],
-  )
-
-  const today = useMemo(() => startOfToday(), [])
-
-  const selectedRange = useMemo<DateRange | undefined>(() => {
-    const from = parseLocalIsoDate(checkIn)
-    const to = parseLocalIsoDate(checkOut)
-    if (!from && !to) return undefined
-    return { from, to }
-  }, [checkIn, checkOut])
-
-  const nights = computeStayNights(checkIn, checkOut)
-
-  const [displayMonth, setDisplayMonth] = useState<Date>(
-    () => parseLocalIsoDate(checkIn) ?? today,
   )
 
   useEffect(() => {
@@ -120,20 +177,19 @@ export function StayDateRangePicker({
       return
     }
     const rect = triggerWrapperRef.current.getBoundingClientRect()
-    const popoverWidth = 680
-    const popoverHeight = 410
+    const popoverWidth = Math.min(680, window.innerWidth - 32)
+    const measuredHeight = popoverRef.current?.offsetHeight || 430
+    const effectiveHeight = Math.min(measuredHeight, window.innerHeight - 32)
     const margin = 16
 
     const spaceBelow = window.innerHeight - rect.bottom
     const openAbove =
-      spaceBelow < popoverHeight + margin && rect.top > popoverHeight + margin
+      spaceBelow < effectiveHeight + margin &&
+      rect.top > effectiveHeight + margin
 
-    const top = openAbove
-      ? Math.max(margin, rect.top - popoverHeight - 10)
-      : Math.min(
-          window.innerHeight - popoverHeight - margin,
-          rect.bottom + 10,
-        )
+    const rawTop = openAbove ? rect.top - effectiveHeight - 10 : rect.bottom + 10
+    const maxTop = Math.max(margin, window.innerHeight - effectiveHeight - margin)
+    const top = Math.min(Math.max(margin, rawTop), maxTop)
 
     const left = Math.min(
       Math.max(margin, rect.left),
@@ -148,12 +204,35 @@ export function StayDateRangePicker({
     const nextMonth = parseLocalIsoDate(checkIn) ?? today
     setDisplayMonth(nextMonth)
     updatePopoverPosition()
+    if (!isDesktop) {
+      closeBtnRef.current?.focus()
+    }
 
     const handleReposition = () => updatePopoverPosition()
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
         closeCalendar(true)
+      } else if (e.key === 'Tab' && !isDesktop && popoverRef.current) {
+        const focusable = Array.from(
+          popoverRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+        if (focusable.length === 0) {
+          e.preventDefault()
+          popoverRef.current.focus()
+          return
+        }
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
       }
     }
     const handlePointerDown = (e: MouseEvent) => {
@@ -178,7 +257,7 @@ export function StayDateRangePicker({
       window.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [isOpen, checkIn, today, updatePopoverPosition, closeCalendar])
+  }, [isOpen, isDesktop, checkIn, today, updatePopoverPosition, closeCalendar])
 
   function handleOpen(field: 'checkIn' | 'checkOut') {
     setActiveField(field)
@@ -186,11 +265,29 @@ export function StayDateRangePicker({
   }
 
   function handleSelectRange(
-    nextRange: DateRange | undefined,
+    _nextRange: DateRange | undefined,
     selectedDay: Date,
   ) {
-    // If both dates were already picked and user clicks a new day, start a fresh range
-    if (checkIn && checkOut) {
+    const existingFrom = parseLocalIsoDate(checkIn)
+
+    // When editing check-out with an existing check-in, preserve check-in if selectedDay is after check-in
+    if (activeField === 'checkOut' && existingFrom) {
+      if (
+        selectedDay.getTime() > existingFrom.getTime() &&
+        !rangeIntersectsOccupied(existingFrom, selectedDay, occupiedNightRanges)
+      ) {
+        onChange({
+          checkIn,
+          checkOut: toLocalIsoDate(selectedDay),
+        })
+        setActiveField('checkIn')
+        if (isDesktop) {
+          closeCalendar(true)
+        }
+        return
+      }
+
+      // If clicked date is on/before existing check-in or crosses a booked night, start fresh from selectedDay
       onChange({
         checkIn: toLocalIsoDate(selectedDay),
         checkOut: '',
@@ -199,28 +296,12 @@ export function StayDateRangePicker({
       return
     }
 
-    if (!nextRange?.from) {
-      onChange({ checkIn: '', checkOut: '' })
-      setActiveField('checkIn')
-      return
-    }
-
-    const nextFrom = toLocalIsoDate(nextRange.from)
-    const nextTo =
-      nextRange.to && nextRange.to.getTime() > nextRange.from.getTime()
-        ? toLocalIsoDate(nextRange.to)
-        : ''
-
-    onChange({ checkIn: nextFrom, checkOut: nextTo })
-
-    if (nextFrom && !nextTo) {
-      setActiveField('checkOut')
-    } else if (nextFrom && nextTo) {
-      setActiveField('checkIn')
-      if (isDesktop) {
-        setIsOpen(false)
-      }
-    }
+    // Starting a new selection from Check-in
+    onChange({
+      checkIn: toLocalIsoDate(selectedDay),
+      checkOut: '',
+    })
+    setActiveField('checkOut')
   }
 
   function handleClear() {
@@ -234,15 +315,17 @@ export function StayDateRangePicker({
 
   const buttonBaseClass = compact
     ? 'w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border bg-white text-left text-xs sm:text-sm transition flex items-center justify-between gap-1.5 cursor-pointer'
-    : 'w-full px-3 py-2.5 rounded-xl border bg-white text-left text-sm transition flex items-center justify-between gap-2 cursor-pointer'
+    : 'w-full px-3 py-2 rounded-xl border bg-white text-left text-xs sm:text-sm transition flex items-center justify-between gap-2 cursor-pointer'
 
   const checkInDisplay = formatStayDisplayDate(checkIn)
   const checkOutDisplay = formatStayDisplayDate(checkOut)
+  const hasBookedDates = occupiedNightRanges.length > 0
 
   const calendarNode = (
     <div
       ref={popoverRef}
       role="dialog"
+      tabIndex={-1}
       aria-modal={!isDesktop}
       aria-label="Select check-in and check-out dates"
       style={
@@ -251,13 +334,13 @@ export function StayDateRangePicker({
               position: 'fixed',
               top: popoverStyle.top,
               left: popoverStyle.left,
-              width: 680,
+              width: 'min(680px, calc(100vw - 2rem))',
             }
           : undefined
       }
       className={
         isDesktop
-          ? 'z-[60] rounded-2xl bg-white border border-stone-200/90 shadow-2xl p-6 text-stone-900'
+          ? 'z-[70] rounded-2xl bg-white border border-stone-200/90 shadow-2xl p-6 text-stone-900 max-h-[calc(100vh-2rem)] overflow-y-auto'
           : 'w-full max-w-md rounded-3xl bg-white border border-stone-200 shadow-2xl p-5 text-stone-900 max-h-[88vh] overflow-y-auto'
       }
     >
@@ -272,13 +355,14 @@ export function StayDateRangePicker({
                 : 'Select your check-in date'}
           </p>
           <p className="text-sm font-serif text-stone-900 mt-0.5">
-            {checkInDisplay || 'Check-in'}
+            {checkInDisplay || checkInLabel}
             <span className="mx-2 text-stone-400">→</span>
-            {checkOutDisplay || 'Check-out'}
+            {checkOutDisplay || checkOutLabel}
           </p>
         </div>
 
         <button
+          ref={closeBtnRef}
           type="button"
           onClick={() => closeCalendar(true)}
           aria-label="Close calendar"
@@ -296,10 +380,15 @@ export function StayDateRangePicker({
         navLayout="around"
         month={displayMonth}
         onMonthChange={setDisplayMonth}
-        startMonth={today}
+        startMonth={allowPastDates ? undefined : today}
         selected={selectedRange}
         onSelect={handleSelectRange}
-        disabled={{ before: today }}
+        disabled={disabledMatchers}
+        modifiers={{ booked: occupiedNightRanges }}
+        modifiersClassNames={{
+          booked:
+            'bg-rose-50/90 text-rose-500 line-through decoration-rose-400/90 rounded-md',
+        }}
         excludeDisabled
         showOutsideDays={false}
         components={{
@@ -334,7 +423,7 @@ export function StayDateRangePicker({
           today: 'font-semibold text-amber-900',
           outside: 'text-stone-300 opacity-50',
           disabled:
-            'text-stone-400/80 line-through decoration-stone-400/80 opacity-60',
+            'text-stone-400/80 line-through decoration-stone-400/80 opacity-70',
           selected: 'font-semibold',
           range_start:
             'bg-amber-100/75 rounded-l-full [&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
@@ -345,16 +434,24 @@ export function StayDateRangePicker({
         }}
       />
 
-      {/* Footer Actions */}
-      <div className="flex items-center justify-between gap-3 pt-4 mt-4 border-t border-stone-100">
-        <button
-          type="button"
-          onClick={handleClear}
-          disabled={!checkIn && !checkOut}
-          className="text-xs font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-        >
-          Clear dates
-        </button>
+      {/* Footer Legend & Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-stone-100">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-500">
+          {hasBookedDates && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-xs bg-rose-100 border border-rose-300 inline-block" />
+              Booked / Unavailable
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={!checkIn && !checkOut}
+            className="text-xs font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            Clear dates
+          </button>
+        </div>
 
         <button
           type="button"
@@ -375,8 +472,13 @@ export function StayDateRangePicker({
       {/* Check-in Trigger */}
       <div>
         <label htmlFor={`${idPrefix}-checkin`} className={labelClass}>
-          <Calendar className={compact ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'} />
-          Check-in
+          <Calendar
+            className={compact ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'}
+          />
+          <span>
+            {checkInLabel}
+            {required && <span className="text-rose-500 ml-0.5">*</span>}
+          </span>
         </label>
         <button
           ref={checkInBtnRef}
@@ -405,8 +507,13 @@ export function StayDateRangePicker({
       {/* Check-out Trigger */}
       <div>
         <label htmlFor={`${idPrefix}-checkout`} className={labelClass}>
-          <Calendar className={compact ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'} />
-          Check-out
+          <Calendar
+            className={compact ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'}
+          />
+          <span>
+            {checkOutLabel}
+            {required && <span className="text-rose-500 ml-0.5">*</span>}
+          </span>
         </label>
         <button
           ref={checkOutBtnRef}
@@ -432,30 +539,6 @@ export function StayDateRangePicker({
         </button>
       </div>
 
-      {/* Optional hidden required inputs so native form validation still enforces dates when required */}
-      {required && (
-        <>
-          <input
-            type="text"
-            tabIndex={-1}
-            aria-hidden="true"
-            required
-            value={checkIn}
-            onChange={() => {}}
-            className="sr-only"
-          />
-          <input
-            type="text"
-            tabIndex={-1}
-            aria-hidden="true"
-            required
-            value={checkOut}
-            onChange={() => {}}
-            className="sr-only"
-          />
-        </>
-      )}
-
       {/* Portal Calendar Overlay */}
       {isOpen &&
         typeof document !== 'undefined' &&
@@ -464,10 +547,13 @@ export function StayDateRangePicker({
             calendarNode
           ) : (
             <div
-              onClick={() => setIsOpen(false)}
-              className="fixed inset-0 z-[60] bg-stone-950/55 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => closeCalendar(true)}
+              className="fixed inset-0 z-[70] bg-stone-950/55 backdrop-blur-xs flex items-center justify-center p-4"
             >
-              <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-md"
+              >
                 {calendarNode}
               </div>
             </div>

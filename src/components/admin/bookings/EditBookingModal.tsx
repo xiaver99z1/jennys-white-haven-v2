@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { updateBooking, deleteBooking } from '#/server/booking-actions'
 import { X, CalendarCheck, Trash2 } from 'lucide-react'
+import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import {
   BOOKING_STATUSES,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
 } from '#/lib/constants/rooms'
 import type {
+  BookedDateRange,
   BookingGuestOption,
   BookingItem,
   BookingRoomOption,
@@ -30,6 +32,7 @@ interface EditBookingModalProps {
   booking: BookingItem | null
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
+  existingBookings?: BookingItem[]
 }
 
 const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({
@@ -57,6 +60,7 @@ export function EditBookingModal({
   booking,
   rooms,
   guests,
+  existingBookings = [],
 }: EditBookingModalProps) {
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -65,6 +69,24 @@ export function EditBookingModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const [formData, setFormData] = useState(() => getInitialFormData(booking))
+
+  const roomBookedRanges = useMemo<BookedDateRange[]>(
+    () =>
+      existingBookings
+        .filter(
+          (b) =>
+            b.id !== booking?.id &&
+            b.roomId === formData.roomId &&
+            !b.deletedAt &&
+            ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status),
+        )
+        .map((b) => ({
+          checkIn: formatDateInput(b.checkIn),
+          checkOut: formatDateInput(b.checkOut),
+        }))
+        .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut)),
+    [existingBookings, booking?.id, formData.roomId],
+  )
 
   useEffect(() => {
     if (booking) {
@@ -100,6 +122,10 @@ export function EditBookingModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!hasChanges) return
+    if (!formData.checkIn || !formData.checkOut) {
+      setError('Please select both check-in and check-out dates.')
+      return
+    }
     setShowSaveConfirm(true)
   }
 
@@ -244,43 +270,20 @@ export function EditBookingModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label
-                    htmlFor="edit-booking-checkin"
-                    className="block font-semibold text-stone-700 mb-1"
-                  >
-                    Check-In Date
-                  </label>
-                  <input
-                    id="edit-booking-checkin"
-                    type="date"
-                    required
-                    value={formData.checkIn}
-                    onChange={(e) =>
-                      setFormData({ ...formData, checkIn: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="edit-booking-checkout"
-                    className="block font-semibold text-stone-700 mb-1"
-                  >
-                    Check-Out Date
-                  </label>
-                  <input
-                    id="edit-booking-checkout"
-                    type="date"
-                    required
-                    value={formData.checkOut}
-                    onChange={(e) =>
-                      setFormData({ ...formData, checkOut: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <StayDateRangePicker
+                  idPrefix="edit-booking"
+                  checkInLabel="Check-In Date"
+                  checkOutLabel="Check-Out Date"
+                  checkIn={formData.checkIn}
+                  checkOut={formData.checkOut}
+                  bookedRanges={roomBookedRanges}
+                  allowPastDates
+                  onChange={({ checkIn, checkOut }) =>
+                    setFormData((prev) => ({ ...prev, checkIn, checkOut }))
+                  }
+                  className="sm:col-span-2"
+                />
                 <div>
                   <label
                     htmlFor="edit-booking-guests-count"
