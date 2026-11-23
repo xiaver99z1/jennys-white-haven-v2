@@ -670,3 +670,36 @@ export interface PublicBookingLookupResult {
   roomNumber: string
   guestName: string
 }
+
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'HIDDEN'
+
+export interface PublicReviewItem {
+  id: string
+  guestName: string
+  guestLocation: string | null
+  roomName: string | null
+  isVerifiedStay: boolean
+  rating: number
+  title: string | null
+  comment: string
+  isFeatured: boolean
+  adminReply: string | null
+  adminRepliedAt: Date | string | null
+  createdAt: Date | string
+}
+
+export interface AdminReviewItem extends PublicReviewItem {
+  bookingReference: string | null
+  status: ReviewStatus
+}
+
+export interface PublicReviewsSummary {
+  totalCount: number
+  averageRating: number
+  ratingBreakdown: Array<{
+    stars: number
+    count: number
+    share: number
+  }>
+  reviews: PublicReviewItem[]
+}
