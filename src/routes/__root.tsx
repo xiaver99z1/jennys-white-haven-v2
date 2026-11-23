@@ -16,10 +16,14 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: "Jenny's White Haven | Camotes Island, Cebu",
       },
     ],
     links: [
+      {
+        rel: 'icon',
+        href: '/logo.png',
+      },
       {
         rel: 'preconnect',
         href: 'https://fonts.googleapis.com',

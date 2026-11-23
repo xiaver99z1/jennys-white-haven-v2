@@ -11,7 +11,7 @@ export const Route = createFileRoute('/explore')({
   head: () => ({
     meta: [
       {
-        title: "Explore Camotes Island — Jenny's White Haven",
+        title: "Explore Camotes | Jenny's White Haven",
       },
       {
         name: 'description',

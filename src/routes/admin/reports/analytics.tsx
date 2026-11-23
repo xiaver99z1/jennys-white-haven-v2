@@ -4,6 +4,9 @@ import { AnalyticsReportView } from '#/components/admin/reports/AnalyticsReportV
 import { parseReportSearch } from '#/lib/formatters'
 
 export const Route = createFileRoute('/admin/reports/analytics')({
+  head: () => ({
+    meta: [{ title: "Website Analytics | Jenny's White Haven" }],
+  }),
   validateSearch: parseReportSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => getAnalyticsReport({ data: deps }),

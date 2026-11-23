@@ -105,6 +105,7 @@ export function StayDateRangePicker({
   const [activeField, setActiveField] = useState<'checkIn' | 'checkOut'>(
     'checkIn',
   )
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
   const [isDesktop, setIsDesktop] = useState(true)
   const [popoverStyle, setPopoverStyle] = useState<{
     top: number
@@ -142,6 +143,30 @@ export function StayDateRangePicker({
     return { from, to }
   }, [checkIn, checkOut])
 
+  const hasCompleteRange = Boolean(selectedRange?.from && selectedRange.to)
+
+  const hoverPreviewMatchers = useMemo(() => {
+    const from = selectedRange?.from
+    if (
+      !from ||
+      selectedRange.to ||
+      !hoveredDate ||
+      hoveredDate.getTime() <= from.getTime() ||
+      rangeIntersectsOccupied(from, hoveredDate, occupiedNightRanges)
+    ) {
+      return { middle: [] as Matcher[], end: [] as Matcher[] }
+    }
+    const afterFrom = addDays(from, 1)
+    const beforeHover = addDays(hoveredDate, -1)
+    return {
+      middle:
+        beforeHover.getTime() >= afterFrom.getTime()
+          ? [{ from: afterFrom, to: beforeHover }]
+          : [],
+      end: [hoveredDate],
+    }
+  }, [selectedRange, hoveredDate, occupiedNightRanges])
+
   const nights = computeStayNights(checkIn, checkOut)
 
   const [displayMonth, setDisplayMonth] = useState<Date>(
@@ -151,6 +176,7 @@ export function StayDateRangePicker({
   const closeCalendar = useCallback(
     (restoreFocus = false) => {
       setIsOpen(false)
+      setHoveredDate(null)
       if (restoreFocus) {
         const target =
           activeField === 'checkOut'
@@ -383,11 +409,26 @@ export function StayDateRangePicker({
         startMonth={allowPastDates ? undefined : today}
         selected={selectedRange}
         onSelect={handleSelectRange}
+        onDayMouseEnter={(day) => setHoveredDate(day)}
+        onDayMouseLeave={() => setHoveredDate(null)}
         disabled={disabledMatchers}
-        modifiers={{ booked: occupiedNightRanges }}
+        modifiers={{
+          booked: occupiedNightRanges,
+          pickedEndpoint: [
+            ...(selectedRange?.from ? [selectedRange.from] : []),
+            ...(selectedRange?.to ? [selectedRange.to] : []),
+          ],
+          hoverRangeMiddle: hoverPreviewMatchers.middle,
+          hoverRangeEnd: hoverPreviewMatchers.end,
+        }}
         modifiersClassNames={{
           booked:
             'bg-rose-50/90 text-rose-500 line-through decoration-rose-400/90 rounded-md',
+          pickedEndpoint:
+            '[&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
+          hoverRangeMiddle: 'bg-amber-100/55 text-stone-900',
+          hoverRangeEnd:
+            'bg-amber-100/55 rounded-r-full [&>button]:ring-2 [&>button]:ring-stone-900/70 [&>button]:font-semibold',
         }}
         excludeDisabled
         showOutsideDays={false}
@@ -425,10 +466,12 @@ export function StayDateRangePicker({
           disabled:
             'text-stone-400/80 line-through decoration-stone-400/80 opacity-70',
           selected: 'font-semibold',
-          range_start:
-            'bg-amber-100/75 rounded-l-full [&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
-          range_end:
-            'bg-amber-100/75 rounded-r-full [&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
+          range_start: hasCompleteRange
+            ? 'bg-amber-100/75 rounded-l-full [&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold'
+            : '[&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
+          range_end: hasCompleteRange
+            ? 'bg-amber-100/75 rounded-r-full [&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold'
+            : '[&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
           range_middle:
             'bg-amber-100/75 text-stone-900 [&>button]:rounded-none [&>button]:hover:bg-amber-200/70',
         }}
