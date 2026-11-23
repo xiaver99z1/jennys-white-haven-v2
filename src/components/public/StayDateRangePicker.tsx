@@ -118,6 +118,8 @@ export function StayDateRangePicker({
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const checkInBtnRef = useRef<HTMLButtonElement>(null)
   const checkOutBtnRef = useRef<HTMLButtonElement>(null)
+  const activeFieldRef = useRef<'checkIn' | 'checkOut'>(activeField)
+  activeFieldRef.current = activeField
 
   const today = useMemo(() => startOfToday(), [])
 
@@ -175,21 +177,18 @@ export function StayDateRangePicker({
     () => parseLocalIsoDate(checkIn) ?? today,
   )
 
-  const closeCalendar = useCallback(
-    (restoreFocus = false) => {
-      setIsOpen(false)
-      setHoveredDate(null)
-      setRangeNotice(null)
-      if (restoreFocus) {
-        const target =
-          activeField === 'checkOut'
-            ? checkOutBtnRef.current
-            : checkInBtnRef.current
-        target?.focus()
-      }
-    },
-    [activeField],
-  )
+  const closeCalendar = useCallback((restoreFocus = false) => {
+    setIsOpen(false)
+    setHoveredDate(null)
+    setRangeNotice(null)
+    if (restoreFocus) {
+      const target =
+        activeFieldRef.current === 'checkOut'
+          ? checkOutBtnRef.current
+          : checkInBtnRef.current
+      target?.focus()
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -230,8 +229,6 @@ export function StayDateRangePicker({
 
   useEffect(() => {
     if (!isOpen) return
-    const nextMonth = parseLocalIsoDate(checkIn) ?? today
-    setDisplayMonth(nextMonth)
     updatePopoverPosition()
     if (!isDesktop) {
       closeBtnRef.current?.focus()
@@ -286,11 +283,17 @@ export function StayDateRangePicker({
       window.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [isOpen, isDesktop, checkIn, today, updatePopoverPosition, closeCalendar])
+  }, [isOpen, isDesktop, updatePopoverPosition, closeCalendar])
 
   function handleOpen(field: 'checkIn' | 'checkOut') {
     setActiveField(field)
     setRangeNotice(null)
+    if (!isOpen) {
+      const initialMonth =
+        parseLocalIsoDate(field === 'checkOut' && checkOut ? checkOut : checkIn) ??
+        today
+      setDisplayMonth(initialMonth)
+    }
     setIsOpen(true)
   }
 
@@ -402,6 +405,8 @@ export function StayDateRangePicker({
           <div className="flex flex-wrap items-center gap-1.5 text-sm font-serif text-stone-900">
             <button
               type="button"
+              aria-pressed={activeField === 'checkIn'}
+              aria-label={`Select ${checkInLabel}: ${checkInDisplay || 'not selected'}`}
               onClick={() => setActiveField('checkIn')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                 activeField === 'checkIn'
@@ -411,9 +416,13 @@ export function StayDateRangePicker({
             >
               {checkInDisplay || checkInLabel}
             </button>
-            <span className="text-stone-400">→</span>
+            <span aria-hidden="true" className="text-stone-400">
+              →
+            </span>
             <button
               type="button"
+              aria-pressed={activeField === 'checkOut'}
+              aria-label={`Select ${checkOutLabel}: ${checkOutDisplay || 'not selected'}`}
               onClick={() => setActiveField('checkOut')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                 activeField === 'checkOut'
