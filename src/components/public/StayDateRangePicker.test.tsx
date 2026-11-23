@@ -108,11 +108,12 @@ describe('StayDateRangePicker', () => {
       }),
     )
     expect(checkOutBtn).toHaveTextContent(format(checkOutDate, 'MMM d, yyyy'))
+    // Calendar stays open after selecting check-out so dates can be edited easily until Done / outside click
     expect(
-      screen.queryByRole('dialog', {
+      screen.getByRole('dialog', {
         name: 'Select check-in and check-out dates',
       }),
-    ).not.toBeInTheDocument()
+    ).toBeInTheDocument()
 
     // Clicking Check-out and choosing a later date preserves Check-in instead of resetting the range
     fireEvent.click(checkOutBtn)
@@ -125,15 +126,36 @@ describe('StayDateRangePicker', () => {
     expect(checkOutBtn).toHaveTextContent(
       format(extendedCheckOutDate, 'MMM d, yyyy'),
     )
-
-    // Reopen and click Clear dates
-    fireEvent.click(checkInBtn)
     expect(screen.getByText('4 nights selected')).toBeInTheDocument()
+
+    // Trying to pick a check-out date past bookedStart shows notice and starts a new check-in there
+    const afterBooked = addDays(today, 12)
+    fireEvent.click(checkOutBtn)
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: new RegExp(format(afterBooked, 'MMMM do, yyyy'), 'i'),
+      }),
+    )
+    expect(
+      screen.getByText(/Cannot cross booked dates/i),
+    ).toBeInTheDocument()
+    expect(checkInBtn).toHaveTextContent(format(afterBooked, 'MMM d, yyyy'))
+    expect(checkOutBtn).toHaveTextContent('Add date')
+
+    // Click Clear dates, then close with Done
     fireEvent.click(screen.getByRole('button', { name: 'Clear dates' }))
     expect(checkInBtn).toHaveTextContent('Add date')
     expect(checkOutBtn).toHaveTextContent('Add date')
 
-    // Escape closes popover and restores focus
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(
+      screen.queryByRole('dialog', {
+        name: 'Select check-in and check-out dates',
+      }),
+    ).not.toBeInTheDocument()
+
+    // Reopen and close with Escape restores focus
+    fireEvent.click(checkInBtn)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(
       screen.queryByRole('dialog', {

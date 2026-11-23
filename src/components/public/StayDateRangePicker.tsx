@@ -106,6 +106,7 @@ export function StayDateRangePicker({
     'checkIn',
   )
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null)
+  const [rangeNotice, setRangeNotice] = useState<string | null>(null)
   const [isDesktop, setIsDesktop] = useState(true)
   const [popoverStyle, setPopoverStyle] = useState<{
     top: number
@@ -178,6 +179,7 @@ export function StayDateRangePicker({
     (restoreFocus = false) => {
       setIsOpen(false)
       setHoveredDate(null)
+      setRangeNotice(null)
       if (restoreFocus) {
         const target =
           activeField === 'checkOut'
@@ -288,6 +290,7 @@ export function StayDateRangePicker({
 
   function handleOpen(field: 'checkIn' | 'checkOut') {
     setActiveField(field)
+    setRangeNotice(null)
     setIsOpen(true)
   }
 
@@ -297,24 +300,37 @@ export function StayDateRangePicker({
   ) {
     const existingFrom = parseLocalIsoDate(checkIn)
 
-    // When editing check-out with an existing check-in, preserve check-in if selectedDay is after check-in
+    // When editing check-out with an existing check-in, preserve check-in if selectedDay is valid & after check-in
     if (activeField === 'checkOut' && existingFrom) {
-      if (
-        selectedDay.getTime() > existingFrom.getTime() &&
-        !rangeIntersectsOccupied(existingFrom, selectedDay, occupiedNightRanges)
-      ) {
-        onChange({
-          checkIn,
-          checkOut: toLocalIsoDate(selectedDay),
-        })
-        setActiveField('checkIn')
-        if (isDesktop) {
-          closeCalendar(true)
+      if (selectedDay.getTime() > existingFrom.getTime()) {
+        if (
+          !rangeIntersectsOccupied(existingFrom, selectedDay, occupiedNightRanges)
+        ) {
+          setRangeNotice(null)
+          onChange({
+            checkIn,
+            checkOut: toLocalIsoDate(selectedDay),
+          })
+          // Keep calendar open so guest/admin can easily adjust check-in or check-out
+          setActiveField('checkIn')
+          return
         }
+
+        // Cannot span across booked nights -> start a new check-in at selectedDay and explain why
+        const nextIso = toLocalIsoDate(selectedDay)
+        setRangeNotice(
+          `Cannot cross booked dates — started new check-in on ${formatStayDisplayDate(nextIso)}.`,
+        )
+        onChange({
+          checkIn: nextIso,
+          checkOut: '',
+        })
+        setActiveField('checkOut')
         return
       }
 
-      // If clicked date is on/before existing check-in or crosses a booked night, start fresh from selectedDay
+      // If clicked date is on/before existing check-in, start fresh from selectedDay
+      setRangeNotice(null)
       onChange({
         checkIn: toLocalIsoDate(selectedDay),
         checkOut: '',
@@ -324,6 +340,7 @@ export function StayDateRangePicker({
     }
 
     // Starting a new selection from Check-in
+    setRangeNotice(null)
     onChange({
       checkIn: toLocalIsoDate(selectedDay),
       checkOut: '',
@@ -332,6 +349,7 @@ export function StayDateRangePicker({
   }
 
   function handleClear() {
+    setRangeNotice(null)
     onChange({ checkIn: '', checkOut: '' })
     setActiveField('checkIn')
   }
@@ -372,8 +390,8 @@ export function StayDateRangePicker({
       }
     >
       {/* Calendar Header Summary */}
-      <div className="flex items-center justify-between gap-3 pb-4 mb-4 border-b border-stone-100">
-        <div>
+      <div className="flex items-start justify-between gap-3 pb-4 mb-4 border-b border-stone-100">
+        <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-[0.22em] text-amber-800 font-semibold">
             {nights > 0
               ? `${nights} ${nights === 1 ? 'night' : 'nights'} selected`
@@ -381,11 +399,36 @@ export function StayDateRangePicker({
                 ? 'Select your check-out date'
                 : 'Select your check-in date'}
           </p>
-          <p className="text-sm font-serif text-stone-900 mt-0.5">
-            {checkInDisplay || checkInLabel}
-            <span className="mx-2 text-stone-400">→</span>
-            {checkOutDisplay || checkOutLabel}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm font-serif text-stone-900">
+            <button
+              type="button"
+              onClick={() => setActiveField('checkIn')}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                activeField === 'checkIn'
+                  ? 'bg-stone-900 text-[#FAF8F4]'
+                  : 'hover:bg-stone-100 text-stone-800'
+              }`}
+            >
+              {checkInDisplay || checkInLabel}
+            </button>
+            <span className="text-stone-400">→</span>
+            <button
+              type="button"
+              onClick={() => setActiveField('checkOut')}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                activeField === 'checkOut'
+                  ? 'bg-stone-900 text-[#FAF8F4]'
+                  : 'hover:bg-stone-100 text-stone-800'
+              }`}
+            >
+              {checkOutDisplay || checkOutLabel}
+            </button>
+          </div>
+          {rangeNotice && (
+            <p role="status" className="text-[11px] font-medium text-rose-700">
+              {rangeNotice}
+            </p>
+          )}
         </div>
 
         <button
@@ -393,7 +436,7 @@ export function StayDateRangePicker({
           type="button"
           onClick={() => closeCalendar(true)}
           aria-label="Close calendar"
-          className="p-1.5 rounded-full hover:bg-stone-100 text-stone-500 transition cursor-pointer"
+          className="p-1.5 rounded-full hover:bg-stone-100 text-stone-500 transition cursor-pointer shrink-0"
         >
           <X className="w-4 h-4" />
         </button>
@@ -424,7 +467,7 @@ export function StayDateRangePicker({
         }}
         modifiersClassNames={{
           booked:
-            'bg-rose-50/90 text-rose-500 line-through decoration-rose-400/90 rounded-md',
+            '[&>button]:bg-rose-100 [&>button]:text-rose-700 [&>button]:font-semibold [&>button]:ring-1 [&>button]:ring-rose-300 [&>button]:line-through [&>button]:decoration-rose-500 [&>button]:decoration-2',
           pickedEndpoint:
             '[&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold',
           hoverRangeMiddle: 'bg-amber-100/55 text-stone-900',
@@ -464,8 +507,7 @@ export function StayDateRangePicker({
             'mx-auto w-9 h-9 rounded-full inline-flex items-center justify-center font-normal transition hover:bg-stone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900/30 cursor-pointer disabled:cursor-not-allowed disabled:hover:bg-transparent',
           today: 'font-semibold text-amber-900',
           outside: 'text-stone-300 opacity-50',
-          disabled:
-            'text-stone-400/80 line-through decoration-stone-400/80 opacity-70',
+          disabled: 'text-stone-300 line-through decoration-stone-300',
           selected: 'font-semibold',
           range_start: hasCompleteRange
             ? 'bg-amber-100/75 rounded-l-full [&>button]:bg-stone-900 [&>button]:text-[#FAF8F4] [&>button]:hover:bg-stone-900 [&>button]:font-semibold'
@@ -482,8 +524,8 @@ export function StayDateRangePicker({
       <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-stone-100">
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-500">
           {hasBookedDates && (
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-xs bg-rose-100 border border-rose-300 inline-block" />
+            <span className="inline-flex items-center gap-1.5 font-medium text-rose-700">
+              <span className="w-3.5 h-3.5 rounded-sm bg-rose-100 border border-rose-400 inline-block" />
               Booked / Unavailable
             </span>
           )}
