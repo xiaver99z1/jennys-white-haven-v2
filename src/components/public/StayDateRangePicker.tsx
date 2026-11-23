@@ -148,6 +148,7 @@ export function StayDateRangePicker({
   const hoverPreviewMatchers = useMemo(() => {
     const from = selectedRange?.from
     if (
+      activeField !== 'checkOut' ||
       !from ||
       selectedRange.to ||
       !hoveredDate ||
@@ -165,7 +166,7 @@ export function StayDateRangePicker({
           : [],
       end: [hoveredDate],
     }
-  }, [selectedRange, hoveredDate, occupiedNightRanges])
+  }, [activeField, selectedRange, hoveredDate, occupiedNightRanges])
 
   const nights = computeStayNights(checkIn, checkOut)
 
