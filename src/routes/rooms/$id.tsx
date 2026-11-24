@@ -7,6 +7,10 @@ import { createPublicBooking, getPublicRoomById } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import {
+  calculateExtraGuestsFee,
+  getTotalExtraGuests,
+} from '#/lib/constants/rooms'
+import {
   formatPeso,
   getErrorMessage,
   isValidCalendarDate,
@@ -76,6 +80,9 @@ function PublicRoomDetailPage() {
   const [guestsCount, setGuestsCount] = useState(
     Math.min(search.guests ?? 2, room?.capacity ?? 2),
   )
+  const [extraChildren, setExtraChildren] = useState(0)
+  const [extraAdults, setExtraAdults] = useState(0)
+  const [extraSeniors, setExtraSeniors] = useState(0)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -113,7 +120,16 @@ function PublicRoomDetailPage() {
   }
 
   const nights = computeNightCount(checkIn, checkOut)
-  const estimatedTotal = nights * room.pricePerNight
+  const extraCounts = { extraChildren, extraAdults, extraSeniors }
+  const totalExtraGuests = getTotalExtraGuests(extraCounts)
+  const extraPersonFeeRate = room.extraPersonFee
+  const baseRoomTotal = nights * room.pricePerNight
+  const extraGuestsTotal = calculateExtraGuestsFee(
+    extraCounts,
+    extraPersonFeeRate,
+    nights,
+  )
+  const estimatedTotal = baseRoomTotal + extraGuestsTotal
   const activeImage = room.images[selectedImageIdx] ?? room.images[0]
 
   async function handleSubmit(e: FormEvent) {
@@ -132,6 +148,9 @@ function PublicRoomDetailPage() {
           checkIn,
           checkOut,
           guestsCount,
+          extraChildren,
+          extraAdults,
+          extraSeniors,
           firstName,
           lastName,
           phone,
@@ -346,7 +365,7 @@ function PublicRoomDetailPage() {
                       htmlFor="book-guests"
                       className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                     >
-                      Guests
+                      Included Guests (Up to {room.capacity})
                     </label>
                     <select
                       id="book-guests"
@@ -363,6 +382,83 @@ function PublicRoomDetailPage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* Additional Persons (Child / Adult / Senior) Auto-Compute */}
+                  <div className="rounded-2xl bg-[#FAF8F4] border border-stone-200/80 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-stone-600 font-semibold">
+                        Additional Persons (Optional)
+                      </span>
+                      <span className="text-[11px] font-semibold text-amber-900">
+                        +{formatPeso(extraPersonFeeRate)} / night each
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div>
+                        <label
+                          htmlFor="book-extra-adults"
+                          className="block text-[11px] text-stone-500 font-medium mb-1"
+                        >
+                          Adult
+                        </label>
+                        <input
+                          id="book-extra-adults"
+                          type="number"
+                          min={0}
+                          max={15}
+                          value={extraAdults}
+                          onChange={(e) =>
+                            setExtraAdults(
+                              Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                            )
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 text-sm text-stone-900"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="book-extra-children"
+                          className="block text-[11px] text-stone-500 font-medium mb-1"
+                        >
+                          Child
+                        </label>
+                        <input
+                          id="book-extra-children"
+                          type="number"
+                          min={0}
+                          max={15}
+                          value={extraChildren}
+                          onChange={(e) =>
+                            setExtraChildren(
+                              Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                            )
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 text-sm text-stone-900"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="book-extra-seniors"
+                          className="block text-[11px] text-stone-500 font-medium mb-1"
+                        >
+                          Senior
+                        </label>
+                        <input
+                          id="book-extra-seniors"
+                          type="number"
+                          min={0}
+                          max={15}
+                          value={extraSeniors}
+                          onChange={(e) =>
+                            setExtraSeniors(
+                              Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                            )
+                          }
+                          className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 text-sm text-stone-900"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -458,8 +554,18 @@ function PublicRoomDetailPage() {
                           {formatPeso(room.pricePerNight)} × {nights}{' '}
                           {nights === 1 ? 'night' : 'nights'}
                         </span>
-                        <span>{formatPeso(estimatedTotal)}</span>
+                        <span>{formatPeso(baseRoomTotal)}</span>
                       </div>
+                      {totalExtraGuests > 0 && (
+                        <div className="flex justify-between text-amber-900">
+                          <span>
+                            +{totalExtraGuests} extra{' '}
+                            {totalExtraGuests === 1 ? 'person' : 'persons'} ×{' '}
+                            {formatPeso(extraPersonFeeRate)} × {nights}n
+                          </span>
+                          <span>+{formatPeso(extraGuestsTotal)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between font-semibold text-stone-900 pt-1.5 border-t border-stone-200/70">
                         <span>Total Stay</span>
                         <span>{formatPeso(estimatedTotal)}</span>

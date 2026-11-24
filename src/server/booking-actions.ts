@@ -4,7 +4,10 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { requirePermission } from '#/server/room-actions'
 import { createNotification } from '#/server/notification-actions'
-import { isWholeHouseRoom } from '#/lib/constants/rooms'
+import {
+  DEFAULT_EXTRA_PERSON_FEE,
+  isWholeHouseRoom,
+} from '#/lib/constants/rooms'
 import type { BookingStatus, PaymentStatus } from '#/lib/constants/rooms'
 
 export function calculateNights(
@@ -169,11 +172,19 @@ export async function getBookingsListHandler() {
       room: {
         ...b.room,
         pricePerNight: Number(b.room.pricePerNight),
+        extraPersonFee: Number(
+          (b.room as { extraPersonFee?: unknown }).extraPersonFee ??
+            DEFAULT_EXTRA_PERSON_FEE,
+        ),
       },
     })),
     rooms: rooms.map((r) => ({
       ...r,
       pricePerNight: Number(r.pricePerNight),
+      extraPersonFee: Number(
+        (r as { extraPersonFee?: unknown }).extraPersonFee ??
+          DEFAULT_EXTRA_PERSON_FEE,
+      ),
     })),
     guests,
   }

@@ -1,6 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
-import { isWholeHouseRoom } from '#/lib/constants/rooms'
+import {
+  DEFAULT_EXTRA_PERSON_FEE,
+  calculateExtraGuestsFee,
+  formatExtraGuestsNote,
+  isWholeHouseRoom,
+} from '#/lib/constants/rooms'
 import { isValidCalendarDate, formatPeso } from '#/lib/formatters'
 import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
@@ -33,6 +38,7 @@ function serializeRoom(r: {
   description: string | null
   capacity: number
   pricePerNight: unknown
+  extraPersonFee?: unknown
   amenities: string[]
   images: string[]
   status: PublicRoomItem['status']
@@ -45,6 +51,7 @@ function serializeRoom(r: {
     description: r.description,
     capacity: r.capacity,
     pricePerNight: Number(r.pricePerNight),
+    extraPersonFee: Number(r.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE),
     amenities: r.amenities,
     images: r.images
       .filter((img) => Boolean(img.trim()) && !isBase64DataUrl(img))
@@ -194,6 +201,9 @@ export interface CreatePublicBookingInput {
   checkIn: string
   checkOut: string
   guestsCount: number
+  extraChildren?: number
+  extraAdults?: number
+  extraSeniors?: number
   firstName: string
   lastName: string
   phone: string
@@ -235,6 +245,20 @@ export async function createPublicBookingHandler({
   const guestsCount = Number(data.guestsCount)
   if (!Number.isInteger(guestsCount) || guestsCount < 1) {
     throw new Error('Number of guests must be at least 1.')
+  }
+
+  const extraChildren = Number(data.extraChildren ?? 0)
+  const extraAdults = Number(data.extraAdults ?? 0)
+  const extraSeniors = Number(data.extraSeniors ?? 0)
+  if (
+    !Number.isInteger(extraChildren) ||
+    extraChildren < 0 ||
+    !Number.isInteger(extraAdults) ||
+    extraAdults < 0 ||
+    !Number.isInteger(extraSeniors) ||
+    extraSeniors < 0
+  ) {
+    throw new Error('Additional person counts must be non-negative whole numbers.')
   }
 
   const { booking, room, totalAmount } = await prisma.$transaction(
@@ -374,7 +398,28 @@ export async function createPublicBookingHandler({
         )
       }
 
-      const computedTotal = nights * Number(targetRoom.pricePerNight)
+      const extraPersonRate = Number(
+        (targetRoom as { extraPersonFee?: unknown }).extraPersonFee ??
+          DEFAULT_EXTRA_PERSON_FEE,
+      )
+      const extraCounts = { extraChildren, extraAdults, extraSeniors }
+      const extraFeeTotal = calculateExtraGuestsFee(
+        extraCounts,
+        extraPersonRate,
+        nights,
+      )
+      const computedTotal =
+        nights * Number(targetRoom.pricePerNight) + extraFeeTotal
+      const extraNote = formatExtraGuestsNote(
+        extraCounts,
+        extraPersonRate,
+        nights,
+      )
+      const combinedSpecialRequests =
+        [data.specialRequests?.trim(), extraNote]
+          .filter(Boolean)
+          .join(' ') || null
+
       const created = await tx.booking.create({
         data: {
           bookingReference: generateBookingReference(),
@@ -388,7 +433,7 @@ export async function createPublicBookingHandler({
           amountPaid: 0,
           paymentStatus: 'UNPAID',
           status: 'PENDING',
-          specialRequests: data.specialRequests?.trim() || null,
+          specialRequests: combinedSpecialRequests,
         },
       })
 

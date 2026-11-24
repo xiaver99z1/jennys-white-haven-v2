@@ -251,8 +251,15 @@ export function RoomsList({ initialRooms, router }: RoomsListProps) {
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 font-bold text-amber-900">
-                      {formatPeso(room.pricePerNight)}
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-amber-900">
+                        {formatPeso(room.pricePerNight)}
+                      </div>
+                      {Number(room.extraPersonFee ?? 500) > 0 && (
+                        <div className="text-[11px] text-stone-500">
+                          +{formatPeso(room.extraPersonFee ?? 500)} / extra pax
+                        </div>
+                      )}
                     </td>
 
                     <td className="py-3 px-4">

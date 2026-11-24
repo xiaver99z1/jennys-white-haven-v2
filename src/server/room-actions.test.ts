@@ -104,6 +104,7 @@ describe('room-actions handlers and validators', () => {
           roomNumber: '101',
           name: 'Deluxe Suite',
           pricePerNight: 5000,
+          extraPersonFee: 500,
           amenities: ['WiFi'],
           images: [],
         },
