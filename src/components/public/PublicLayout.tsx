@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, MapPin, Menu, Phone, Star, X } from 'lucide-react'
+import { ChevronDown, Images, MapPin, Menu, Phone, Star, X } from 'lucide-react'
 import { AnalyticsTracker } from '#/components/public/AnalyticsTracker'
 import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
 import type { CmsSectionData } from '#/types'
@@ -49,7 +49,7 @@ export function PublicLayout({
       openMoreAndFocus(0)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      openMoreAndFocus(2)
+      openMoreAndFocus(3)
     } else if (event.key === 'Escape' && moreOpen) {
       event.preventDefault()
       setMoreOpen(false)
@@ -220,6 +220,25 @@ export function PublicLayout({
                     ref={(el) => {
                       moreItemRefs.current[0] = el
                     }}
+                    to="/gallery"
+                    role="menuitem"
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
+                  >
+                    <Images className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
+                        Photo Gallery
+                      </p>
+                      <p className="text-[11px] text-stone-500 mt-0.5">
+                        Spaces &amp; daily life at the haven
+                      </p>
+                    </div>
+                  </Link>
+                  <Link
+                    ref={(el) => {
+                      moreItemRefs.current[1] = el
+                    }}
                     to="/reviews"
                     role="menuitem"
                     onClick={() => setMoreOpen(false)}
@@ -237,7 +256,7 @@ export function PublicLayout({
                   </Link>
                   <Link
                     ref={(el) => {
-                      moreItemRefs.current[1] = el
+                      moreItemRefs.current[2] = el
                     }}
                     to="/contact"
                     hash="map"
@@ -257,7 +276,7 @@ export function PublicLayout({
                   </Link>
                   <Link
                     ref={(el) => {
-                      moreItemRefs.current[2] = el
+                      moreItemRefs.current[3] = el
                     }}
                     to="/contact"
                     role="menuitem"
@@ -334,6 +353,13 @@ export function PublicLayout({
               <p className="text-[10px] tracking-[0.24em] text-stone-400">
                 More
               </p>
+              <Link
+                to="/gallery"
+                className="block py-1 hover:text-stone-950"
+                onClick={() => setMenuOpen(false)}
+              >
+                Photo Gallery
+              </Link>
               <Link
                 to="/reviews"
                 className="block py-1 hover:text-stone-950"
@@ -420,6 +446,9 @@ export function PublicLayout({
                 className="hover:text-stone-950 transition"
               >
                 Check Booking Status
+              </Link>
+              <Link to="/gallery" className="hover:text-stone-950 transition">
+                Photo Gallery
               </Link>
               <Link to="/reviews" className="hover:text-stone-950 transition">
                 Guest Reviews

@@ -55,7 +55,11 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   const [body, setBody] = useState(current?.body ?? '')
   const [ctaLabel, setCtaLabel] = useState(current?.ctaLabel ?? '')
   const [ctaHref, setCtaHref] = useState(current?.ctaHref ?? '')
-  const [images, setImages] = useState<string[]>(current?.images ?? [])
+  const [images, setImages] = useState<string[]>(
+    current?.key === 'gallery'
+      ? current.images
+      : (current?.images.slice(0, 1) ?? []),
+  )
   const [metadata, setMetadata] = useState<Record<string, string>>(
     current?.metadata ?? {},
   )
@@ -80,8 +84,18 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     setBody(section.body)
     setCtaLabel(section.ctaLabel)
     setCtaHref(section.ctaHref)
-    setImages(section.images)
-    setMetadata(section.metadata)
+    setImages(
+      section.key === 'gallery' ? section.images : section.images.slice(0, 1),
+    )
+    if (
+      section.key !== 'gallery' &&
+      'imageCaptionsJson' in section.metadata
+    ) {
+      const { imageCaptionsJson: _unused, ...restMeta } = section.metadata
+      setMetadata(restMeta)
+    } else {
+      setMetadata(section.metadata)
+    }
     setIsPublished(section.isPublished)
     setNewImageUrl('')
     setError(null)
@@ -109,11 +123,10 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       setError(null)
     }
     try {
-      const isSingleImageSection =
-        current.key === 'hero' || current.key === 'explore'
+      const isMultiImageSection = current.key === 'gallery'
       const targetIndex =
         replaceIndex ??
-        (isSingleImageSection && images.length > 0 ? 0 : undefined)
+        (!isMultiImageSection && images.length > 0 ? 0 : undefined)
       const oldImageUrl =
         targetIndex !== undefined ? images.at(targetIndex) : undefined
 
@@ -127,7 +140,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       formData.append('file', compressedFile)
       formData.append('scope', 'cms')
       const url = await uploadAvatar({ data: formData })
-      if (targetIndex !== undefined) {
+      if (!isMultiImageSection) {
+        setImages([url])
+      } else if (targetIndex !== undefined) {
         setImages((prev) => {
           if (oldImageUrl) {
             const currentIdx = prev.indexOf(oldImageUrl)
@@ -189,7 +204,11 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       )
       return
     }
-    setImages((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
+    if (current?.key !== 'gallery') {
+      setImages([trimmed])
+    } else {
+      setImages((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
+    }
     setNewImageUrl('')
   }
 
@@ -313,7 +332,13 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
           </p>
         </div>
         <a
-          href={current.key === 'explore' ? '/explore' : '/'}
+          href={
+            current.key === 'explore'
+              ? '/explore'
+              : current.key === 'gallery'
+                ? '/gallery'
+                : '/'
+          }
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50 transition self-start sm:self-auto"
@@ -321,7 +346,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
           <ExternalLink className="w-3.5 h-3.5" />
           {current.key === 'explore'
             ? 'Preview Explore Page'
-            : 'Preview Public Site'}
+            : current.key === 'gallery'
+              ? 'Preview Gallery Page'
+              : 'Preview Public Site'}
         </a>
       </div>
 
@@ -637,12 +664,14 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
-                        Section Images ({images.length})
+                        {current.key === 'gallery'
+                          ? `Gallery Images (${images.length})`
+                          : 'Section Cover Image'}
                       </h3>
                       <p className="text-[11px] text-stone-400">
-                        Upload one or multiple photos. Image #1 is the cover
-                        photo; additional photos appear in &ldquo;View More
-                        Pictures&rdquo;.
+                        {current.key === 'gallery'
+                          ? 'Upload multiple photos and add optional labels. All photos appear on the public /gallery page.'
+                          : 'Upload a cover image for this section. Uploading a new photo replaces the existing cover image.'}
                       </p>
                     </div>
                     <button
@@ -656,19 +685,29 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                       ) : (
                         <ImagePlus className="w-3.5 h-3.5" />
                       )}
-                      {isUploading ? 'Uploading...' : 'Upload Images'}
+                      {isUploading
+                        ? 'Uploading...'
+                        : current.key === 'gallery'
+                          ? 'Upload Images'
+                          : images.length > 0
+                            ? 'Replace Image'
+                            : 'Upload Image'}
                     </button>
                     <input
                       ref={uploadInputRef}
                       type="file"
                       accept="image/*"
-                      multiple={current.key !== 'explore'}
+                      multiple={current.key === 'gallery'}
                       tabIndex={-1}
                       className="hidden"
                       disabled={isUploading}
                       onChange={(e) => {
                         const files = e.target.files
-                        void handleMultipleImagesUpload(files)
+                        if (current.key === 'gallery') {
+                          void handleMultipleImagesUpload(files)
+                        } else {
+                          void handleImageUpload(files?.[0])
+                        }
                         e.target.value = ''
                       }}
                     />
@@ -690,13 +729,24 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-xs font-semibold text-stone-700 transition disabled:opacity-50 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Add URL
+                      {current.key === 'gallery' || images.length === 0
+                        ? 'Add URL'
+                        : 'Set URL'}
                     </button>
                   </div>
 
                   {images.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {images.map((src, idx) => {
+                    <div
+                      className={
+                        current.key === 'gallery'
+                          ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
+                          : 'max-w-md'
+                      }
+                    >
+                      {(current.key === 'gallery'
+                        ? images
+                        : images.slice(0, 1)
+                      ).map((src, idx) => {
                         const captions = parseImageCaptions(
                           metadata.imageCaptionsJson,
                         )
@@ -714,22 +764,29 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                               />
                               {idx === 0 && (
                                 <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-900/80 text-white">
-                                  Cover Photo
+                                  {current.key === 'gallery'
+                                    ? 'Photo #1'
+                                    : 'Cover Photo'}
                                 </span>
                               )}
                             </div>
                             <div className="p-2.5 space-y-2 bg-white border-t border-stone-100">
-                              <input
-                                type="text"
-                                value={captionValue}
-                                maxLength={80}
-                                onChange={(e) =>
-                                  handleUpdateImageCaption(idx, e.target.value)
-                                }
-                                placeholder={`Photo #${idx + 1} label (e.g. Living Area, Primary Bedroom)`}
-                                aria-label={`Caption for image ${idx + 1}`}
-                                className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                              />
+                              {current.key === 'gallery' && (
+                                <input
+                                  type="text"
+                                  value={captionValue}
+                                  maxLength={80}
+                                  onChange={(e) =>
+                                    handleUpdateImageCaption(
+                                      idx,
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder={`Photo #${idx + 1} label (e.g. Living Room, Primary Bedroom)`}
+                                  aria-label={`Caption for image ${idx + 1}`}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                                />
+                              )}
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-[11px] text-stone-400 truncate">
                                   #{idx + 1} · {src}
@@ -760,26 +817,35 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                                       void handleImageUpload(file, idx)
                                     }}
                                   />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMoveImage(idx, -1)}
-                                    disabled={isUploading || idx === 0}
-                                    aria-label={`Move image ${idx + 1} up`}
-                                    className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                                  >
-                                    <ArrowUp className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMoveImage(idx, 1)}
-                                    disabled={
-                                      isUploading || idx === images.length - 1
-                                    }
-                                    aria-label={`Move image ${idx + 1} down`}
-                                    className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                                  >
-                                    <ArrowDown className="w-3.5 h-3.5" />
-                                  </button>
+                                  {current.key === 'gallery' && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleMoveImage(idx, -1)
+                                        }
+                                        disabled={isUploading || idx === 0}
+                                        aria-label={`Move image ${idx + 1} up`}
+                                        className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                                      >
+                                        <ArrowUp className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleMoveImage(idx, 1)
+                                        }
+                                        disabled={
+                                          isUploading ||
+                                          idx === images.length - 1
+                                        }
+                                        aria-label={`Move image ${idx + 1} down`}
+                                        className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                                      >
+                                        <ArrowDown className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  )}
                                   <button
                                     type="button"
                                     disabled={isUploading}

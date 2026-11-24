@@ -14,6 +14,7 @@ import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as BookingStatusRouteImport } from './routes/booking-status'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as VerifyActivationRouteImport } from './routes/verify-activation'
@@ -62,6 +63,11 @@ const ContactRoute = ContactRouteImport.update({
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/booking-status': typeof BookingStatusRoute
   '/contact': typeof ContactRoute
   '/explore': typeof ExploreRoute
+  '/gallery': typeof GalleryRoute
   '/reset-password': typeof ResetPasswordRoute
   '/reviews': typeof ReviewsRoute
   '/verify-activation': typeof VerifyActivationRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/booking-status': typeof BookingStatusRoute
   '/contact': typeof ContactRoute
   '/explore': typeof ExploreRoute
+  '/gallery': typeof GalleryRoute
   '/reset-password': typeof ResetPasswordRoute
   '/reviews': typeof ReviewsRoute
   '/verify-activation': typeof VerifyActivationRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/booking-status': typeof BookingStatusRoute
   '/contact': typeof ContactRoute
   '/explore': typeof ExploreRoute
+  '/gallery': typeof GalleryRoute
   '/reset-password': typeof ResetPasswordRoute
   '/reviews': typeof ReviewsRoute
   '/verify-activation': typeof VerifyActivationRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/booking-status'
     | '/contact'
     | '/explore'
+    | '/gallery'
     | '/reset-password'
     | '/reviews'
     | '/verify-activation'
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
     | '/booking-status'
     | '/contact'
     | '/explore'
+    | '/gallery'
     | '/reset-password'
     | '/reviews'
     | '/verify-activation'
@@ -347,6 +358,7 @@ export interface FileRouteTypes {
     | '/booking-status'
     | '/contact'
     | '/explore'
+    | '/gallery'
     | '/reset-password'
     | '/reviews'
     | '/verify-activation'
@@ -379,6 +391,7 @@ export interface RootRouteChildren {
   BookingStatusRoute: typeof BookingStatusRoute
   ContactRoute: typeof ContactRoute
   ExploreRoute: typeof ExploreRoute
+  GalleryRoute: typeof GalleryRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ReviewsRoute: typeof ReviewsRoute
   VerifyActivationRoute: typeof VerifyActivationRoute
@@ -423,6 +436,13 @@ declare module '@tanstack/react-router' {
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -646,6 +666,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookingStatusRoute: BookingStatusRoute,
   ContactRoute: ContactRoute,
   ExploreRoute: ExploreRoute,
+  GalleryRoute: GalleryRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ReviewsRoute: ReviewsRoute,
   VerifyActivationRoute: VerifyActivationRoute,
