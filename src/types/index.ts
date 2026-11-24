@@ -655,6 +655,15 @@ export interface PublicRoomItem {
   bookedRanges?: BookedDateRange[]
 }
 
+export interface PublicBookingReviewSummary {
+  id: string
+  rating: number
+  title: string | null
+  comment: string
+  status: ReviewStatus
+  createdAt: Date | string
+}
+
 export interface PublicBookingLookupResult {
   bookingReference: string
   status: BookingStatus
@@ -669,6 +678,8 @@ export interface PublicBookingLookupResult {
   roomName: string
   roomNumber: string
   guestName: string
+  canSubmitReview?: boolean
+  existingReview?: PublicBookingReviewSummary | null
 }
 
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'HIDDEN'
