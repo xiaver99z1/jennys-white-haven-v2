@@ -4,6 +4,7 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { requirePermission } from '#/server/room-actions'
 import { createNotification } from '#/server/notification-actions'
+import { isWholeHouseRoom } from '#/lib/constants/rooms'
 import type { BookingStatus, PaymentStatus } from '#/lib/constants/rooms'
 
 export function calculateNights(
@@ -54,6 +55,88 @@ export function generateBookingReference(
     suffix ||
     Math.random().toString(36).substring(2, 6).toUpperCase().padEnd(4, 'X')
   return `JWH-${yyyy}${mm}${dd}-${rand}`
+}
+
+async function assertNoBookingOverlap(
+  tx: {
+    booking: {
+      findFirst: typeof prisma.booking.findFirst
+    }
+  },
+  params: {
+    targetRoom: {
+      id: string
+      roomNumber: string
+      name: string
+      type: string
+    }
+    checkInDate: Date
+    checkOutDate: Date
+    excludeBookingId?: string
+    actionPrefix?: string
+  },
+) {
+  const {
+    targetRoom,
+    checkInDate,
+    checkOutDate,
+    excludeBookingId,
+    actionPrefix,
+  } = params
+  const isWholeHouse = isWholeHouseRoom(targetRoom)
+  const prefix = actionPrefix ? `${actionPrefix}: ` : ''
+
+  const overlapping = await tx.booking.findFirst({
+    where: {
+      ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
+      deletedAt: null,
+      status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+      checkIn: { lt: checkOutDate },
+      checkOut: { gt: checkInDate },
+      ...(isWholeHouse
+        ? { room: { deletedAt: null } }
+        : {
+            OR: [
+              { roomId: targetRoom.id },
+              {
+                room: {
+                  deletedAt: null,
+                  type: { equals: 'Whole House', mode: 'insensitive' },
+                },
+              },
+            ],
+          }),
+    },
+    include: {
+      room: {
+        select: { roomNumber: true, name: true, type: true },
+      },
+    },
+  })
+
+  if (!overlapping) return
+
+  const datePhrase = actionPrefix ? 'those dates' : 'the selected dates'
+
+  if (isWholeHouse && overlapping.roomId !== targetRoom.id) {
+    throw new Error(
+      `${prefix}Cannot book Whole House (${targetRoom.roomNumber}) because Room ${overlapping.room.roomNumber} (${overlapping.room.name}) is already booked for ${datePhrase} (${overlapping.bookingReference}).`,
+    )
+  }
+
+  if (
+    !isWholeHouse &&
+    overlapping.roomId !== targetRoom.id &&
+    isWholeHouseRoom(overlapping.room)
+  ) {
+    throw new Error(
+      `${prefix}Cannot book Room ${targetRoom.roomNumber} because Whole House (${overlapping.room.roomNumber}) is already reserved for ${datePhrase} (${overlapping.bookingReference}).`,
+    )
+  }
+
+  throw new Error(
+    `${prefix}Room ${targetRoom.roomNumber} is already booked for ${datePhrase} (${overlapping.bookingReference}).`,
+  )
 }
 
 // --- 1. GET BOOKINGS LIST ---
@@ -164,21 +247,11 @@ export async function createBookingHandler({
 
       const status: BookingStatus = data.status || 'PENDING'
       if (status !== 'CANCELLED' && status !== 'CHECKED_OUT') {
-        const overlapping = await tx.booking.findFirst({
-          where: {
-            roomId: data.roomId,
-            deletedAt: null,
-            status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-            checkIn: { lt: checkOutDate },
-            checkOut: { gt: checkInDate },
-          },
+        await assertNoBookingOverlap(tx, {
+          targetRoom,
+          checkInDate,
+          checkOutDate,
         })
-
-        if (overlapping) {
-          throw new Error(
-            `Room ${targetRoom.roomNumber} is already booked for the selected dates (${overlapping.bookingReference}).`,
-          )
-        }
       }
 
       const paymentStatus: PaymentStatus = data.paymentStatus || 'UNPAID'
@@ -336,22 +409,12 @@ export async function updateBookingHandler({
     }
 
     if (data.status !== 'CANCELLED' && data.status !== 'CHECKED_OUT') {
-      const overlapping = await tx.booking.findFirst({
-        where: {
-          id: { not: data.id },
-          roomId: data.roomId,
-          deletedAt: null,
-          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-          checkIn: { lt: checkOutDate },
-          checkOut: { gt: checkInDate },
-        },
+      await assertNoBookingOverlap(tx, {
+        targetRoom,
+        checkInDate,
+        checkOutDate,
+        excludeBookingId: data.id,
       })
-
-      if (overlapping) {
-        throw new Error(
-          `Room ${targetRoom.roomNumber} is already booked for the selected dates (${overlapping.bookingReference}).`,
-        )
-      }
     }
 
     const resolvedPaymentMethod =
@@ -601,22 +664,13 @@ export async function restoreBookingHandler({
     }
 
     if (target.status !== 'CANCELLED' && target.status !== 'CHECKED_OUT') {
-      const overlapping = await tx.booking.findFirst({
-        where: {
-          id: { not: data.id },
-          roomId: target.roomId,
-          deletedAt: null,
-          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-          checkIn: { lt: target.checkOut },
-          checkOut: { gt: target.checkIn },
-        },
+      await assertNoBookingOverlap(tx, {
+        targetRoom: target.room,
+        checkInDate: target.checkIn,
+        checkOutDate: target.checkOut,
+        excludeBookingId: data.id,
+        actionPrefix: 'Cannot restore booking',
       })
-
-      if (overlapping) {
-        throw new Error(
-          `Cannot restore booking: Room ${target.room.roomNumber} is already booked for those dates (${overlapping.bookingReference}).`,
-        )
-      }
     }
 
     await tx.booking.update({

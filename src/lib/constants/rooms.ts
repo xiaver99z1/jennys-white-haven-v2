@@ -29,9 +29,16 @@ export type {
 export const ROOM_TYPES: readonly RoomType[] = [
   'Standard',
   'Deluxe',
-  'Suite',
-  'Villa',
+  'Whole House',
 ] as const
+
+export const DEFAULT_WHOLE_HOUSE_PRICE = 15000
+
+export function isWholeHouseRoom(
+  room?: { type?: string | null } | null,
+): boolean {
+  return room?.type?.trim().toLowerCase() === 'whole house'
+}
 
 export const ROOM_STATUSES: readonly {
   label: string

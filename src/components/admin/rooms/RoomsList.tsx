@@ -6,6 +6,7 @@ import { EmptyState } from '#/components/common/EmptyState'
 import { StatusBadge } from '#/components/common/StatusBadge'
 import { formatPeso } from '#/lib/formatters'
 import { ADMIN_LABELS } from '#/lib/constants/labels'
+import { ROOM_TYPES } from '#/lib/constants/rooms'
 import type { AdminRouter } from '#/types'
 import {
   Plus,
@@ -164,7 +165,7 @@ export function RoomsList({ initialRooms, router }: RoomsListProps) {
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-          {['ALL', 'Standard', 'Deluxe', 'Suite', 'Villa'].map((type) => (
+          {(['ALL', ...ROOM_TYPES] as const).map((type) => (
             <button
               key={type}
               onClick={() => setSelectedTypeFilter(type)}

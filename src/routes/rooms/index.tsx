@@ -7,6 +7,7 @@ import { getPublicRooms } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { EmptyState } from '#/components/common/EmptyState'
+import { ROOM_TYPES } from '#/lib/constants/rooms'
 import { formatPeso, isValidCalendarDate } from '#/lib/formatters'
 
 interface RoomsSearch {
@@ -49,7 +50,7 @@ export const Route = createFileRoute('/rooms/')({
   component: PublicRoomsPage,
 })
 
-const ROOM_TYPES = ['ALL', 'Standard', 'Deluxe', 'Suite', 'Villa'] as const
+const ROOM_TYPE_FILTERS = ['ALL', ...ROOM_TYPES] as const
 
 function PublicRoomsPage() {
   const { rooms, sections } = Route.useLoaderData()
@@ -162,7 +163,7 @@ function PublicRoomsPage() {
               onChange={(e) => setType(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
             >
-              {ROOM_TYPES.map((t) => (
+              {ROOM_TYPE_FILTERS.map((t) => (
                 <option key={t} value={t}>
                   {t === 'ALL' ? 'All Room Types' : t}
                 </option>

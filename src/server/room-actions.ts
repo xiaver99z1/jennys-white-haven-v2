@@ -4,6 +4,7 @@ import { hasPermission } from '#/lib/permissions'
 import { logActivity } from '#/lib/logger'
 import type { RoomStatus } from '@prisma/client'
 import { authSession } from '#/lib/auth-helpers'
+import { isWholeHouseRoom } from '#/lib/constants/rooms'
 import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
   persistRoomImagesToR2,
@@ -106,11 +107,15 @@ export async function createRoomHandler({
       })
     : []
 
+  const normalizedType = isWholeHouseRoom({ type: data.type })
+    ? 'Whole House'
+    : data.type.trim()
+
   const room = await prisma.room.create({
     data: {
       roomNumber: data.roomNumber.trim(),
       name: data.name.trim(),
-      type: data.type,
+      type: normalizedType,
       description: data.description?.trim(),
       capacity: data.capacity,
       pricePerNight: data.pricePerNight,
@@ -203,6 +208,55 @@ export async function updateRoomHandler({
   })
   if (!existingRoom) throw new Error('Room not found.')
 
+  const normalizedType =
+    data.type !== undefined
+      ? isWholeHouseRoom({ type: data.type })
+        ? 'Whole House'
+        : data.type.trim()
+      : undefined
+
+  // Prevent converting a room to Whole House when its active bookings overlap with other rooms' active bookings
+  if (
+    normalizedType &&
+    isWholeHouseRoom({ type: normalizedType }) &&
+    !isWholeHouseRoom(existingRoom)
+  ) {
+    const ownActiveBookings = await prisma.booking.findMany({
+      where: {
+        roomId: data.id,
+        deletedAt: null,
+        status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+      },
+      select: {
+        id: true,
+        bookingReference: true,
+        checkIn: true,
+        checkOut: true,
+      },
+    })
+
+    for (const ownBooking of ownActiveBookings) {
+      const conflict = await prisma.booking.findFirst({
+        where: {
+          roomId: { not: data.id },
+          deletedAt: null,
+          room: { deletedAt: null },
+          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: ownBooking.checkOut },
+          checkOut: { gt: ownBooking.checkIn },
+        },
+        include: {
+          room: { select: { roomNumber: true, name: true } },
+        },
+      })
+      if (conflict) {
+        throw new Error(
+          `Cannot convert Room ${existingRoom.roomNumber} to Whole House because its active booking (${ownBooking.bookingReference}) overlaps with Room ${conflict.room.roomNumber} (${conflict.bookingReference}).`,
+        )
+      }
+    }
+  }
+
   const nextImages = data.images
     ? await persistRoomImagesToR2({
         roomNumber: data.roomNumber ?? existingRoom.roomNumber,
@@ -216,7 +270,7 @@ export async function updateRoomHandler({
     data: {
       roomNumber: data.roomNumber,
       name: data.name,
-      type: data.type,
+      type: normalizedType,
       description: data.description,
       capacity: data.capacity,
       pricePerNight: data.pricePerNight,
@@ -246,8 +300,8 @@ export async function updateRoomHandler({
   if (data.name && data.name !== existingRoom.name) {
     changes.push(`Display Name: "${existingRoom.name}" → "${data.name}"`)
   }
-  if (data.type && data.type !== existingRoom.type) {
-    changes.push(`Type: "${existingRoom.type}" → "${data.type}"`)
+  if (normalizedType && normalizedType !== existingRoom.type) {
+    changes.push(`Type: "${existingRoom.type}" → "${normalizedType}"`)
   }
   if (data.status && data.status !== existingRoom.status) {
     changes.push(`Status: "${existingRoom.status}" → "${data.status}"`)
@@ -377,6 +431,49 @@ export async function restoreRoomHandler({ data }: { data: { id: string } }) {
 
   const room = await prisma.room.findUnique({ where: { id: data.id } })
   if (!room) throw new Error('Room not found.')
+
+  const ownActiveBookings = await prisma.booking.findMany({
+    where: {
+      roomId: room.id,
+      deletedAt: null,
+      status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+    },
+    select: {
+      id: true,
+      bookingReference: true,
+      checkIn: true,
+      checkOut: true,
+    },
+  })
+
+  if (ownActiveBookings.length > 0) {
+    const restoringWholeHouse = isWholeHouseRoom(room)
+    for (const ownBooking of ownActiveBookings) {
+      const conflict = await prisma.booking.findFirst({
+        where: {
+          roomId: { not: room.id },
+          deletedAt: null,
+          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: ownBooking.checkOut },
+          checkOut: { gt: ownBooking.checkIn },
+          room: restoringWholeHouse
+            ? { deletedAt: null }
+            : {
+                deletedAt: null,
+                type: { equals: 'Whole House', mode: 'insensitive' },
+              },
+        },
+        include: {
+          room: { select: { roomNumber: true, name: true } },
+        },
+      })
+      if (conflict) {
+        throw new Error(
+          `Cannot restore Room ${room.roomNumber} because its active booking (${ownBooking.bookingReference}) conflicts with Room ${conflict.room.roomNumber} (${conflict.bookingReference}).`,
+        )
+      }
+    }
+  }
 
   const restoredRoom = await prisma.room.update({
     where: { id: data.id },

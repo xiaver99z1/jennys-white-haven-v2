@@ -9,7 +9,11 @@ import {
   Sparkles,
   Check,
 } from 'lucide-react'
-import { ROOM_TYPES, ROOM_STATUSES } from '#/lib/constants/rooms'
+import {
+  DEFAULT_WHOLE_HOUSE_PRICE,
+  ROOM_TYPES,
+  ROOM_STATUSES,
+} from '#/lib/constants/rooms'
 import type { RoomStatus, RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from '#/components/admin/rooms/AmenitySelectorModal'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
@@ -359,14 +363,26 @@ export function EditRoomModal({
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        type: e.target.value as RoomType,
-                      })
-                    }
+                    onChange={(e) => {
+                      const nextType = e.target.value as RoomType
+                      setFormData((prev) => ({
+                        ...prev,
+                        type: nextType,
+                        pricePerNight:
+                          nextType === 'Whole House' &&
+                          prev.type !== 'Whole House' &&
+                          prev.pricePerNight === Number(room.pricePerNight)
+                            ? DEFAULT_WHOLE_HOUSE_PRICE
+                            : prev.pricePerNight,
+                      }))
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
                   >
+                    {!ROOM_TYPES.includes(formData.type) && (
+                      <option value={formData.type}>
+                        {formData.type} (Legacy)
+                      </option>
+                    )}
                     {ROOM_TYPES.map((type) => (
                       <option key={type} value={type}>
                         {type}

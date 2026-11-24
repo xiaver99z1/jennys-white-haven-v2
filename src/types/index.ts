@@ -2,7 +2,7 @@ import type { ROLES } from '#/lib/permissions'
 
 export type RoomStatus = 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'CLEANING'
 
-export type RoomType = 'Standard' | 'Deluxe' | 'Suite' | 'Villa'
+export type RoomType = 'Standard' | 'Deluxe' | 'Whole House'
 
 export type GuestIdType =
   | 'Passport'

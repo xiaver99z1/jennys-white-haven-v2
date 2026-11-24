@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
-import { ROOM_TYPES } from '#/lib/constants/rooms'
+import { DEFAULT_WHOLE_HOUSE_PRICE, ROOM_TYPES } from '#/lib/constants/rooms'
 import type { RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
 import {
@@ -264,12 +264,20 @@ export function AddRoomModal({
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        type: e.target.value as RoomType,
-                      })
-                    }
+                    onChange={(e) => {
+                      const nextType = e.target.value as RoomType
+                      setFormData((prev) => ({
+                        ...prev,
+                        type: nextType,
+                        pricePerNight:
+                          nextType === 'Whole House'
+                            ? DEFAULT_WHOLE_HOUSE_PRICE
+                            : prev.type === 'Whole House' &&
+                                prev.pricePerNight === DEFAULT_WHOLE_HOUSE_PRICE
+                              ? 2500
+                              : prev.pricePerNight,
+                      }))
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
                   >
                     {ROOM_TYPES.map((type) => (
