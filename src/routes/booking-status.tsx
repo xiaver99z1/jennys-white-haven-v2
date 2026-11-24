@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { CheckCircle2, Loader2, Search, ShieldCheck, Star } from 'lucide-react'
@@ -43,6 +43,7 @@ function BookingStatusPage() {
   const [bookingReference, setBookingReference] = useState('')
   const [contact, setContact] = useState('')
   const [verifiedContact, setVerifiedContact] = useState('')
+  const activeBookingRef = useRef<string | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -64,6 +65,7 @@ function BookingStatusPage() {
     setError(null)
     setNotFound(false)
     setResult(null)
+    activeBookingRef.current = null
     setReviewError(null)
     setReviewJustSubmitted(false)
     try {
@@ -73,6 +75,7 @@ function BookingStatusPage() {
       if (!found) {
         setNotFound(true)
       } else {
+        activeBookingRef.current = found.bookingReference
         setResult(found)
         setVerifiedContact(contact)
       }
@@ -86,21 +89,26 @@ function BookingStatusPage() {
   async function handleSubmitReview(e: FormEvent) {
     e.preventDefault()
     if (!result) return
+    const targetBookingRef = result.bookingReference
+    const targetContact = verifiedContact || contact
     setReviewError(null)
     setIsSubmittingReview(true)
     try {
       const res = await submitPublicReview({
         data: {
-          bookingReference: result.bookingReference,
-          contact: verifiedContact || contact,
+          bookingReference: targetBookingRef,
+          contact: targetContact,
           guestLocation: guestLocation || undefined,
           rating,
           title: title || undefined,
           comment,
         },
       })
+      if (activeBookingRef.current !== targetBookingRef) {
+        return
+      }
       setResult((prev) =>
-        prev
+        prev && prev.bookingReference === targetBookingRef
           ? {
               ...prev,
               canSubmitReview: false,
@@ -114,9 +122,13 @@ function BookingStatusPage() {
       setComment('')
       setRating(5)
     } catch (err) {
-      setReviewError(getErrorMessage(err, 'Could not submit your review.'))
+      if (activeBookingRef.current === targetBookingRef) {
+        setReviewError(getErrorMessage(err, 'Could not submit your review.'))
+      }
     } finally {
-      setIsSubmittingReview(false)
+      if (activeBookingRef.current === targetBookingRef) {
+        setIsSubmittingReview(false)
+      }
     }
   }
 
@@ -308,12 +320,16 @@ function BookingStatusPage() {
                     className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                       result.existingReview.status === 'APPROVED'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                        : result.existingReview.status === 'HIDDEN'
+                          ? 'bg-stone-100 text-stone-600 border-stone-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
                     }`}
                   >
                     {result.existingReview.status === 'APPROVED'
                       ? 'Published'
-                      : 'Pending Approval'}
+                      : result.existingReview.status === 'HIDDEN'
+                        ? 'Archived'
+                        : 'Pending Approval'}
                   </span>
                 </div>
 

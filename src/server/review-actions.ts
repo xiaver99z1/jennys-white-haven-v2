@@ -22,6 +22,15 @@ function isMissingTableError(err: unknown): boolean {
   )
 }
 
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === 'P2002'
+  )
+}
+
 function toPublicReview(row: {
   id: string
   guestName: string
@@ -215,20 +224,37 @@ export const submitPublicReviewHandler = createServerOnlyFn(
       `${booking.guest.firstName} ${booking.guest.lastName}`.trim()
     const roomName = booking.room.name
 
-    const created = await prisma.review.create({
-      data: {
-        guestName: guestName.slice(0, 80),
-        guestLocation: guestLocation?.slice(0, 80) ?? null,
-        roomName: roomName.slice(0, 80),
-        bookingReference: bookingReference.slice(0, 40),
-        isVerifiedStay: true,
-        rating,
-        title: title?.slice(0, 120) ?? null,
-        comment,
-        status: 'PENDING',
-        isFeatured: false,
-      },
-    })
+    let created: {
+      id: string
+      rating: number
+      title: string | null
+      comment: string
+      status: ReviewStatus
+      createdAt: Date
+    }
+    try {
+      created = await prisma.review.create({
+        data: {
+          guestName: guestName.slice(0, 80),
+          guestLocation: guestLocation?.slice(0, 80) ?? null,
+          roomName: roomName.slice(0, 80),
+          bookingReference: bookingReference.slice(0, 40),
+          isVerifiedStay: true,
+          rating,
+          title: title?.slice(0, 120) ?? null,
+          comment,
+          status: 'PENDING',
+          isFeatured: false,
+        },
+      })
+    } catch (err) {
+      if (isUniqueConstraintError(err)) {
+        throw new Error(
+          'A review has already been submitted for this booking reference.',
+        )
+      }
+      throw err
+    }
 
     await createNotification({
       type: 'REVIEW_SUBMITTED',

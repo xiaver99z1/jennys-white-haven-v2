@@ -15,6 +15,9 @@ export function ReviewsPageView({ summary }: ReviewsPageViewProps) {
     selectedStar === null
       ? summary.reviews
       : summary.reviews.filter((review) => review.rating === selectedStar)
+  const allReviewsVerified =
+    summary.reviews.length > 0 &&
+    summary.reviews.every((review) => review.isVerifiedStay)
 
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 space-y-12">
@@ -73,7 +76,7 @@ export function ReviewsPageView({ summary }: ReviewsPageViewProps) {
               <p className="text-xs text-stone-500 mt-1.5">
                 {summary.totalCount === 0
                   ? 'No published reviews yet'
-                  : `Based on ${summary.totalCount} verified ${summary.totalCount === 1 ? 'review' : 'reviews'}`}
+                  : `Based on ${summary.totalCount} ${allReviewsVerified ? 'verified' : 'published'} ${summary.totalCount === 1 ? 'review' : 'reviews'}`}
               </p>
             </div>
 

@@ -189,6 +189,35 @@ describe('review-actions', () => {
       }),
     ).rejects.toThrow('A review has already been submitted')
 
+    // Rejects concurrent duplicate submission when create throws P2002
+    mockBookingFindFirst.mockResolvedValueOnce({
+      id: 'b1',
+      status: 'CHECKED_OUT',
+      paymentStatus: 'PAID',
+      room: { name: 'Garden Villa' },
+      guest: {
+        firstName: 'Maria',
+        lastName: 'Santos',
+        phone: '09171234567',
+        email: 'maria@example.com',
+      },
+    })
+    mockReviewFindFirst.mockResolvedValueOnce(null)
+    mockReviewCreate.mockRejectedValueOnce({ code: 'P2002' })
+
+    await expect(
+      submitPublicReviewHandler({
+        data: {
+          bookingReference: 'JWH-20261120-ABCD',
+          contact: '09171234567',
+          rating: 5,
+          comment: 'Concurrent duplicate submission hitting unique constraint.',
+        },
+      }),
+    ).rejects.toThrow(
+      'A review has already been submitted for this booking reference.',
+    )
+
     // Succeeds for CHECKED_OUT + PAID + matching contact + no existing review
     mockBookingFindFirst.mockResolvedValueOnce({
       id: 'b1',
