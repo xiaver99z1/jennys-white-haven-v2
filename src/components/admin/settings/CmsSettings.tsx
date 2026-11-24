@@ -96,14 +96,18 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   async function handleImageUpload(
     file: File | undefined,
     replaceIndex?: number,
-  ) {
-    if (!file || !current) return
+    options?: { skipClearError?: boolean },
+  ): Promise<string | null> {
+    if (!file || !current) return null
     if (!file.type.startsWith('image/')) {
-      setError('Please select a valid image file (JPG, PNG, WEBP, GIF).')
-      return
+      const msg = `Skipped "${file.name}": please select a valid image file (JPG, PNG, WEBP, GIF).`
+      if (!options?.skipClearError) setError(msg)
+      return msg
     }
     setSectionUploadCount((c) => c + 1)
-    setError(null)
+    if (!options?.skipClearError) {
+      setError(null)
+    }
     try {
       const isSingleImageSection =
         current.key === 'hero' || current.key === 'explore'
@@ -136,8 +140,11 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       } else {
         setImages((prev) => (prev.includes(url) ? prev : [...prev, url]))
       }
+      return null
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to upload image.'))
+      const msg = getErrorMessage(err, `Failed to upload "${file.name}".`)
+      if (!options?.skipClearError) setError(msg)
+      return msg
     } finally {
       setSectionUploadCount((c) => Math.max(0, c - 1))
     }
@@ -146,16 +153,25 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   async function handleMultipleImagesUpload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
     const files = Array.from(fileList)
+    setError(null)
+    const batchErrors: string[] = []
     for (const file of files) {
-      await handleImageUpload(file)
+      const errMsg = await handleImageUpload(file, undefined, {
+        skipClearError: true,
+      })
+      if (errMsg) batchErrors.push(errMsg)
+    }
+    if (batchErrors.length > 0) {
+      setError(batchErrors.join(' '))
     }
   }
 
   function handleUpdateImageCaption(index: number, caption: string) {
     setMetadata((prev) => {
       const existing = parseImageCaptions(prev.imageCaptionsJson)
-      const next = Array.from({ length: Math.max(images.length, index + 1) }, (_, i) =>
-        i === index ? caption : (existing[i] ?? ''),
+      const next = Array.from(
+        { length: Math.max(images.length, index + 1) },
+        (_, i) => (i === index ? caption : (existing[i] ?? '')),
       )
       return {
         ...prev,
@@ -173,7 +189,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       )
       return
     }
-    setImages((prev) => [...prev, trimmed])
+    setImages((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]))
     setNewImageUrl('')
   }
 

@@ -37,14 +37,18 @@ export function SectionPhotoGalleryModal({
     setActiveIndex(
       initialIndex >= 0 && initialIndex < photos.length ? initialIndex : 0,
     )
-    requestAnimationFrame(() => {
-      closeButtonRef.current?.focus()
-    })
     return () => {
       previousFocusRef.current?.focus()
       previousFocusRef.current = null
     }
   }, [isOpen, initialMode, initialIndex, photos.length])
+
+  useEffect(() => {
+    if (!isOpen) return
+    requestAnimationFrame(() => {
+      closeButtonRef.current?.focus()
+    })
+  }, [isOpen, viewMode])
 
   useEffect(() => {
     if (!isOpen) return
@@ -66,6 +70,26 @@ export function SectionPhotoGalleryModal({
       ) {
         e.preventDefault()
         setActiveIndex((prev) => (prev - 1 + photos.length) % photos.length)
+      } else if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+        if (focusable.length === 0) {
+          e.preventDefault()
+          dialogRef.current.focus()
+          return
+        }
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -84,6 +108,7 @@ export function SectionPhotoGalleryModal({
       <div
         ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-label={`${sectionTitle} photo viewer`}
         onClick={onClose}
@@ -215,6 +240,7 @@ export function SectionPhotoGalleryModal({
     <div
       ref={dialogRef}
       role="dialog"
+      tabIndex={-1}
       aria-modal="true"
       aria-labelledby="section-pictures-modal-title"
       onClick={onClose}
