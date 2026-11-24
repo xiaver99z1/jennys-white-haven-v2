@@ -134,8 +134,7 @@ function LandingPage() {
                   </div>
                 ) : (
                   <div className="rounded-2xl bg-[#F3EFE7] border border-stone-200/80 p-6 text-xs text-stone-500">
-                    Upload photos in Admin → Settings → Photo Gallery and pin up
-                    to 6 highlights to showcase them here.
+                    Sanctuary photo highlights will be shared here soon.
                   </div>
                 )}
               </div>

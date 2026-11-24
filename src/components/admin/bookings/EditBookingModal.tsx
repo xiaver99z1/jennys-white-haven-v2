@@ -40,6 +40,15 @@ interface EditBookingModalProps {
   existingBookings?: BookingItem[]
 }
 
+const getPositiveNights = (checkIn: string, checkOut: string) => {
+  const start = new Date(checkIn)
+  const end = new Date(checkOut)
+  const diff = Math.round(
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  )
+  return diff > 0 ? diff : 1
+}
+
 const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({
   roomId: booking?.roomId ?? '',
   guestId: booking?.guestId ?? '',
@@ -49,6 +58,7 @@ const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({
   extraAdults: 0,
   extraChildren: 0,
   extraSeniors: 0,
+  appliedExtraFee: 0,
   totalAmount: booking?.totalAmount ? Number(booking.totalAmount) : 0,
   amountPaid: booking?.amountPaid ? Number(booking.amountPaid) : 0,
   paymentStatus: (booking?.paymentStatus ?? 'UNPAID') as PaymentStatus,
@@ -83,14 +93,10 @@ export function EditBookingModal({
     [rooms, formData.roomId],
   )
 
-  const nights = useMemo(() => {
-    const start = new Date(formData.checkIn)
-    const end = new Date(formData.checkOut)
-    const diff = Math.round(
-      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-    )
-    return diff > 0 ? diff : 1
-  }, [formData.checkIn, formData.checkOut])
+  const nights = useMemo(
+    () => getPositiveNights(formData.checkIn, formData.checkOut),
+    [formData.checkIn, formData.checkOut],
+  )
 
   const extraPersonFeeRate = useMemo(
     () => Number(selectedRoom?.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE),
@@ -114,7 +120,6 @@ export function EditBookingModal({
   ) {
     const nextVal = Math.max(0, Math.floor(Number(rawValue) || 0))
     setFormData((prev) => {
-      const prevFee = calculateExtraGuestsFee(prev, extraPersonFeeRate, nights)
       const nextCounts = { ...prev, [field]: nextVal }
       const nextFee = calculateExtraGuestsFee(
         nextCounts,
@@ -124,7 +129,58 @@ export function EditBookingModal({
       return {
         ...prev,
         [field]: nextVal,
-        totalAmount: Math.max(0, Number(prev.totalAmount) - prevFee + nextFee),
+        appliedExtraFee: nextFee,
+        totalAmount: Math.max(
+          0,
+          Number(prev.totalAmount) - prev.appliedExtraFee + nextFee,
+        ),
+      }
+    })
+  }
+
+  function handleRoomChange(nextRoomId: string) {
+    const nextRoom = rooms.find((r) => r.id === nextRoomId)
+    const nextRate = Number(
+      nextRoom?.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE,
+    )
+    setFormData((prev) => {
+      const nextNights = getPositiveNights(prev.checkIn, prev.checkOut)
+      const nextFee = calculateExtraGuestsFee(prev, nextRate, nextNights)
+      return {
+        ...prev,
+        roomId: nextRoomId,
+        appliedExtraFee: nextFee,
+        totalAmount: Math.max(
+          0,
+          Number(prev.totalAmount) - prev.appliedExtraFee + nextFee,
+        ),
+      }
+    })
+  }
+
+  function handleDatesChange({
+    checkIn,
+    checkOut,
+  }: {
+    checkIn: string
+    checkOut: string
+  }) {
+    setFormData((prev) => {
+      const nextNights = getPositiveNights(checkIn, checkOut)
+      const nextFee = calculateExtraGuestsFee(
+        prev,
+        extraPersonFeeRate,
+        nextNights,
+      )
+      return {
+        ...prev,
+        checkIn,
+        checkOut,
+        appliedExtraFee: nextFee,
+        totalAmount: Math.max(
+          0,
+          Number(prev.totalAmount) - prev.appliedExtraFee + nextFee,
+        ),
       }
     })
   }
@@ -329,9 +385,7 @@ export function EditBookingModal({
                   <select
                     id="edit-booking-room"
                     value={formData.roomId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, roomId: e.target.value })
-                    }
+                    onChange={(e) => handleRoomChange(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
                   >
                     {rooms.map((room) => (
@@ -352,9 +406,7 @@ export function EditBookingModal({
                   checkOut={formData.checkOut}
                   bookedRanges={roomBookedRanges}
                   allowPastDates
-                  onChange={({ checkIn, checkOut }) =>
-                    setFormData((prev) => ({ ...prev, checkIn, checkOut }))
-                  }
+                  onChange={handleDatesChange}
                   className="sm:col-span-2"
                 />
                 <div>

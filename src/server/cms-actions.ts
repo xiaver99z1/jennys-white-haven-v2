@@ -235,17 +235,21 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     const rawFeaturedFlags = parseFeaturedGalleryFlags(
       data.metadata.featuredHomeFlagsJson,
     )
-    const seenImageKeys = new Set<string>()
+    const seenImageKeyIndices = new Map<string, number>()
     let cleanImages: string[] = []
     const alignedCaptions: string[] = []
     const alignedFeaturedFlags: boolean[] = []
     data.images.forEach((rawUrl, idx) => {
       const key = extractObjectKey(rawUrl)
-      if (key && !seenImageKeys.has(key)) {
-        seenImageKeys.add(key)
+      if (!key) return
+      const existingIdx = seenImageKeyIndices.get(key)
+      if (existingIdx === undefined) {
+        seenImageKeyIndices.set(key, cleanImages.length)
         cleanImages.push(key)
         alignedCaptions.push((rawCaptions[idx] ?? '').trim())
         alignedFeaturedFlags.push(rawFeaturedFlags[idx] === true)
+      } else if (rawFeaturedFlags[idx] === true) {
+        alignedFeaturedFlags[existingIdx] = true
       }
     })
     const cleanMeta: Record<string, string> = {}

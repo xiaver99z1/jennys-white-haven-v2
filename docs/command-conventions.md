@@ -20,7 +20,7 @@
 ## Prisma & Database
 
 - `pnpm exec prisma generate` — generate Prisma client
-- `pnpm exec prisma db push` — push schema changes (development)
+- `pnpm exec prisma db push` (`pnpm db:push`) — push schema changes to the database. **Important rollout step:** because `pnpm build` only runs `prisma generate`, always run `pnpm db:push` against existing databases to apply new columns (such as `Room.extraPersonFee`) before starting or serving requests with the new build.
 - `pnpm exec prisma migrate dev` — create and apply migration
 - `pnpm exec prisma studio` — open Prisma Studio
 
