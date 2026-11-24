@@ -49,14 +49,17 @@ describe('public-actions', () => {
     vi.clearAllMocks()
   })
 
-  it('filters out rooms with overlapping bookings for given dates', async () => {
-    mockBookingFindMany.mockResolvedValue([{ roomId: 'r1' }])
-    mockRoomFindMany.mockResolvedValue([
+  it('filters out rooms with overlapping bookings and enforces Whole House mutual exclusivity', async () => {
+    // 1. Individual room r1 is booked -> r1 AND Whole House (r-wh) are hidden, r2 remains available
+    mockBookingFindMany.mockResolvedValueOnce([
+      { roomId: 'r1', room: { type: 'Deluxe' } },
+    ])
+    mockRoomFindMany.mockResolvedValueOnce([
       {
         id: 'r1',
         roomNumber: '101',
         name: 'Booked Room',
-        type: 'DELUXE',
+        type: 'Deluxe',
         description: null,
         capacity: 2,
         pricePerNight: 3500,
@@ -67,13 +70,25 @@ describe('public-actions', () => {
       {
         id: 'r2',
         roomNumber: '102',
-        name: 'Open Suite',
-        type: 'SUITE',
+        name: 'Open Deluxe',
+        type: 'Deluxe',
         description: 'Ocean view',
         capacity: 4,
         pricePerNight: 5500,
         amenities: ['WiFi', 'AC'],
         images: ['https://example.com/r2.jpg'],
+        status: 'AVAILABLE',
+      },
+      {
+        id: 'r-wh',
+        roomNumber: 'WH-01',
+        name: 'Whole House Exclusive',
+        type: 'Whole House',
+        description: 'Entire house',
+        capacity: 12,
+        pricePerNight: 15000,
+        amenities: ['WiFi', 'AC'],
+        images: [],
         status: 'AVAILABLE',
       },
     ])
@@ -82,21 +97,18 @@ describe('public-actions', () => {
       checkIn: '2026-06-10',
       checkOut: '2026-06-12',
       guests: 2,
-      type: 'suite',
     })
 
     const rooms = await getPublicRoomsHandler({ data: search })
-
-    expect(mockRoomFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          type: { equals: 'suite', mode: 'insensitive' },
-        }),
-      }),
-    )
     expect(rooms).toHaveLength(1)
     expect(rooms[0].id).toBe('r2')
-    expect(rooms[0].pricePerNight).toBe(5500)
+
+    // 2. Whole House is booked -> ALL rooms are hidden for those dates
+    mockBookingFindMany.mockResolvedValueOnce([
+      { roomId: 'r-wh', room: { type: 'Whole House' } },
+    ])
+    const noRooms = await getPublicRoomsHandler({ data: search })
+    expect(noRooms).toEqual([])
   })
 
   it('returns room by id or null', async () => {

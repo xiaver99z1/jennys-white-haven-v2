@@ -6,6 +6,7 @@ import {
   BOOKING_STATUSES,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
+  isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import type {
   BookedDateRange,
@@ -73,22 +74,23 @@ export function AddBookingModal({
     [rooms, formData.roomId],
   )
 
-  const roomBookedRanges = useMemo<BookedDateRange[]>(
-    () =>
-      existingBookings
-        .filter(
-          (b) =>
-            b.roomId === formData.roomId &&
-            !b.deletedAt &&
-            ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status),
-        )
-        .map((b) => ({
-          checkIn: formatDateInput(b.checkIn),
-          checkOut: formatDateInput(b.checkOut),
-        }))
-        .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut)),
-    [existingBookings, formData.roomId],
-  )
+  const roomBookedRanges = useMemo<BookedDateRange[]>(() => {
+    const selectedIsWholeHouse = isWholeHouseRoom(selectedRoom)
+    return existingBookings
+      .filter(
+        (b) =>
+          !b.deletedAt &&
+          ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status) &&
+          (selectedIsWholeHouse ||
+            b.roomId === formData.roomId ||
+            isWholeHouseRoom(b.room)),
+      )
+      .map((b) => ({
+        checkIn: formatDateInput(b.checkIn),
+        checkOut: formatDateInput(b.checkOut),
+      }))
+      .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut))
+  }, [existingBookings, formData.roomId, selectedRoom])
 
   const nights = useMemo(() => {
     const start = new Date(formData.checkIn)

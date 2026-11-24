@@ -235,10 +235,52 @@ describe('booking-actions', () => {
       vi.mocked(prisma.guest.findUnique).mockResolvedValueOnce(mockGuest as any)
       vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
         id: 'existing-b',
+        roomId: 'room-1',
         bookingReference: 'JWH-20261112-OVER',
+        room: mockRoom,
       } as any)
       await expect(createBookingHandler({ data: baseData })).rejects.toThrow(
         'Room 101 is already booked for the selected dates (JWH-20261112-OVER).',
+      )
+
+      // 7. Booking an individual room when Whole House is booked on those dates
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(mockRoom as any)
+      vi.mocked(prisma.guest.findUnique).mockResolvedValueOnce(mockGuest as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        id: 'whole-house-b',
+        roomId: 'room-wh',
+        bookingReference: 'JWH-20261112-WH01',
+        room: {
+          roomNumber: 'WH-1',
+          name: 'Whole House Exclusive',
+          type: 'Whole House',
+        },
+      } as any)
+      await expect(createBookingHandler({ data: baseData })).rejects.toThrow(
+        'Cannot book Room 101 because Whole House (WH-1) is already reserved for the selected dates (JWH-20261112-WH01).',
+      )
+
+      // 8. Booking Whole House when an individual room is already booked on those dates
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce({
+        ...mockRoom,
+        id: 'room-wh',
+        roomNumber: 'WH-1',
+        name: 'Whole House Exclusive',
+        type: 'Whole House',
+        capacity: 12,
+        pricePerNight: 15000,
+      } as any)
+      vi.mocked(prisma.guest.findUnique).mockResolvedValueOnce(mockGuest as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        id: 'room-101-b',
+        roomId: 'room-1',
+        bookingReference: 'JWH-20261112-R101',
+        room: mockRoom,
+      } as any)
+      await expect(
+        createBookingHandler({ data: { ...baseData, roomId: 'room-wh' } }),
+      ).rejects.toThrow(
+        'Cannot book Whole House (WH-1) because Room 101 (Ocean Suite) is already booked for the selected dates (JWH-20261112-R101).',
       )
     })
 

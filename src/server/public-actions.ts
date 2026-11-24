@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
+import { isWholeHouseRoom } from '#/lib/constants/rooms'
 import { isValidCalendarDate, formatPeso } from '#/lib/formatters'
 import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
@@ -69,21 +70,35 @@ export async function getPublicRoomsHandler({
     data.checkIn < data.checkOut
 
   const unavailableRoomIds = new Set<string>()
+  let wholeHouseBooked = false
+  let anyRoomBooked = false
   if (hasValidDates) {
     const checkInDate = new Date(`${data.checkIn}T14:00:00+08:00`)
     const checkOutDate = new Date(`${data.checkOut}T12:00:00+08:00`)
     const overlapping = await prisma.booking.findMany({
       where: {
         deletedAt: null,
+        room: { deletedAt: null },
         status: { in: ['CONFIRMED', 'CHECKED_IN'] },
         checkIn: { lt: checkOutDate },
         checkOut: { gt: checkInDate },
       },
-      select: { roomId: true },
+      select: {
+        roomId: true,
+        room: { select: { type: true } },
+      },
     })
     for (const b of overlapping) {
+      anyRoomBooked = true
       unavailableRoomIds.add(b.roomId)
+      if (isWholeHouseRoom(b.room)) {
+        wholeHouseBooked = true
+      }
     }
+  }
+
+  if (wholeHouseBooked) {
+    return []
   }
 
   const rooms = await prisma.room.findMany({
@@ -97,7 +112,11 @@ export async function getPublicRoomsHandler({
   })
 
   return rooms
-    .filter((r) => !unavailableRoomIds.has(r.id))
+    .filter(
+      (r) =>
+        !unavailableRoomIds.has(r.id) &&
+        !(anyRoomBooked && isWholeHouseRoom(r)),
+    )
     .map(serializeRoom)
 }
 
@@ -129,12 +148,25 @@ export async function getPublicRoomByIdHandler({
 
   let bookedRanges: Array<{ checkIn: string; checkOut: string }> = []
   try {
+    const isWholeHouse = isWholeHouseRoom(room)
     const activeBookings = await prisma.booking.findMany({
       where: {
-        roomId: room.id,
         deletedAt: null,
         status: { in: ['CONFIRMED', 'CHECKED_IN'] },
         checkOut: { gt: startOfToday },
+        ...(isWholeHouse
+          ? { room: { deletedAt: null } }
+          : {
+              OR: [
+                { roomId: room.id },
+                {
+                  room: {
+                    deletedAt: null,
+                    type: { equals: 'Whole House', mode: 'insensitive' },
+                  },
+                },
+              ],
+            }),
       },
       select: { checkIn: true, checkOut: true },
       orderBy: { checkIn: 'asc' },
@@ -220,16 +252,42 @@ export async function createPublicBookingHandler({
         )
       }
 
+      const isWholeHouse = isWholeHouseRoom(targetRoom)
       const overlapping = await tx.booking.findFirst({
         where: {
-          roomId: data.roomId,
           deletedAt: null,
           status: { in: ['CONFIRMED', 'CHECKED_IN'] },
           checkIn: { lt: checkOutDate },
           checkOut: { gt: checkInDate },
+          ...(isWholeHouse
+            ? { room: { deletedAt: null } }
+            : {
+                OR: [
+                  { roomId: data.roomId },
+                  {
+                    room: {
+                      deletedAt: null,
+                      type: { equals: 'Whole House', mode: 'insensitive' },
+                    },
+                  },
+                ],
+              }),
+        },
+        include: {
+          room: { select: { type: true } },
         },
       })
       if (overlapping) {
+        if (isWholeHouse && !isWholeHouseRoom(overlapping.room)) {
+          throw new Error(
+            'Sorry, the Whole House cannot be reserved for the selected dates because one or more rooms are already booked.',
+          )
+        }
+        if (!isWholeHouse && isWholeHouseRoom(overlapping.room)) {
+          throw new Error(
+            'Sorry, the entire house is already reserved for an exclusive stay on the selected dates.',
+          )
+        }
         throw new Error(
           'Sorry, this room is already reserved for the selected dates.',
         )

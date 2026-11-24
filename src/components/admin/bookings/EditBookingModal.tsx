@@ -6,6 +6,7 @@ import {
   BOOKING_STATUSES,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
+  isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import type {
   BookedDateRange,
@@ -70,23 +71,29 @@ export function EditBookingModal({
 
   const [formData, setFormData] = useState(() => getInitialFormData(booking))
 
-  const roomBookedRanges = useMemo<BookedDateRange[]>(
-    () =>
-      existingBookings
-        .filter(
-          (b) =>
-            b.id !== booking?.id &&
-            b.roomId === formData.roomId &&
-            !b.deletedAt &&
-            ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status),
-        )
-        .map((b) => ({
-          checkIn: formatDateInput(b.checkIn),
-          checkOut: formatDateInput(b.checkOut),
-        }))
-        .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut)),
-    [existingBookings, booking?.id, formData.roomId],
+  const selectedRoom = useMemo(
+    () => rooms.find((r) => r.id === formData.roomId),
+    [rooms, formData.roomId],
   )
+
+  const roomBookedRanges = useMemo<BookedDateRange[]>(() => {
+    const selectedIsWholeHouse = isWholeHouseRoom(selectedRoom)
+    return existingBookings
+      .filter(
+        (b) =>
+          b.id !== booking?.id &&
+          !b.deletedAt &&
+          ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status) &&
+          (selectedIsWholeHouse ||
+            b.roomId === formData.roomId ||
+            isWholeHouseRoom(b.room)),
+      )
+      .map((b) => ({
+        checkIn: formatDateInput(b.checkIn),
+        checkOut: formatDateInput(b.checkOut),
+      }))
+      .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut))
+  }, [existingBookings, booking?.id, formData.roomId, selectedRoom])
 
   useEffect(() => {
     if (booking) {
