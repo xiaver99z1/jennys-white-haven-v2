@@ -529,6 +529,11 @@ export const CMS_SECTION_META: Record<
   {
     label: string
     description: string
+    showTitle?: boolean
+    showSubtitle?: boolean
+    showBody?: boolean
+    showCta?: boolean
+    showImages?: boolean
     metadataFields: Array<{ key: string; label: string; placeholder: string }>
   }
 > = {
@@ -540,23 +545,29 @@ export const CMS_SECTION_META: Record<
   },
   story: {
     label: 'Our Sanctuary (Story)',
-    description: 'Editorial introduction to the staycation experience.',
+    description:
+      'Sanctuary eyebrow label and right-hand cover photo on the home page.',
+    showTitle: false,
+    showSubtitle: false,
+    showBody: false,
+    showCta: false,
+    showImages: true,
     metadataFields: [
       {
         key: 'eyebrow',
         label: 'Section Eyebrow',
         placeholder: 'The Sanctuary',
       },
-      {
-        key: 'highlight',
-        label: 'Pull Quote / Highlight',
-        placeholder: 'Quiet mornings by the sea, unhurried island afternoons.',
-      },
     ],
   },
   rooms: {
     label: 'Rooms Showcase',
-    description: 'Heading and intro copy above the featured rooms grid.',
+    description: 'Heading and intro copy above the rooms grid.',
+    showTitle: true,
+    showSubtitle: true,
+    showBody: false,
+    showCta: false,
+    showImages: false,
     metadataFields: [
       {
         key: 'eyebrow',
@@ -567,19 +578,31 @@ export const CMS_SECTION_META: Record<
   },
   amenities: {
     label: 'Amenities & Experience',
-    description: 'Curated resort highlights and staycation inclusions.',
+    description:
+      'Included With Every Stay checklist items shown in the Home Sanctuary section.',
+    showTitle: false,
+    showSubtitle: false,
+    showBody: false,
+    showCta: false,
+    showImages: false,
     metadataFields: [
       {
         key: 'items',
-        label: 'Highlights (comma-separated)',
+        label: 'Included With Every Stay (comma-separated)',
         placeholder:
-          'Private Beachfront Access, High-Speed Wi-Fi, Air-Conditioned Suites, Complimentary Island Breakfast, Airport & Port Transfer Assistance',
+          'Air-Conditioned Coastal Rooms, High-Speed Fiber Wi-Fi, Private En-Suite Bath, Fresh Linens & Bath Essentials, Port Transfer Assistance, Curated Island Tour Tips',
       },
     ],
   },
   gallery: {
     label: 'Photo Gallery',
-    description: 'Visual showcase of the property and island surroundings.',
+    description:
+      'Visual showcase on /gallery and Top 6 pinned highlight photos on the Home page.',
+    showTitle: true,
+    showSubtitle: true,
+    showBody: true,
+    showCta: false,
+    showImages: true,
     metadataFields: [
       {
         key: 'eyebrow',
@@ -592,6 +615,11 @@ export const CMS_SECTION_META: Record<
     label: 'Explore Camotes (Tourist Spots)',
     description:
       'Curated island destinations, photos, travel times, and local tips shown on the /explore visitor page.',
+    showTitle: true,
+    showSubtitle: true,
+    showBody: true,
+    showCta: true,
+    showImages: true,
     metadataFields: [
       {
         key: 'eyebrow',
@@ -609,7 +637,12 @@ export const CMS_SECTION_META: Record<
   contact: {
     label: 'Contact, Location & Policies',
     description:
-      'Resort address, contact details, check-in/out hours, and payment instructions.',
+      'Resort address, Google Map links, contact details, check-in/out hours, and payment instructions.',
+    showTitle: true,
+    showSubtitle: true,
+    showBody: true,
+    showCta: false,
+    showImages: false,
     metadataFields: [
       {
         key: 'address',

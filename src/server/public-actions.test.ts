@@ -15,6 +15,7 @@ const {
   mockRoomFindFirst,
   mockBookingFindMany,
   mockBookingFindFirst,
+  mockBlockedDateFindMany,
   mockTransaction,
   mockCreateNotification,
 } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const {
   mockRoomFindFirst: vi.fn(),
   mockBookingFindMany: vi.fn(),
   mockBookingFindFirst: vi.fn(),
+  mockBlockedDateFindMany: vi.fn().mockResolvedValue([]),
   mockTransaction: vi.fn(),
   mockCreateNotification: vi.fn(),
 }))
@@ -35,6 +37,9 @@ vi.mock('#/lib/prisma', () => ({
     booking: {
       findMany: mockBookingFindMany,
       findFirst: mockBookingFindFirst,
+    },
+    blockedDate: {
+      findMany: mockBlockedDateFindMany,
     },
     $transaction: mockTransaction,
   },
@@ -171,7 +176,6 @@ describe('public-actions', () => {
       guestsCount: 2,
       extraAdults: 1,
       extraChildren: 1,
-      extraSeniors: 0,
       firstName: 'Maria',
       lastName: 'Santos',
       phone: '+639171234567',
@@ -183,13 +187,13 @@ describe('public-actions', () => {
     expect(res.success).toBe(true)
     expect(res.bookingReference).toBe('JWH-123456')
     expect(res.nights).toBe(2)
-    // Base: 2 nights * 5000 = 10000 + Extra: 2 extra persons * 500 * 2 nights = 2000 -> 12000
-    expect(res.totalAmount).toBe(12000)
+    // Base: 2 nights * 5000 = 10000 + Extra: (1 adult * 500 + 1 child * 300) * 2 nights = 1600 -> 11600
+    expect(res.totalAmount).toBe(11600)
     expect(tx.booking.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        totalAmount: 12000,
+        totalAmount: 11600,
         specialRequests: expect.stringContaining(
-          '[Additional Persons: 1 Adult, 1 Child · +₱2,000 (₱500/night)]',
+          '[Additional Persons: 1 Adult (₱500/night), 1 Child (₱300/night) · +₱1,600]',
         ),
       }),
     })

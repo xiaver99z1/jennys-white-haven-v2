@@ -11,6 +11,8 @@ import {
   validateBookingId,
   deleteBookingHandler,
   restoreBookingHandler,
+  createBlockedDateHandler,
+  deleteBlockedDateHandler,
 } from './booking-actions'
 import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
@@ -38,6 +40,13 @@ vi.mock('#/lib/prisma', () => ({
     },
     payment: {
       create: vi.fn(),
+    },
+    blockedDate: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
     },
   },
 }))
@@ -169,6 +178,7 @@ describe('booking-actions', () => {
       vi.mocked(prisma.guest.findMany).mockResolvedValueOnce([
         mockGuest,
       ] as any)
+      vi.mocked(prisma.blockedDate.findMany).mockResolvedValueOnce([])
 
       const res = await getBookingsListHandler()
 
@@ -367,12 +377,74 @@ describe('booking-actions', () => {
         data: {
           roomId: 'room-1',
           guestId: 'guest-1',
-          checkIn: '2026-11-15',
-          checkOut: '2026-11-16',
+          checkIn: '2026-11-12',
+          checkOut: '2026-11-14',
           guestsCount: 2,
           status: 'CANCELLED',
         },
       })
+    })
+  })
+
+  describe('createBlockedDateHandler and deleteBlockedDateHandler', () => {
+    it('creates and deletes blocked date ranges and blocks overlapping bookings', async () => {
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce(null)
+      vi.mocked(prisma.blockedDate.create).mockResolvedValueOnce({
+        id: 'bd-1',
+        roomId: null,
+        startDate: new Date('2026-12-30'),
+        endDate: new Date('2027-01-02'),
+        reason: 'New Year — Family Use',
+        room: null,
+      } as any)
+
+      const created = await createBlockedDateHandler({
+        data: {
+          roomId: null,
+          startDate: '2026-12-30',
+          endDate: '2027-01-02',
+          reason: 'New Year — Family Use',
+        },
+      })
+      expect(created.success).toBe(true)
+      expect(created.blockedDate.reason).toBe('New Year — Family Use')
+
+      // Prevents creating a booking when dates are blocked
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(mockRoom as any)
+      vi.mocked(prisma.guest.findUnique).mockResolvedValueOnce(mockGuest as any)
+      vi.mocked(prisma.blockedDate.findFirst).mockResolvedValueOnce({
+        id: 'bd-1',
+        roomId: null,
+        reason: 'New Year — Family Use',
+      } as any)
+
+      await expect(
+        createBookingHandler({
+          data: {
+            roomId: 'room-1',
+            guestId: 'guest-1',
+            checkIn: '2026-12-31',
+            checkOut: '2027-01-02',
+            guestsCount: 2,
+          },
+        }),
+      ).rejects.toThrow(
+        'Cannot book Room 101 because the entire house is blocked for the selected dates (New Year — Family Use).',
+      )
+
+      // Deletes blocked date range
+      vi.mocked(prisma.blockedDate.findUnique).mockResolvedValueOnce({
+        id: 'bd-1',
+        roomId: null,
+        startDate: new Date('2026-12-30'),
+        endDate: new Date('2027-01-02'),
+        reason: 'New Year — Family Use',
+        room: null,
+      } as any)
+      vi.mocked(prisma.blockedDate.delete).mockResolvedValueOnce({} as any)
+
+      const deleted = await deleteBlockedDateHandler({ data: { id: 'bd-1' } })
+      expect(deleted).toEqual({ success: true })
     })
   })
 

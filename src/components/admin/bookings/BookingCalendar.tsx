@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
-import type { BookingItem, BookingRoomOption } from '#/types'
+import { Ban, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import type {
+  BlockedDateItem,
+  BookingItem,
+  BookingRoomOption,
+} from '#/types'
+import { isWholeHouseRoom } from '#/lib/constants/rooms'
 import {
   formatDate,
   formatFullName,
@@ -12,7 +17,9 @@ import { EmptyState } from '#/components/common/EmptyState'
 interface BookingCalendarProps {
   bookings: BookingItem[]
   rooms: BookingRoomOption[]
+  blockedDates?: BlockedDateItem[]
   onSelectBooking: (booking: BookingItem) => void
+  onManageBlockedDates?: () => void
 }
 
 const DAYS_TO_SHOW = 14
@@ -31,7 +38,9 @@ function getTodayStart(): Date {
 export function BookingCalendar({
   bookings,
   rooms,
+  blockedDates = [],
   onSelectBooking,
+  onManageBlockedDates,
 }: BookingCalendarProps) {
   const [startDate, setStartDate] = useState<Date>(getTodayStart)
 
@@ -155,7 +164,18 @@ export function BookingCalendar({
                       return day.iso >= checkIn && day.iso < checkOut
                     })
 
-                    if (!match) {
+                    const roomIsWholeHouse = isWholeHouseRoom(room)
+                    const matchingBlock = blockedDates.find((bd) => {
+                      const start = formatDate(bd.startDate)
+                      const end = formatDate(bd.endDate)
+                      const overlapsDay = day.iso >= start && day.iso < end
+                      if (!overlapsDay) return false
+                      if (!bd.roomId || isWholeHouseRoom(bd.room)) return true
+                      if (roomIsWholeHouse) return true
+                      return bd.roomId === room.id
+                    })
+
+                    if (!match && !matchingBlock) {
                       return (
                         <td
                           key={day.iso}
@@ -166,10 +186,33 @@ export function BookingCalendar({
                       )
                     }
 
-                    const meta = getBookingStatusMeta(match.status)
+                    if (!match && matchingBlock) {
+                      return (
+                        <td
+                          key={day.iso}
+                          className={`p-1 border-r border-stone-100 align-middle ${
+                            day.iso === todayIso ? 'bg-amber-50/30' : ''
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onManageBlockedDates?.()}
+                            title={`Blocked: ${matchingBlock.reason}`}
+                            className="w-full text-left px-1.5 py-1 rounded-md border border-rose-300 bg-rose-100/90 text-rose-900 text-[10px] font-semibold truncate transition hover:bg-rose-200 cursor-pointer flex items-center gap-1"
+                          >
+                            <Ban className="w-2.5 h-2.5 shrink-0" />
+                            <span className="truncate">
+                              {matchingBlock.reason}
+                            </span>
+                          </button>
+                        </td>
+                      )
+                    }
+
+                    const meta = getBookingStatusMeta(match!.status)
                     const guest = formatFullName(
-                      match.guest.firstName,
-                      match.guest.lastName,
+                      match!.guest.firstName,
+                      match!.guest.lastName,
                     )
 
                     return (
@@ -181,8 +224,8 @@ export function BookingCalendar({
                       >
                         <button
                           type="button"
-                          onClick={() => onSelectBooking(match)}
-                          title={`${guest} (${match.bookingReference}) — ${meta.label}`}
+                          onClick={() => onSelectBooking(match!)}
+                          title={`${guest} (${match!.bookingReference}) — ${meta.label}`}
                           className={`w-full text-left px-1.5 py-1 rounded-md border text-[10px] font-semibold truncate transition hover:opacity-85 cursor-pointer ${meta.className}`}
                         >
                           {guest}

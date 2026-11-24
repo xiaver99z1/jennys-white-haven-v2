@@ -32,7 +32,11 @@ export function getResortDayRange(now: Date = new Date()) {
 type BookingWithRelations = {
   totalAmount: unknown
   amountPaid: unknown
-  room: { pricePerNight: unknown; extraPersonFee?: unknown }
+  room: {
+    pricePerNight: unknown
+    extraPersonFee?: unknown
+    extraChildFee?: unknown
+  }
 }
 
 function serializeBooking<T extends BookingWithRelations>(booking: T) {
@@ -44,6 +48,7 @@ function serializeBooking<T extends BookingWithRelations>(booking: T) {
       ...booking.room,
       pricePerNight: Number(booking.room.pricePerNight),
       extraPersonFee: Number(booking.room.extraPersonFee ?? 500),
+      extraChildFee: Number(booking.room.extraChildFee ?? 300),
     },
   }
 }

@@ -15,7 +15,7 @@ export const Route = createFileRoute('/admin/bookings')({
 })
 
 function BookingsPage() {
-  const { bookings, rooms, guests } = Route.useLoaderData()
+  const { bookings, rooms, guests, blockedDates } = Route.useLoaderData()
   const router = useRouter()
 
   return (
@@ -23,6 +23,7 @@ function BookingsPage() {
       initialBookings={bookings}
       rooms={rooms}
       guests={guests}
+      blockedDates={blockedDates}
       router={router}
     />
   )

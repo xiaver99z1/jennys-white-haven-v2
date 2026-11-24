@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import {
+  DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
   calculateExtraGuestsFee,
   formatExtraGuestsNote,
@@ -11,6 +12,7 @@ import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
   calculateNights,
   generateBookingReference,
+  getStayOverlapBounds,
 } from '#/server/booking-actions'
 import { createNotification } from '#/server/notification-actions'
 import type {
@@ -39,6 +41,7 @@ function serializeRoom(r: {
   capacity: number
   pricePerNight: unknown
   extraPersonFee?: unknown
+  extraChildFee?: unknown
   amenities: string[]
   images: string[]
   status: PublicRoomItem['status']
@@ -52,6 +55,7 @@ function serializeRoom(r: {
     capacity: r.capacity,
     pricePerNight: Number(r.pricePerNight),
     extraPersonFee: Number(r.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE),
+    extraChildFee: Number(r.extraChildFee ?? DEFAULT_EXTRA_CHILD_FEE),
     amenities: r.amenities,
     images: r.images
       .filter((img) => Boolean(img.trim()) && !isBase64DataUrl(img))
@@ -80,26 +84,47 @@ export async function getPublicRoomsHandler({
   let wholeHouseBooked = false
   let anyRoomBooked = false
   if (hasValidDates) {
-    const checkInDate = new Date(`${data.checkIn}T14:00:00+08:00`)
-    const checkOutDate = new Date(`${data.checkOut}T12:00:00+08:00`)
-    const overlapping = await prisma.booking.findMany({
-      where: {
-        deletedAt: null,
-        room: { deletedAt: null },
-        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-        checkIn: { lt: checkOutDate },
-        checkOut: { gt: checkInDate },
-      },
-      select: {
-        roomId: true,
-        room: { select: { type: true } },
-      },
-    })
+    const bounds = getStayOverlapBounds(data.checkIn!, data.checkOut!)
+    const [overlapping, overlappingBlocks] = await Promise.all([
+      prisma.booking.findMany({
+        where: {
+          deletedAt: null,
+          room: { deletedAt: null },
+          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
+        },
+        select: {
+          roomId: true,
+          room: { select: { type: true } },
+        },
+      }),
+      prisma.blockedDate.findMany({
+        where: {
+          startDate: { lt: bounds.ltUpperBound },
+          endDate: { gt: bounds.gtLowerBound },
+          OR: [{ roomId: null }, { room: { deletedAt: null } }],
+        },
+        select: {
+          roomId: true,
+          room: { select: { type: true, deletedAt: true } },
+        },
+      }),
+    ])
     for (const b of overlapping) {
       anyRoomBooked = true
       unavailableRoomIds.add(b.roomId)
       if (isWholeHouseRoom(b.room)) {
         wholeHouseBooked = true
+      }
+    }
+    for (const block of overlappingBlocks) {
+      if (block.room?.deletedAt) continue
+      anyRoomBooked = true
+      if (!block.roomId || isWholeHouseRoom(block.room)) {
+        wholeHouseBooked = true
+      } else {
+        unavailableRoomIds.add(block.roomId)
       }
     }
   }
@@ -156,32 +181,63 @@ export async function getPublicRoomByIdHandler({
   let bookedRanges: Array<{ checkIn: string; checkOut: string }> = []
   try {
     const isWholeHouse = isWholeHouseRoom(room)
-    const activeBookings = await prisma.booking.findMany({
-      where: {
-        deletedAt: null,
-        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-        checkOut: { gt: startOfToday },
-        ...(isWholeHouse
-          ? { room: { deletedAt: null } }
-          : {
-              OR: [
-                { roomId: room.id },
-                {
-                  room: {
-                    deletedAt: null,
-                    type: { equals: 'Whole House', mode: 'insensitive' },
+    const [activeBookings, activeBlockedDates] = await Promise.all([
+      prisma.booking.findMany({
+        where: {
+          deletedAt: null,
+          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+          checkOut: { gt: startOfToday },
+          ...(isWholeHouse
+            ? { room: { deletedAt: null } }
+            : {
+                OR: [
+                  { roomId: room.id },
+                  {
+                    room: {
+                      deletedAt: null,
+                      type: { equals: 'Whole House', mode: 'insensitive' },
+                    },
                   },
-                },
-              ],
-            }),
-      },
-      select: { checkIn: true, checkOut: true },
-      orderBy: { checkIn: 'asc' },
-    })
-    bookedRanges = activeBookings.map((b) => ({
-      checkIn: toPhIsoDate(new Date(b.checkIn)),
-      checkOut: toPhIsoDate(new Date(b.checkOut)),
-    }))
+                ],
+              }),
+        },
+        select: { checkIn: true, checkOut: true },
+        orderBy: { checkIn: 'asc' },
+      }),
+      prisma.blockedDate.findMany({
+        where: {
+          endDate: { gt: startOfToday },
+          ...(isWholeHouse
+            ? {
+                OR: [{ roomId: null }, { room: { deletedAt: null } }],
+              }
+            : {
+                OR: [
+                  { roomId: null },
+                  { roomId: room.id, room: { deletedAt: null } },
+                  {
+                    room: {
+                      deletedAt: null,
+                      type: { equals: 'Whole House', mode: 'insensitive' },
+                    },
+                  },
+                ],
+              }),
+        },
+        select: { startDate: true, endDate: true },
+        orderBy: { startDate: 'asc' },
+      }),
+    ])
+    bookedRanges = [
+      ...activeBookings.map((b) => ({
+        checkIn: toPhIsoDate(new Date(b.checkIn)),
+        checkOut: toPhIsoDate(new Date(b.checkOut)),
+      })),
+      ...activeBlockedDates.map((b) => ({
+        checkIn: toPhIsoDate(new Date(b.startDate)),
+        checkOut: toPhIsoDate(new Date(b.endDate)),
+      })),
+    ]
   } catch {
     bookedRanges = []
   }
@@ -203,7 +259,6 @@ export interface CreatePublicBookingInput {
   guestsCount: number
   extraChildren?: number
   extraAdults?: number
-  extraSeniors?: number
   firstName: string
   lastName: string
   phone: string
@@ -229,8 +284,9 @@ export async function createPublicBookingHandler({
     throw new Error('Please provide valid check-in and check-out dates.')
   }
 
-  const checkInDate = new Date(`${data.checkIn}T14:00:00+08:00`)
-  const checkOutDate = new Date(`${data.checkOut}T12:00:00+08:00`)
+  const bounds = getStayOverlapBounds(data.checkIn, data.checkOut)
+  const checkInDate = bounds.checkInTimestamp
+  const checkOutDate = bounds.checkOutTimestamp
   const nights = calculateNights(checkInDate, checkOutDate)
 
   const firstName = data.firstName.trim()
@@ -249,14 +305,11 @@ export async function createPublicBookingHandler({
 
   const extraChildren = Number(data.extraChildren ?? 0)
   const extraAdults = Number(data.extraAdults ?? 0)
-  const extraSeniors = Number(data.extraSeniors ?? 0)
   if (
     !Number.isInteger(extraChildren) ||
     extraChildren < 0 ||
     !Number.isInteger(extraAdults) ||
-    extraAdults < 0 ||
-    !Number.isInteger(extraSeniors) ||
-    extraSeniors < 0
+    extraAdults < 0
   ) {
     throw new Error('Additional person counts must be non-negative whole numbers.')
   }
@@ -277,12 +330,43 @@ export async function createPublicBookingHandler({
       }
 
       const isWholeHouse = isWholeHouseRoom(targetRoom)
+
+      if ((tx as { blockedDate?: typeof prisma.blockedDate }).blockedDate?.findFirst) {
+        const overlappingBlock = await tx.blockedDate.findFirst({
+          where: {
+            startDate: { lt: bounds.ltUpperBound },
+            endDate: { gt: bounds.gtLowerBound },
+            ...(isWholeHouse
+              ? {
+                  OR: [{ roomId: null }, { room: { deletedAt: null } }],
+                }
+              : {
+                  OR: [
+                    { roomId: null },
+                    { roomId: data.roomId, room: { deletedAt: null } },
+                    {
+                      room: {
+                        deletedAt: null,
+                        type: { equals: 'Whole House', mode: 'insensitive' },
+                      },
+                    },
+                  ],
+                }),
+          },
+        })
+        if (overlappingBlock) {
+          throw new Error(
+            'Sorry, the property is unavailable for the selected dates.',
+          )
+        }
+      }
+
       const overlapping = await tx.booking.findFirst({
         where: {
           deletedAt: null,
           status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-          checkIn: { lt: checkOutDate },
-          checkOut: { gt: checkInDate },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
           ...(isWholeHouse
             ? { room: { deletedAt: null } }
             : {
@@ -374,8 +458,8 @@ export async function createPublicBookingHandler({
           guestId: guest.id,
           deletedAt: null,
           status: 'PENDING',
-          checkIn: { lt: checkOutDate },
-          checkOut: { gt: checkInDate },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
           ...(isWholeHouse
             ? { room: { deletedAt: null } }
             : {
@@ -402,17 +486,25 @@ export async function createPublicBookingHandler({
         (targetRoom as { extraPersonFee?: unknown }).extraPersonFee ??
           DEFAULT_EXTRA_PERSON_FEE,
       )
-      const extraCounts = { extraChildren, extraAdults, extraSeniors }
+      const extraChildRate = Number(
+        (targetRoom as { extraChildFee?: unknown }).extraChildFee ??
+          DEFAULT_EXTRA_CHILD_FEE,
+      )
+      const extraCounts = { extraChildren, extraAdults }
+      const extraRates = {
+        extraAdultFee: extraPersonRate,
+        extraChildFee: extraChildRate,
+      }
       const extraFeeTotal = calculateExtraGuestsFee(
         extraCounts,
-        extraPersonRate,
+        extraRates,
         nights,
       )
       const computedTotal =
         nights * Number(targetRoom.pricePerNight) + extraFeeTotal
       const extraNote = formatExtraGuestsNote(
         extraCounts,
-        extraPersonRate,
+        extraRates,
         nights,
       )
       const combinedSpecialRequests =

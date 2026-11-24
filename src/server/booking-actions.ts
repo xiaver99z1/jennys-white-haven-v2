@@ -5,6 +5,7 @@ import { authSession } from '#/lib/auth-helpers'
 import { requirePermission } from '#/server/room-actions'
 import { createNotification } from '#/server/notification-actions'
 import {
+  DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
   isWholeHouseRoom,
 } from '#/lib/constants/rooms'
@@ -60,10 +61,45 @@ export function generateBookingReference(
   return `JWH-${yyyy}${mm}${dd}-${rand}`
 }
 
+const PH_OFFSET_MS = 8 * 60 * 60 * 1000
+
+export function toStayCalendarDay(dateInput: string | Date): string {
+  if (
+    typeof dateInput === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())
+  ) {
+    return dateInput.trim()
+  }
+  const d = new Date(dateInput)
+  if (Number.isNaN(d.getTime())) {
+    throw new Error('Invalid check-in or check-out date.')
+  }
+  return new Date(d.getTime() + PH_OFFSET_MS).toISOString().slice(0, 10)
+}
+
+export function getStayOverlapBounds(
+  checkIn: string | Date,
+  checkOut: string | Date,
+) {
+  const startDay = toStayCalendarDay(checkIn)
+  const endDay = toStayCalendarDay(checkOut)
+  return {
+    startDay,
+    endDay,
+    checkInTimestamp: new Date(`${startDay}T14:00:00+08:00`),
+    checkOutTimestamp: new Date(`${endDay}T12:00:00+08:00`),
+    ltUpperBound: new Date(`${endDay}T00:00:00.000Z`),
+    gtLowerBound: new Date(`${startDay}T14:00:00+08:00`),
+  }
+}
+
 async function assertNoBookingOverlap(
   tx: {
     booking: {
       findFirst: typeof prisma.booking.findFirst
+    }
+    blockedDate?: {
+      findFirst: typeof prisma.blockedDate.findFirst
     }
   },
   params: {
@@ -88,14 +124,66 @@ async function assertNoBookingOverlap(
   } = params
   const isWholeHouse = isWholeHouseRoom(targetRoom)
   const prefix = actionPrefix ? `${actionPrefix}: ` : ''
+  const datePhrase = actionPrefix ? 'those dates' : 'the selected dates'
+  const bounds = getStayOverlapBounds(checkInDate, checkOutDate)
+
+  if (tx.blockedDate?.findFirst) {
+    const overlappingBlock = await tx.blockedDate.findFirst({
+      where: {
+        startDate: { lt: bounds.ltUpperBound },
+        endDate: { gt: bounds.gtLowerBound },
+        ...(isWholeHouse
+          ? {
+              OR: [{ roomId: null }, { room: { deletedAt: null } }],
+            }
+          : {
+              OR: [
+                { roomId: null },
+                { roomId: targetRoom.id, room: { deletedAt: null } },
+                {
+                  room: {
+                    deletedAt: null,
+                    type: { equals: 'Whole House', mode: 'insensitive' },
+                  },
+                },
+              ],
+            }),
+      },
+      include: {
+        room: {
+          select: { roomNumber: true, name: true, type: true },
+        },
+      },
+    })
+
+    if (overlappingBlock) {
+      const reason = overlappingBlock.reason.trim() || 'House Unavailable'
+      if (
+        !overlappingBlock.roomId ||
+        isWholeHouseRoom(overlappingBlock.room)
+      ) {
+        throw new Error(
+          `${prefix}Cannot book Room ${targetRoom.roomNumber} because the entire house is blocked for ${datePhrase} (${reason}).`,
+        )
+      }
+      if (isWholeHouse && overlappingBlock.roomId !== targetRoom.id) {
+        throw new Error(
+          `${prefix}Cannot book Whole House (${targetRoom.roomNumber}) because Room ${overlappingBlock.room?.roomNumber ?? ''} is blocked for ${datePhrase} (${reason}).`,
+        )
+      }
+      throw new Error(
+        `${prefix}Room ${targetRoom.roomNumber} is blocked for ${datePhrase} (${reason}).`,
+      )
+    }
+  }
 
   const overlapping = await tx.booking.findFirst({
     where: {
       ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
       deletedAt: null,
       status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-      checkIn: { lt: checkOutDate },
-      checkOut: { gt: checkInDate },
+      checkIn: { lt: bounds.ltUpperBound },
+      checkOut: { gt: bounds.gtLowerBound },
       ...(isWholeHouse
         ? { room: { deletedAt: null } }
         : {
@@ -118,8 +206,6 @@ async function assertNoBookingOverlap(
   })
 
   if (!overlapping) return
-
-  const datePhrase = actionPrefix ? 'those dates' : 'the selected dates'
 
   if (isWholeHouse && overlapping.roomId !== targetRoom.id) {
     throw new Error(
@@ -146,7 +232,7 @@ async function assertNoBookingOverlap(
 export async function getBookingsListHandler() {
   await requirePermission('view:bookings')
 
-  const [bookings, rooms, guests] = await Promise.all([
+  const [bookings, rooms, guests, blockedDates] = await Promise.all([
     prisma.booking.findMany({
       include: {
         room: true,
@@ -162,6 +248,22 @@ export async function getBookingsListHandler() {
       where: { deletedAt: null },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     }),
+    prisma.blockedDate.findMany({
+      where: {
+        OR: [{ roomId: null }, { room: { deletedAt: null } }],
+      },
+      include: {
+        room: {
+          select: {
+            id: true,
+            roomNumber: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+      orderBy: { startDate: 'asc' },
+    }),
   ])
 
   return {
@@ -176,6 +278,10 @@ export async function getBookingsListHandler() {
           (b.room as { extraPersonFee?: unknown }).extraPersonFee ??
             DEFAULT_EXTRA_PERSON_FEE,
         ),
+        extraChildFee: Number(
+          (b.room as { extraChildFee?: unknown }).extraChildFee ??
+            DEFAULT_EXTRA_CHILD_FEE,
+        ),
       },
     })),
     rooms: rooms.map((r) => ({
@@ -185,8 +291,13 @@ export async function getBookingsListHandler() {
         (r as { extraPersonFee?: unknown }).extraPersonFee ??
           DEFAULT_EXTRA_PERSON_FEE,
       ),
+      extraChildFee: Number(
+        (r as { extraChildFee?: unknown }).extraChildFee ??
+          DEFAULT_EXTRA_CHILD_FEE,
+      ),
     })),
     guests,
+    blockedDates,
   }
 }
 
@@ -714,3 +825,179 @@ export async function restoreBookingHandler({
 export const restoreBooking = createServerFn({ method: 'POST' })
   .validator(validateBookingId)
   .handler(restoreBookingHandler)
+
+// --- 6. BLOCKED / BLACKOUT DATES ---
+export interface CreateBlockedDateInput {
+  roomId?: string | null
+  startDate: string
+  endDate: string
+  reason: string
+}
+
+export function validateCreateBlockedDate(data: CreateBlockedDateInput) {
+  return data
+}
+
+export async function createBlockedDateHandler({
+  data,
+}: {
+  data: CreateBlockedDateInput
+}) {
+  const admin = await requirePermission('create:bookings')
+
+  const nights = calculateNights(data.startDate, data.endDate)
+  const bounds = getStayOverlapBounds(data.startDate, data.endDate)
+  const startDate = bounds.checkInTimestamp
+  const endDate = bounds.checkOutTimestamp
+  const reason = data.reason.trim() || 'Personal / Family Use'
+  const roomId = data.roomId?.trim() || null
+
+  const { created, scopeLabel } = await prisma.$transaction(
+    async (tx) => {
+      let targetRoom: {
+        id: string
+        roomNumber: string
+        name: string
+        type: string
+        deletedAt: Date | null
+      } | null = null
+
+      if (roomId) {
+        targetRoom = await tx.room.findUnique({
+          where: { id: roomId },
+          select: {
+            id: true,
+            roomNumber: true,
+            name: true,
+            type: true,
+            deletedAt: true,
+          },
+        })
+        if (!targetRoom || targetRoom.deletedAt) {
+          throw new Error('Selected room is not available.')
+        }
+      }
+
+      const blocksEntireProperty =
+        !targetRoom || isWholeHouseRoom(targetRoom)
+
+      const conflictingBooking = await tx.booking.findFirst({
+        where: {
+          deletedAt: null,
+          status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
+          ...(blocksEntireProperty
+            ? { room: { deletedAt: null } }
+            : {
+                OR: [
+                  { roomId: targetRoom!.id },
+                  {
+                    room: {
+                      deletedAt: null,
+                      type: { equals: 'Whole House', mode: 'insensitive' },
+                    },
+                  },
+                ],
+              }),
+        },
+        include: {
+          room: { select: { roomNumber: true, name: true } },
+        },
+      })
+
+      if (conflictingBooking) {
+        throw new Error(
+          `Cannot block these dates because Room ${conflictingBooking.room.roomNumber} (${conflictingBooking.room.name}) already has an active reservation (${conflictingBooking.bookingReference}).`,
+        )
+      }
+
+      const record = await tx.blockedDate.create({
+        data: {
+          roomId: targetRoom ? targetRoom.id : null,
+          startDate,
+          endDate,
+          reason,
+          createdById: admin.id,
+        },
+        include: {
+          room: {
+            select: {
+              id: true,
+              roomNumber: true,
+              name: true,
+              type: true,
+            },
+          },
+        },
+      })
+
+      return {
+        created: record,
+        scopeLabel: targetRoom
+          ? `Room ${targetRoom.roomNumber} (${targetRoom.name})`
+          : 'Entire Property (All Rooms)',
+      }
+    },
+    { isolationLevel: 'Serializable' },
+  )
+
+  const session = await authSession()
+  await logActivity({
+    userId: admin.id,
+    action: 'BLOCKED_DATE_CREATED',
+    description: `Blocked dates ${data.startDate} to ${data.endDate} (${nights} night(s)) for ${scopeLabel} — Reason: "${reason}"`,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
+  })
+
+  return {
+    success: true,
+    blockedDate: created,
+  }
+}
+
+export const createBlockedDate = createServerFn({ method: 'POST' })
+  .validator(validateCreateBlockedDate)
+  .handler(createBlockedDateHandler)
+
+export async function deleteBlockedDateHandler({
+  data,
+}: {
+  data: { id: string }
+}) {
+  const admin = await requirePermission('delete:bookings')
+
+  const existing = await prisma.blockedDate.findUnique({
+    where: { id: data.id },
+    include: {
+      room: { select: { roomNumber: true, name: true } },
+    },
+  })
+  if (!existing) {
+    throw new Error('Blocked date entry not found.')
+  }
+
+  await prisma.blockedDate.delete({
+    where: { id: data.id },
+  })
+
+  const scopeLabel = existing.room
+    ? `Room ${existing.room.roomNumber} (${existing.room.name})`
+    : 'Entire Property (All Rooms)'
+
+  const session = await authSession()
+  await logActivity({
+    userId: admin.id,
+    action: 'BLOCKED_DATE_DELETED',
+    description: `Unblocked dates (${existing.startDate.toISOString().slice(0, 10)} → ${existing.endDate.toISOString().slice(0, 10)}) for ${scopeLabel} ("${existing.reason}")`,
+    ipAddress: session.session.ipAddress ?? null,
+    userAgent: session.session.userAgent ?? null,
+  })
+
+  return { success: true }
+}
+
+export const deleteBlockedDate = createServerFn({ method: 'POST' })
+  .validator(validateBookingId)
+  .handler(deleteBlockedDateHandler)
