@@ -5,6 +5,7 @@ import { logActivity } from '#/lib/logger'
 import type { RoomStatus } from '@prisma/client'
 import { authSession } from '#/lib/auth-helpers'
 import {
+  DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
   isWholeHouseRoom,
 } from '#/lib/constants/rooms'
@@ -53,6 +54,10 @@ export async function getRoomsListHandler() {
       (room as { extraPersonFee?: unknown }).extraPersonFee ??
         DEFAULT_EXTRA_PERSON_FEE,
     ),
+    extraChildFee: Number(
+      (room as { extraChildFee?: unknown }).extraChildFee ??
+        DEFAULT_EXTRA_CHILD_FEE,
+    ),
     images: room.images
       .filter(
         (img) =>
@@ -77,6 +82,7 @@ export function validateCreateRoom(data: {
   capacity: number
   pricePerNight: number
   extraPersonFee?: number
+  extraChildFee?: number
   amenities?: string[]
   images?: string[]
 }) {
@@ -94,6 +100,7 @@ export async function createRoomHandler({
     capacity: number
     pricePerNight: number
     extraPersonFee?: number
+    extraChildFee?: number
     amenities?: string[]
     images?: string[]
   }
@@ -123,6 +130,10 @@ export async function createRoomHandler({
     data.extraPersonFee !== undefined
       ? Math.max(0, Number(data.extraPersonFee))
       : DEFAULT_EXTRA_PERSON_FEE
+  const extraChildFee =
+    data.extraChildFee !== undefined
+      ? Math.max(0, Number(data.extraChildFee))
+      : DEFAULT_EXTRA_CHILD_FEE
 
   const room = await prisma.room.create({
     data: {
@@ -133,6 +144,7 @@ export async function createRoomHandler({
       capacity: data.capacity,
       pricePerNight: data.pricePerNight,
       extraPersonFee,
+      extraChildFee,
       amenities: data.amenities,
       images: uploadedImages,
     },
@@ -177,6 +189,9 @@ export async function createRoomHandler({
       extraPersonFee: Number(
         (room as { extraPersonFee?: unknown }).extraPersonFee ?? extraPersonFee,
       ),
+      extraChildFee: Number(
+        (room as { extraChildFee?: unknown }).extraChildFee ?? extraChildFee,
+      ),
       images: room.images.map((img) => resolvePublicMediaUrl(img)),
     },
   }
@@ -196,6 +211,7 @@ export function validateUpdateRoom(data: {
   capacity?: number
   pricePerNight?: number
   extraPersonFee?: number
+  extraChildFee?: number
   status?: RoomStatus
   amenities?: string[]
   images?: string[]
@@ -215,6 +231,7 @@ export async function updateRoomHandler({
     capacity?: number
     pricePerNight?: number
     extraPersonFee?: number
+    extraChildFee?: number
     status?: RoomStatus
     amenities?: string[]
     images?: string[]
@@ -296,6 +313,9 @@ export async function updateRoomHandler({
       ...(data.extraPersonFee !== undefined
         ? { extraPersonFee: Math.max(0, Number(data.extraPersonFee)) }
         : {}),
+      ...(data.extraChildFee !== undefined
+        ? { extraChildFee: Math.max(0, Number(data.extraChildFee)) }
+        : {}),
       status: data.status,
       amenities: data.amenities,
       images: nextImages,
@@ -348,7 +368,19 @@ export async function updateRoomHandler({
     Number(data.extraPersonFee) !== existingExtraFee
   ) {
     changes.push(
-      `Extra Person Fee: ₱${existingExtraFee} → ₱${data.extraPersonFee}`,
+      `Extra Adult Fee: ₱${existingExtraFee} → ₱${data.extraPersonFee}`,
+    )
+  }
+  const existingChildFee = Number(
+    (existingRoom as { extraChildFee?: unknown }).extraChildFee ??
+      DEFAULT_EXTRA_CHILD_FEE,
+  )
+  if (
+    data.extraChildFee !== undefined &&
+    Number(data.extraChildFee) !== existingChildFee
+  ) {
+    changes.push(
+      `Extra Child Fee: ₱${existingChildFee} → ₱${data.extraChildFee}`,
     )
   }
   if (
@@ -418,6 +450,11 @@ export async function updateRoomHandler({
         (updatedRoom as { extraPersonFee?: unknown }).extraPersonFee ??
           data.extraPersonFee ??
           DEFAULT_EXTRA_PERSON_FEE,
+      ),
+      extraChildFee: Number(
+        (updatedRoom as { extraChildFee?: unknown }).extraChildFee ??
+          data.extraChildFee ??
+          DEFAULT_EXTRA_CHILD_FEE,
       ),
       images: updatedRoom.images.map((img) => resolvePublicMediaUrl(img)),
     },
@@ -536,6 +573,10 @@ export async function restoreRoomHandler({ data }: { data: { id: string } }) {
       extraPersonFee: Number(
         (restoredRoom as { extraPersonFee?: unknown }).extraPersonFee ??
           DEFAULT_EXTRA_PERSON_FEE,
+      ),
+      extraChildFee: Number(
+        (restoredRoom as { extraChildFee?: unknown }).extraChildFee ??
+          DEFAULT_EXTRA_CHILD_FEE,
       ),
     },
   }

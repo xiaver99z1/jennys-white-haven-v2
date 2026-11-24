@@ -127,6 +127,7 @@ model Room {
   pricePerNight  Decimal    @db.Decimal(10, 2)
   // Rollout note: apply schema changes (`pnpm db:push`) to existing databases before starting or serving requests with new builds (`pnpm build` only runs `prisma generate`).
   extraPersonFee Decimal    @default(500) @db.Decimal(10, 2)
+  extraChildFee  Decimal    @default(300) @db.Decimal(10, 2)
   status         RoomStatus @default(AVAILABLE)
   amenities     String[]   @default([])
   images        String[]   @default([])
@@ -135,6 +136,7 @@ model Room {
   deletedAt     DateTime?  // NULL = active room, Timestamp = deleted/archived
 
   bookings      Booking[]
+  blockedDates  BlockedDate[]
   media         RoomMedia[]
 
   createdAt     DateTime   @default(now())
@@ -144,6 +146,24 @@ model Room {
   @@index([type])
   @@index([deletedAt]) // Index for fast filtering of non-deleted rooms
   @@map("room")
+}
+
+model BlockedDate {
+  id          String   @id @default(cuid())
+  // null = Entire Property / Whole House (blocks all rooms and Whole House)
+  // non-null = blocks that specific room (and also blocks Whole House for those dates)
+  roomId      String?
+  room        Room?    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  reason      String   @default("Personal / Family Use")
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([roomId])
+  @@index([startDate, endDate])
+  @@map("blocked_date")
 }
 
 model Guest {

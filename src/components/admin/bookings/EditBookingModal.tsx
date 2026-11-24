@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { updateBooking, deleteBooking } from '#/server/booking-actions'
 import { X, CalendarCheck, Trash2 } from 'lucide-react'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
+import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterField'
 import {
   BOOKING_STATUSES,
+  DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
@@ -13,6 +15,7 @@ import {
   isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import type {
+  BlockedDateItem,
   BookedDateRange,
   BookingGuestOption,
   BookingItem,
@@ -38,6 +41,7 @@ interface EditBookingModalProps {
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
   existingBookings?: BookingItem[]
+  blockedDates?: BlockedDateItem[]
 }
 
 const getPositiveNights = (checkIn: string, checkOut: string) => {
@@ -57,7 +61,6 @@ const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({
   guestsCount: booking?.guestsCount ?? 2,
   extraAdults: 0,
   extraChildren: 0,
-  extraSeniors: 0,
   appliedExtraFee: 0,
   totalAmount: booking?.totalAmount ? Number(booking.totalAmount) : 0,
   amountPaid: booking?.amountPaid ? Number(booking.amountPaid) : 0,
@@ -79,6 +82,7 @@ export function EditBookingModal({
   rooms,
   guests,
   existingBookings = [],
+  blockedDates = [],
 }: EditBookingModalProps) {
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -103,27 +107,36 @@ export function EditBookingModal({
     [selectedRoom],
   )
 
+  const extraChildFeeRate = useMemo(
+    () => Number(selectedRoom?.extraChildFee ?? DEFAULT_EXTRA_CHILD_FEE),
+    [selectedRoom],
+  )
+
   const extraGuestsFeeTotal = useMemo(
-    () => calculateExtraGuestsFee(formData, extraPersonFeeRate, nights),
+    () =>
+      calculateExtraGuestsFee(
+        formData,
+        { extraAdultFee: extraPersonFeeRate, extraChildFee: extraChildFeeRate },
+        nights,
+      ),
     [
       formData.extraAdults,
       formData.extraChildren,
-      formData.extraSeniors,
       extraPersonFeeRate,
+      extraChildFeeRate,
       nights,
     ],
   )
 
   function handleExtraGuestChange(
-    field: 'extraAdults' | 'extraChildren' | 'extraSeniors',
-    rawValue: string,
+    field: 'extraAdults' | 'extraChildren',
+    nextVal: number,
   ) {
-    const nextVal = Math.max(0, Math.floor(Number(rawValue) || 0))
     setFormData((prev) => {
       const nextCounts = { ...prev, [field]: nextVal }
       const nextFee = calculateExtraGuestsFee(
         nextCounts,
-        extraPersonFeeRate,
+        { extraAdultFee: extraPersonFeeRate, extraChildFee: extraChildFeeRate },
         nights,
       )
       return {
@@ -140,12 +153,19 @@ export function EditBookingModal({
 
   function handleRoomChange(nextRoomId: string) {
     const nextRoom = rooms.find((r) => r.id === nextRoomId)
-    const nextRate = Number(
+    const nextAdultRate = Number(
       nextRoom?.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE,
+    )
+    const nextChildRate = Number(
+      nextRoom?.extraChildFee ?? DEFAULT_EXTRA_CHILD_FEE,
     )
     setFormData((prev) => {
       const nextNights = getPositiveNights(prev.checkIn, prev.checkOut)
-      const nextFee = calculateExtraGuestsFee(prev, nextRate, nextNights)
+      const nextFee = calculateExtraGuestsFee(
+        prev,
+        { extraAdultFee: nextAdultRate, extraChildFee: nextChildRate },
+        nextNights,
+      )
       return {
         ...prev,
         roomId: nextRoomId,
@@ -169,7 +189,7 @@ export function EditBookingModal({
       const nextNights = getPositiveNights(checkIn, checkOut)
       const nextFee = calculateExtraGuestsFee(
         prev,
-        extraPersonFeeRate,
+        { extraAdultFee: extraPersonFeeRate, extraChildFee: extraChildFeeRate },
         nextNights,
       )
       return {
@@ -187,7 +207,7 @@ export function EditBookingModal({
 
   const roomBookedRanges = useMemo<BookedDateRange[]>(() => {
     const selectedIsWholeHouse = isWholeHouseRoom(selectedRoom)
-    return existingBookings
+    const fromBookings = existingBookings
       .filter(
         (b) =>
           b.id !== booking?.id &&
@@ -201,8 +221,22 @@ export function EditBookingModal({
         checkIn: formatDateInput(b.checkIn),
         checkOut: formatDateInput(b.checkOut),
       }))
-      .filter((r) => Boolean(r.checkIn) && Boolean(r.checkOut))
-  }, [existingBookings, booking?.id, formData.roomId, selectedRoom])
+    const fromBlocked = blockedDates
+      .filter(
+        (bd) =>
+          selectedIsWholeHouse ||
+          !bd.roomId ||
+          bd.roomId === formData.roomId ||
+          isWholeHouseRoom(bd.room),
+      )
+      .map((bd) => ({
+        checkIn: formatDateInput(bd.startDate),
+        checkOut: formatDateInput(bd.endDate),
+      }))
+    return [...fromBookings, ...fromBlocked].filter(
+      (r) => Boolean(r.checkIn) && Boolean(r.checkOut),
+    )
+  }, [existingBookings, blockedDates, booking?.id, formData.roomId, selectedRoom])
 
   useEffect(() => {
     if (booking) {
@@ -255,7 +289,7 @@ export function EditBookingModal({
     try {
       const extraNote = formatExtraGuestsNote(
         formData,
-        extraPersonFeeRate,
+        { extraAdultFee: extraPersonFeeRate, extraChildFee: extraChildFeeRate },
         nights,
       )
       const combinedSpecialRequests = [
@@ -434,79 +468,23 @@ export function EditBookingModal({
                 </div>
               </div>
 
-              {/* Additional Persons (Child / Adult / Senior) Auto-Compute */}
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-stone-700 uppercase tracking-wider">
-                    Add Extra Persons (Auto-Compute Fee)
-                  </span>
-                  <span className="text-[11px] font-semibold text-amber-800">
-                    +₱{extraPersonFeeRate.toLocaleString()}/night each
-                    {extraGuestsFeeTotal > 0
-                      ? ` (+₱${extraGuestsFeeTotal.toLocaleString()})`
-                      : ''}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label
-                      htmlFor="edit-booking-extra-adults"
-                      className="block text-[11px] font-medium text-stone-600 mb-1"
-                    >
-                      Adult
-                    </label>
-                    <input
-                      id="edit-booking-extra-adults"
-                      type="number"
-                      min={0}
-                      max={20}
-                      value={formData.extraAdults}
-                      onChange={(e) =>
-                        handleExtraGuestChange('extraAdults', e.target.value)
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="edit-booking-extra-children"
-                      className="block text-[11px] font-medium text-stone-600 mb-1"
-                    >
-                      Child
-                    </label>
-                    <input
-                      id="edit-booking-extra-children"
-                      type="number"
-                      min={0}
-                      max={20}
-                      value={formData.extraChildren}
-                      onChange={(e) =>
-                        handleExtraGuestChange('extraChildren', e.target.value)
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="edit-booking-extra-seniors"
-                      className="block text-[11px] font-medium text-stone-600 mb-1"
-                    >
-                      Senior
-                    </label>
-                    <input
-                      id="edit-booking-extra-seniors"
-                      type="number"
-                      min={0}
-                      max={20}
-                      value={formData.extraSeniors}
-                      onChange={(e) =>
-                        handleExtraGuestChange('extraSeniors', e.target.value)
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                    />
-                  </div>
-                </div>
-              </div>
+              {/* Additional Persons (Adult / Child) Mobile-Friendly Auto-Compute */}
+              <ExtraGuestsCounterField
+                idPrefix="edit-booking"
+                variant="admin"
+                extraAdults={formData.extraAdults}
+                extraChildren={formData.extraChildren}
+                extraAdultFee={extraPersonFeeRate}
+                extraChildFee={extraChildFeeRate}
+                extraTotalFee={extraGuestsFeeTotal}
+                maxPerCategory={20}
+                onChangeAdults={(count) =>
+                  handleExtraGuestChange('extraAdults', count)
+                }
+                onChangeChildren={(count) =>
+                  handleExtraGuestChange('extraChildren', count)
+                }
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

@@ -10,6 +10,7 @@ import {
   Check,
 } from 'lucide-react'
 import {
+  DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
   DEFAULT_WHOLE_HOUSE_PRICE,
   ROOM_TYPES,
@@ -38,6 +39,7 @@ interface EditRoomModalProps {
     capacity: number
     pricePerNight: number | any
     extraPersonFee?: number | any
+    extraChildFee?: number | any
     status: string
     amenities: string[]
     images?: string[]
@@ -56,6 +58,10 @@ const getInitialFormData = (room: EditRoomModalProps['room']) => ({
     room?.extraPersonFee !== undefined
       ? Number(room.extraPersonFee)
       : DEFAULT_EXTRA_PERSON_FEE,
+  extraChildFee:
+    room?.extraChildFee !== undefined
+      ? Number(room.extraChildFee)
+      : DEFAULT_EXTRA_CHILD_FEE,
   status: (room?.status ?? 'AVAILABLE') as RoomStatus,
   amenities: room?.amenities ?? [],
   images: room?.images ?? [],
@@ -107,6 +113,7 @@ export function EditRoomModal({
     if (formData.capacity !== initial.capacity) return true
     if (formData.pricePerNight !== initial.pricePerNight) return true
     if (formData.extraPersonFee !== initial.extraPersonFee) return true
+    if (formData.extraChildFee !== initial.extraChildFee) return true
     if (formData.status !== initial.status) return true
 
     // Compare amenities array
@@ -199,6 +206,7 @@ export function EditRoomModal({
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
           extraPersonFee: Number(formData.extraPersonFee),
+          extraChildFee: Number(formData.extraChildFee),
           status: formData.status,
           amenities: formData.amenities,
           images: formData.images,
@@ -434,7 +442,7 @@ export function EditRoomModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
                     Capacity (Guests)
@@ -456,18 +464,39 @@ export function EditRoomModal({
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    Extra Person Fee (₱/night)
+                    Extra Adult Fee (₱/night)
                   </label>
                   <input
                     type="number"
                     min={0}
                     step="50"
                     required
-                    value={formData.extraPersonFee}
+                    placeholder="0"
+                    value={formData.extraPersonFee === 0 ? '' : formData.extraPersonFee}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        extraPersonFee: Number(e.target.value),
+                        extraPersonFee: Number(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Extra Child Fee (₱/night)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="50"
+                    required
+                    placeholder="0"
+                    value={formData.extraChildFee === 0 ? '' : formData.extraChildFee}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraChildFee: Number(e.target.value) || 0,
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"

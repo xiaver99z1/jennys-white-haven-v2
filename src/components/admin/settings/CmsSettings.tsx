@@ -430,13 +430,15 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                   <div className="text-xs font-semibold truncate">
                     {sectionMeta.label}
                   </div>
-                  {section.key !== 'hero' && section.title && (
+                  {section.key !== 'hero' && (
                     <div
                       className={`hidden lg:block text-[11px] truncate ${
                         isSelected ? 'text-stone-300' : 'text-stone-400'
                       }`}
                     >
-                      {section.title}
+                      {sectionMeta.showTitle !== false && section.title
+                        ? section.title
+                        : section.metadata.eyebrow || sectionMeta.description}
                     </div>
                   )}
                 </div>
@@ -558,91 +560,104 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
               />
             ) : (
               <>
-                {/* Primary Content Fields (all optional) */}
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label
-                      htmlFor="cms-title"
-                      className="block text-xs font-semibold text-stone-700 mb-1.5"
-                    >
-                      Section Title
-                    </label>
-                    <input
-                      id="cms-title"
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                    />
-                  </div>
+                {/* Primary Content Fields (only render fields used on the client site for this section) */}
+                {(meta.showTitle !== false ||
+                  meta.showSubtitle !== false ||
+                  meta.showBody !== false ||
+                  meta.showCta !== false) && (
+                  <div className="grid grid-cols-1 gap-4">
+                    {meta.showTitle !== false && (
+                      <div>
+                        <label
+                          htmlFor="cms-title"
+                          className="block text-xs font-semibold text-stone-700 mb-1.5"
+                        >
+                          Section Title
+                        </label>
+                        <input
+                          id="cms-title"
+                          type="text"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                        />
+                      </div>
+                    )}
 
-                  <div>
-                    <label
-                      htmlFor="cms-subtitle"
-                      className="block text-xs font-semibold text-stone-700 mb-1.5"
-                    >
-                      Subtitle
-                    </label>
-                    <input
-                      id="cms-subtitle"
-                      type="text"
-                      value={subtitle}
-                      onChange={(e) => setSubtitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                    />
-                  </div>
+                    {meta.showSubtitle !== false && (
+                      <div>
+                        <label
+                          htmlFor="cms-subtitle"
+                          className="block text-xs font-semibold text-stone-700 mb-1.5"
+                        >
+                          Subtitle
+                        </label>
+                        <input
+                          id="cms-subtitle"
+                          type="text"
+                          value={subtitle}
+                          onChange={(e) => setSubtitle(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                        />
+                      </div>
+                    )}
 
-                  <div>
-                    <label
-                      htmlFor="cms-body"
-                      className="block text-xs font-semibold text-stone-700 mb-1.5"
-                    >
-                      Body Copy
-                    </label>
-                    <textarea
-                      id="cms-body"
-                      rows={4}
-                      value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                    />
-                  </div>
+                    {meta.showBody !== false && (
+                      <div>
+                        <label
+                          htmlFor="cms-body"
+                          className="block text-xs font-semibold text-stone-700 mb-1.5"
+                        >
+                          Body Copy
+                        </label>
+                        <textarea
+                          id="cms-body"
+                          rows={4}
+                          value={body}
+                          onChange={(e) => setBody(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                        />
+                      </div>
+                    )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        htmlFor="cms-cta-label"
-                        className="block text-xs font-semibold text-stone-700 mb-1.5"
-                      >
-                        Button / CTA Label
-                      </label>
-                      <input
-                        id="cms-cta-label"
-                        type="text"
-                        value={ctaLabel}
-                        onChange={(e) => setCtaLabel(e.target.value)}
-                        placeholder="Explore Rooms"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="cms-cta-href"
-                        className="block text-xs font-semibold text-stone-700 mb-1.5"
-                      >
-                        Button / CTA Link
-                      </label>
-                      <input
-                        id="cms-cta-href"
-                        type="text"
-                        value={ctaHref}
-                        onChange={(e) => setCtaHref(e.target.value)}
-                        placeholder="/rooms"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
-                      />
-                    </div>
+                    {meta.showCta !== false && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label
+                            htmlFor="cms-cta-label"
+                            className="block text-xs font-semibold text-stone-700 mb-1.5"
+                          >
+                            Button / CTA Label
+                          </label>
+                          <input
+                            id="cms-cta-label"
+                            type="text"
+                            value={ctaLabel}
+                            onChange={(e) => setCtaLabel(e.target.value)}
+                            placeholder="Explore Rooms"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="cms-cta-href"
+                            className="block text-xs font-semibold text-stone-700 mb-1.5"
+                          >
+                            Button / CTA Link
+                          </label>
+                          <input
+                            id="cms-cta-href"
+                            type="text"
+                            value={ctaHref}
+                            onChange={(e) => setCtaHref(e.target.value)}
+                            placeholder="/rooms"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
 
                 {/* Section-Specific Metadata Fields */}
                 {meta.metadataFields.length > 0 && (
@@ -711,8 +726,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                   />
                 )}
 
-                {/* Images Manager */}
-                <div className="pt-4 border-t border-stone-100 space-y-4">
+                {/* Images Manager (only for sections that display section/gallery images on the client site) */}
+                {meta.showImages !== false && (
+                  <div className="pt-4 border-t border-stone-100 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
@@ -948,6 +964,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                     </div>
                   )}
                 </div>
+                )}
               </>
             )}
 

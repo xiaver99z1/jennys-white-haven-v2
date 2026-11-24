@@ -6,10 +6,8 @@ import { getPublicCmsSections } from '#/server/cms-actions'
 import { createPublicBooking, getPublicRoomById } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
-import {
-  calculateExtraGuestsFee,
-  getTotalExtraGuests,
-} from '#/lib/constants/rooms'
+import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterField'
+import { calculateExtraGuestsFee } from '#/lib/constants/rooms'
 import {
   formatPeso,
   getErrorMessage,
@@ -82,7 +80,6 @@ function PublicRoomDetailPage() {
   )
   const [extraChildren, setExtraChildren] = useState(0)
   const [extraAdults, setExtraAdults] = useState(0)
-  const [extraSeniors, setExtraSeniors] = useState(0)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -120,13 +117,13 @@ function PublicRoomDetailPage() {
   }
 
   const nights = computeNightCount(checkIn, checkOut)
-  const extraCounts = { extraChildren, extraAdults, extraSeniors }
-  const totalExtraGuests = getTotalExtraGuests(extraCounts)
-  const extraPersonFeeRate = room.extraPersonFee
+  const extraCounts = { extraChildren, extraAdults }
+  const extraAdultFeeRate = room.extraPersonFee
+  const extraChildFeeRate = room.extraChildFee
   const baseRoomTotal = nights * room.pricePerNight
   const extraGuestsTotal = calculateExtraGuestsFee(
     extraCounts,
-    extraPersonFeeRate,
+    { extraAdultFee: extraAdultFeeRate, extraChildFee: extraChildFeeRate },
     nights,
   )
   const estimatedTotal = baseRoomTotal + extraGuestsTotal
@@ -150,7 +147,6 @@ function PublicRoomDetailPage() {
           guestsCount,
           extraChildren,
           extraAdults,
-          extraSeniors,
           firstName,
           lastName,
           phone,
@@ -384,82 +380,19 @@ function PublicRoomDetailPage() {
                     </select>
                   </div>
 
-                  {/* Additional Persons (Child / Adult / Senior) Auto-Compute */}
-                  <div className="rounded-2xl bg-[#FAF8F4] border border-stone-200/80 p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-stone-600 font-semibold">
-                        Additional Persons (Optional)
-                      </span>
-                      <span className="text-[11px] font-semibold text-amber-900">
-                        +{formatPeso(extraPersonFeeRate)} / night each
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2.5">
-                      <div>
-                        <label
-                          htmlFor="book-extra-adults"
-                          className="block text-[11px] text-stone-500 font-medium mb-1"
-                        >
-                          Adult
-                        </label>
-                        <input
-                          id="book-extra-adults"
-                          type="number"
-                          min={0}
-                          max={15}
-                          value={extraAdults}
-                          onChange={(e) =>
-                            setExtraAdults(
-                              Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                            )
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 text-sm text-stone-900"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="book-extra-children"
-                          className="block text-[11px] text-stone-500 font-medium mb-1"
-                        >
-                          Child
-                        </label>
-                        <input
-                          id="book-extra-children"
-                          type="number"
-                          min={0}
-                          max={15}
-                          value={extraChildren}
-                          onChange={(e) =>
-                            setExtraChildren(
-                              Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                            )
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 text-sm text-stone-900"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="book-extra-seniors"
-                          className="block text-[11px] text-stone-500 font-medium mb-1"
-                        >
-                          Senior
-                        </label>
-                        <input
-                          id="book-extra-seniors"
-                          type="number"
-                          min={0}
-                          max={15}
-                          value={extraSeniors}
-                          onChange={(e) =>
-                            setExtraSeniors(
-                              Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                            )
-                          }
-                          className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 text-sm text-stone-900"
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  {/* Additional Persons (Adult / Child) Mobile-Friendly Auto-Compute */}
+                  <ExtraGuestsCounterField
+                    idPrefix="book"
+                    variant="public"
+                    extraAdults={extraAdults}
+                    extraChildren={extraChildren}
+                    extraAdultFee={extraAdultFeeRate}
+                    extraChildFee={extraChildFeeRate}
+                    extraTotalFee={extraGuestsTotal}
+                    maxPerCategory={15}
+                    onChangeAdults={setExtraAdults}
+                    onChangeChildren={setExtraChildren}
+                  />
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -556,14 +489,28 @@ function PublicRoomDetailPage() {
                         </span>
                         <span>{formatPeso(baseRoomTotal)}</span>
                       </div>
-                      {totalExtraGuests > 0 && (
+                      {extraAdults > 0 && (
                         <div className="flex justify-between text-amber-900">
                           <span>
-                            +{totalExtraGuests} extra{' '}
-                            {totalExtraGuests === 1 ? 'person' : 'persons'} ×{' '}
-                            {formatPeso(extraPersonFeeRate)} × {nights}n
+                            +{extraAdults} extra{' '}
+                            {extraAdults === 1 ? 'adult' : 'adults'} ×{' '}
+                            {formatPeso(extraAdultFeeRate)} × {nights}n
                           </span>
-                          <span>+{formatPeso(extraGuestsTotal)}</span>
+                          <span>
+                            +{formatPeso(extraAdults * extraAdultFeeRate * nights)}
+                          </span>
+                        </div>
+                      )}
+                      {extraChildren > 0 && (
+                        <div className="flex justify-between text-amber-900">
+                          <span>
+                            +{extraChildren} extra{' '}
+                            {extraChildren === 1 ? 'child' : 'children'} ×{' '}
+                            {formatPeso(extraChildFeeRate)} × {nights}n
+                          </span>
+                          <span>
+                            +{formatPeso(extraChildren * extraChildFeeRate * nights)}
+                          </span>
                         </div>
                       )}
                       <div className="flex justify-between font-semibold text-stone-900 pt-1.5 border-t border-stone-200/70">

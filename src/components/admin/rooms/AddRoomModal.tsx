@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
 import {
+  DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
   DEFAULT_WHOLE_HOUSE_PRICE,
   ROOM_TYPES,
@@ -43,6 +44,7 @@ export function AddRoomModal({
     capacity: 2,
     pricePerNight: 2500,
     extraPersonFee: DEFAULT_EXTRA_PERSON_FEE,
+    extraChildFee: DEFAULT_EXTRA_CHILD_FEE,
     amenities: [
       'Wi-Fi',
       'Air conditioning / heating',
@@ -113,6 +115,7 @@ export function AddRoomModal({
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
           extraPersonFee: Number(formData.extraPersonFee),
+          extraChildFee: Number(formData.extraChildFee),
           amenities: formData.amenities,
           images: formData.images,
         },
@@ -128,6 +131,7 @@ export function AddRoomModal({
         capacity: 2,
         pricePerNight: 2500,
         extraPersonFee: DEFAULT_EXTRA_PERSON_FEE,
+        extraChildFee: DEFAULT_EXTRA_CHILD_FEE,
         amenities: [
           'Wi-Fi',
           'Air conditioning / heating',
@@ -313,7 +317,7 @@ export function AddRoomModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
                     Capacity (Guests)
@@ -335,18 +339,19 @@ export function AddRoomModal({
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    Price Per Night (₱)
+                    Price / Night (₱)
                   </label>
                   <input
                     type="number"
                     min={0}
                     step="50"
                     required
-                    value={formData.pricePerNight}
+                    placeholder="0"
+                    value={formData.pricePerNight === 0 ? '' : formData.pricePerNight}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        pricePerNight: Number(e.target.value),
+                        pricePerNight: Number(e.target.value) || 0,
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
@@ -354,18 +359,39 @@ export function AddRoomModal({
                 </div>
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    Extra Person Fee (₱/night)
+                    Extra Adult (₱/n)
                   </label>
                   <input
                     type="number"
                     min={0}
                     step="50"
                     required
-                    value={formData.extraPersonFee}
+                    placeholder="0"
+                    value={formData.extraPersonFee === 0 ? '' : formData.extraPersonFee}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        extraPersonFee: Number(e.target.value),
+                        extraPersonFee: Number(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Extra Child (₱/n)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="50"
+                    required
+                    placeholder="0"
+                    value={formData.extraChildFee === 0 ? '' : formData.extraChildFee}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraChildFee: Number(e.target.value) || 0,
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"

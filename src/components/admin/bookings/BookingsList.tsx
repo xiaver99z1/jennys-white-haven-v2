@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { AddBookingModal } from '#/components/admin/bookings/AddBookingModal'
+import { BlockedDatesModal } from '#/components/admin/bookings/BlockedDatesModal'
 import { EditBookingModal } from '#/components/admin/bookings/EditBookingModal'
 import { BookingCalendar } from '#/components/admin/bookings/BookingCalendar'
 import { PaymentHistoryModal } from '#/components/admin/bookings/PaymentHistoryModal'
 import type {
   AdminRouter,
+  BlockedDateItem,
   BookingGuestOption,
   BookingItem,
   BookingRoomOption,
@@ -35,6 +37,7 @@ import {
   Loader2,
   List,
   CalendarDays,
+  CalendarOff,
   Receipt,
 } from 'lucide-react'
 
@@ -42,6 +45,7 @@ interface BookingsListProps {
   initialBookings: BookingItem[]
   rooms: BookingRoomOption[]
   guests: BookingGuestOption[]
+  blockedDates?: BlockedDateItem[]
   router: AdminRouter
 }
 
@@ -49,6 +53,7 @@ export function BookingsList({
   initialBookings,
   rooms,
   guests,
+  blockedDates = [],
   router,
 }: BookingsListProps) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -57,6 +62,7 @@ export function BookingsList({
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isBlockedDatesOpen, setIsBlockedDatesOpen] = useState(false)
   const [editingBooking, setEditingBooking] = useState<BookingItem | null>(null)
   const [paymentBookingId, setPaymentBookingId] = useState<string | null>(null)
   const paymentBooking =
@@ -150,6 +156,19 @@ export function BookingsList({
             </button>
           </div>
           <button
+            type="button"
+            onClick={() => setIsBlockedDatesOpen(true)}
+            className="px-3.5 py-2.5 bg-white hover:bg-rose-50 text-stone-700 hover:text-rose-800 border border-stone-200 hover:border-rose-300 font-semibold rounded-xl shadow-2xs flex items-center gap-2 text-xs transition cursor-pointer"
+          >
+            <CalendarOff className="w-4 h-4 text-rose-700" />
+            <span>Block Dates</span>
+            {blockedDates.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold">
+                {blockedDates.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2.5 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-xl shadow-xs flex items-center gap-2 text-xs transition cursor-pointer"
           >
@@ -157,6 +176,37 @@ export function BookingsList({
           </button>
         </div>
       </div>
+
+      {blockedDates.length > 0 && (
+        <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-2.5 text-xs">
+            <CalendarOff className="w-4 h-4 text-rose-700 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="text-stone-700">
+              <span className="font-bold text-rose-950">
+                {blockedDates.length} Blocked Date{' '}
+                {blockedDates.length === 1 ? 'Range' : 'Ranges'}:
+              </span>{' '}
+              {blockedDates
+                .slice(0, 3)
+                .map(
+                  (bd) =>
+                    `${bd.room ? `Room ${bd.room.roomNumber}` : 'Entire Property'} (${formatDate(bd.startDate)} → ${formatDate(bd.endDate)}: ${bd.reason})`,
+                )
+                .join(' · ')}
+              {blockedDates.length > 3
+                ? ` · +${blockedDates.length - 3} more`
+                : ''}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsBlockedDatesOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-semibold transition cursor-pointer self-start sm:self-auto shrink-0"
+          >
+            Manage Blocked Dates
+          </button>
+        </div>
+      )}
 
       {actionError && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
@@ -168,7 +218,9 @@ export function BookingsList({
         <BookingCalendar
           bookings={initialBookings}
           rooms={rooms}
+          blockedDates={blockedDates}
           onSelectBooking={(booking) => setEditingBooking(booking)}
+          onManageBlockedDates={() => setIsBlockedDatesOpen(true)}
         />
       ) : (
         <>
@@ -425,6 +477,19 @@ export function BookingsList({
         rooms={rooms}
         guests={guests}
         existingBookings={initialBookings}
+        blockedDates={blockedDates}
+      />
+
+      {/* Blocked Dates Modal */}
+      <BlockedDatesModal
+        isOpen={isBlockedDatesOpen}
+        onClose={() => setIsBlockedDatesOpen(false)}
+        onSuccess={async () => {
+          await router.invalidate()
+        }}
+        rooms={rooms}
+        blockedDates={blockedDates}
+        existingBookings={initialBookings}
       />
 
       {/* Edit Booking Modal */}
@@ -434,6 +499,7 @@ export function BookingsList({
         rooms={rooms}
         guests={guests}
         existingBookings={initialBookings}
+        blockedDates={blockedDates}
         onClose={() => setEditingBooking(null)}
         onSaveStart={(id) => setSavingId(id)}
         onSaveError={() => setSavingId(null)}
