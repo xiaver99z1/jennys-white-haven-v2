@@ -24,6 +24,10 @@ vi.mock('#/lib/prisma', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    booking: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
   },
 }))
 
@@ -53,6 +57,7 @@ describe('room-actions handlers and validators', () => {
       session: { ipAddress: '127.0.0.1', userAgent: 'Vitest' },
     } as any)
     vi.mocked(hasPermission).mockReturnValue(true)
+    vi.mocked(prisma.booking.findMany).mockResolvedValue([])
   })
 
   describe('getImageNames utility', () => {
@@ -324,6 +329,36 @@ describe('room-actions handlers and validators', () => {
       await expect(
         updateRoomHandler({ data: { id: 'missing', name: 'Test' } }),
       ).rejects.toThrow('Room not found.')
+    })
+
+    it('blocks converting an existing room to Whole House when its active bookings overlap with another room', async () => {
+      vi.mocked(prisma.room.findUnique).mockResolvedValueOnce(
+        existingRoomWithDetails as any,
+      )
+      vi.mocked(prisma.booking.findMany).mockResolvedValueOnce([
+        {
+          id: 'b-own',
+          bookingReference: 'JWH-20261120-OWN1',
+          checkIn: new Date('2026-11-20'),
+          checkOut: new Date('2026-11-22'),
+        },
+      ] as any)
+      vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+        id: 'b-other',
+        bookingReference: 'JWH-20261121-OTH2',
+        room: { roomNumber: '102', name: 'Deluxe Room' },
+      } as any)
+
+      await expect(
+        updateRoomHandler({
+          data: {
+            id: 'room-1',
+            type: 'Whole House',
+          },
+        }),
+      ).rejects.toThrow(
+        'Cannot convert Room 101 to Whole House because its active booking (JWH-20261120-OWN1) overlaps with Room 102 (JWH-20261121-OTH2).',
+      )
     })
   })
 

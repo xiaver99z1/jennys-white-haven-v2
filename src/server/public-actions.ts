@@ -347,12 +347,24 @@ export async function createPublicBookingHandler({
 
       const duplicatePending = await tx.booking.findFirst({
         where: {
-          roomId: data.roomId,
           guestId: guest.id,
           deletedAt: null,
           status: 'PENDING',
           checkIn: { lt: checkOutDate },
           checkOut: { gt: checkInDate },
+          ...(isWholeHouse
+            ? { room: { deletedAt: null } }
+            : {
+                OR: [
+                  { roomId: data.roomId },
+                  {
+                    room: {
+                      deletedAt: null,
+                      type: { equals: 'Whole House', mode: 'insensitive' },
+                    },
+                  },
+                ],
+              }),
         },
         select: { bookingReference: true },
       })
