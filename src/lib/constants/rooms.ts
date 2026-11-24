@@ -105,6 +105,55 @@ export function formatExtraGuestsNote(
   return `[Additional Persons: ${parts.join(', ')} · +₱${feeTotal.toLocaleString()}]`
 }
 
+const EXTRA_GUESTS_NOTE_REGEX = /\[Additional Persons:\s*([^\]]+)\]/gi
+
+export function parseExtraGuestsFromSpecialRequests(
+  rawSpecialRequests?: string | null,
+): {
+  extraAdults: number
+  extraChildren: number
+  appliedExtraFee: number
+  cleanSpecialRequests: string
+} {
+  const raw = rawSpecialRequests ?? ''
+  let extraAdults = 0
+  let extraChildren = 0
+  let appliedExtraFee = 0
+
+  const matches = Array.from(raw.matchAll(EXTRA_GUESTS_NOTE_REGEX))
+  if (matches.length > 0) {
+    const lastMatchBody = matches[matches.length - 1][1]
+    const adultMatch = lastMatchBody.match(/(\d+)\s+Adults?/i)
+    const childMatch = lastMatchBody.match(/(\d+)\s+Child(?:ren)?/i)
+    const feeMatch = lastMatchBody.match(/\+₱([\d,]+(?:\.\d+)?)/)
+
+    if (adultMatch) {
+      extraAdults = Math.max(0, Number.parseInt(adultMatch[1], 10) || 0)
+    }
+    if (childMatch) {
+      extraChildren = Math.max(0, Number.parseInt(childMatch[1], 10) || 0)
+    }
+    if (feeMatch) {
+      appliedExtraFee = Math.max(
+        0,
+        Number(feeMatch[1].replace(/,/g, '')) || 0,
+      )
+    }
+  }
+
+  const cleanSpecialRequests = raw
+    .replace(EXTRA_GUESTS_NOTE_REGEX, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  return {
+    extraAdults,
+    extraChildren,
+    appliedExtraFee,
+    cleanSpecialRequests,
+  }
+}
+
 export function isWholeHouseRoom(
   room?: { type?: string | null } | null,
 ): boolean {

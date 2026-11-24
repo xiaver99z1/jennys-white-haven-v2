@@ -61,6 +61,38 @@ export function generateBookingReference(
   return `JWH-${yyyy}${mm}${dd}-${rand}`
 }
 
+const PH_OFFSET_MS = 8 * 60 * 60 * 1000
+
+export function toStayCalendarDay(dateInput: string | Date): string {
+  if (
+    typeof dateInput === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())
+  ) {
+    return dateInput.trim()
+  }
+  const d = new Date(dateInput)
+  if (Number.isNaN(d.getTime())) {
+    throw new Error('Invalid check-in or check-out date.')
+  }
+  return new Date(d.getTime() + PH_OFFSET_MS).toISOString().slice(0, 10)
+}
+
+export function getStayOverlapBounds(
+  checkIn: string | Date,
+  checkOut: string | Date,
+) {
+  const startDay = toStayCalendarDay(checkIn)
+  const endDay = toStayCalendarDay(checkOut)
+  return {
+    startDay,
+    endDay,
+    checkInTimestamp: new Date(`${startDay}T14:00:00+08:00`),
+    checkOutTimestamp: new Date(`${endDay}T12:00:00+08:00`),
+    ltUpperBound: new Date(`${endDay}T00:00:00.000Z`),
+    gtLowerBound: new Date(`${startDay}T14:00:00+08:00`),
+  }
+}
+
 async function assertNoBookingOverlap(
   tx: {
     booking: {
@@ -93,18 +125,21 @@ async function assertNoBookingOverlap(
   const isWholeHouse = isWholeHouseRoom(targetRoom)
   const prefix = actionPrefix ? `${actionPrefix}: ` : ''
   const datePhrase = actionPrefix ? 'those dates' : 'the selected dates'
+  const bounds = getStayOverlapBounds(checkInDate, checkOutDate)
 
   if (tx.blockedDate?.findFirst) {
     const overlappingBlock = await tx.blockedDate.findFirst({
       where: {
-        startDate: { lt: checkOutDate },
-        endDate: { gt: checkInDate },
+        startDate: { lt: bounds.ltUpperBound },
+        endDate: { gt: bounds.gtLowerBound },
         ...(isWholeHouse
-          ? {}
+          ? {
+              OR: [{ roomId: null }, { room: { deletedAt: null } }],
+            }
           : {
               OR: [
                 { roomId: null },
-                { roomId: targetRoom.id },
+                { roomId: targetRoom.id, room: { deletedAt: null } },
                 {
                   room: {
                     deletedAt: null,
@@ -147,8 +182,8 @@ async function assertNoBookingOverlap(
       ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
       deletedAt: null,
       status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-      checkIn: { lt: checkOutDate },
-      checkOut: { gt: checkInDate },
+      checkIn: { lt: bounds.ltUpperBound },
+      checkOut: { gt: bounds.gtLowerBound },
       ...(isWholeHouse
         ? { room: { deletedAt: null } }
         : {
@@ -214,6 +249,9 @@ export async function getBookingsListHandler() {
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     }),
     prisma.blockedDate.findMany({
+      where: {
+        OR: [{ roomId: null }, { room: { deletedAt: null } }],
+      },
       include: {
         room: {
           select: {
@@ -808,8 +846,9 @@ export async function createBlockedDateHandler({
   const admin = await requirePermission('create:bookings')
 
   const nights = calculateNights(data.startDate, data.endDate)
-  const startDate = new Date(data.startDate)
-  const endDate = new Date(data.endDate)
+  const bounds = getStayOverlapBounds(data.startDate, data.endDate)
+  const startDate = bounds.checkInTimestamp
+  const endDate = bounds.checkOutTimestamp
   const reason = data.reason.trim() || 'Personal / Family Use'
   const roomId = data.roomId?.trim() || null
 
@@ -846,8 +885,8 @@ export async function createBlockedDateHandler({
         where: {
           deletedAt: null,
           status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] },
-          checkIn: { lt: endDate },
-          checkOut: { gt: startDate },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
           ...(blocksEntireProperty
             ? { room: { deletedAt: null } }
             : {

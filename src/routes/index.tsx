@@ -438,7 +438,7 @@ function LandingPage() {
 
       <SectionPhotoGalleryModal
         isOpen={selectedTopPhotoIdx !== null}
-        sectionTitle={story?.title || 'The Sanctuary'}
+        sectionTitle={story?.metadata.eyebrow || 'The Sanctuary'}
         sectionEyebrow={story?.metadata.eyebrow || 'The Sanctuary'}
         photos={topSixGalleryPhotos}
         initialMode="lightbox"

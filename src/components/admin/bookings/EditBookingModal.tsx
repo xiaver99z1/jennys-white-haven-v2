@@ -11,8 +11,8 @@ import {
   PAYMENT_METHODS,
   calculateExtraGuestsFee,
   formatExtraGuestsNote,
-  getTotalExtraGuests,
   isWholeHouseRoom,
+  parseExtraGuestsFromSpecialRequests,
 } from '#/lib/constants/rooms'
 import type {
   BlockedDateItem,
@@ -53,22 +53,47 @@ const getPositiveNights = (checkIn: string, checkOut: string) => {
   return diff > 0 ? diff : 1
 }
 
-const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({
-  roomId: booking?.roomId ?? '',
-  guestId: booking?.guestId ?? '',
-  checkIn: formatDateInput(booking?.checkIn),
-  checkOut: formatDateInput(booking?.checkOut),
-  guestsCount: booking?.guestsCount ?? 2,
-  extraAdults: 0,
-  extraChildren: 0,
-  appliedExtraFee: 0,
-  totalAmount: booking?.totalAmount ? Number(booking.totalAmount) : 0,
-  amountPaid: booking?.amountPaid ? Number(booking.amountPaid) : 0,
-  paymentStatus: (booking?.paymentStatus ?? 'UNPAID') as PaymentStatus,
-  paymentMethod: (booking?.paymentMethod ?? '') as PaymentMethod | '',
-  status: (booking?.status ?? 'PENDING') as BookingStatus,
-  specialRequests: booking?.specialRequests ?? '',
-})
+const getInitialFormData = (booking: EditBookingModalProps['booking']) => {
+  const checkIn = formatDateInput(booking?.checkIn)
+  const checkOut = formatDateInput(booking?.checkOut)
+  const nights =
+    checkIn && checkOut ? getPositiveNights(checkIn, checkOut) : 1
+  const parsedExtra = parseExtraGuestsFromSpecialRequests(
+    booking?.specialRequests,
+  )
+  const fallbackExtraFee =
+    parsedExtra.appliedExtraFee > 0
+      ? parsedExtra.appliedExtraFee
+      : calculateExtraGuestsFee(
+          parsedExtra,
+          {
+            extraAdultFee: Number(
+              booking?.room.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE,
+            ),
+            extraChildFee: Number(
+              booking?.room.extraChildFee ?? DEFAULT_EXTRA_CHILD_FEE,
+            ),
+          },
+          nights,
+        )
+
+  return {
+    roomId: booking?.roomId ?? '',
+    guestId: booking?.guestId ?? '',
+    checkIn,
+    checkOut,
+    guestsCount: booking?.guestsCount ?? 2,
+    extraAdults: parsedExtra.extraAdults,
+    extraChildren: parsedExtra.extraChildren,
+    appliedExtraFee: fallbackExtraFee,
+    totalAmount: booking?.totalAmount ? Number(booking.totalAmount) : 0,
+    amountPaid: booking?.amountPaid ? Number(booking.amountPaid) : 0,
+    paymentStatus: (booking?.paymentStatus ?? 'UNPAID') as PaymentStatus,
+    paymentMethod: (booking?.paymentMethod ?? '') as PaymentMethod | '',
+    status: (booking?.status ?? 'PENDING') as BookingStatus,
+    specialRequests: parsedExtra.cleanSpecialRequests,
+  }
+}
 
 export function EditBookingModal({
   isOpen,
@@ -263,7 +288,8 @@ export function EditBookingModal({
     if (formData.paymentMethod !== initial.paymentMethod) return true
     if (formData.status !== initial.status) return true
     if (formData.specialRequests !== initial.specialRequests) return true
-    if (getTotalExtraGuests(formData) > 0) return true
+    if (formData.extraAdults !== initial.extraAdults) return true
+    if (formData.extraChildren !== initial.extraChildren) return true
 
     return false
   }, [formData, booking])

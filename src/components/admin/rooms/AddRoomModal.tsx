@@ -345,7 +345,6 @@ export function AddRoomModal({
                     type="number"
                     min={0}
                     step="50"
-                    required
                     placeholder="0"
                     value={formData.pricePerNight === 0 ? '' : formData.pricePerNight}
                     onChange={(e) =>
@@ -365,7 +364,6 @@ export function AddRoomModal({
                     type="number"
                     min={0}
                     step="50"
-                    required
                     placeholder="0"
                     value={formData.extraPersonFee === 0 ? '' : formData.extraPersonFee}
                     onChange={(e) =>
@@ -385,7 +383,6 @@ export function AddRoomModal({
                     type="number"
                     min={0}
                     step="50"
-                    required
                     placeholder="0"
                     value={formData.extraChildFee === 0 ? '' : formData.extraChildFee}
                     onChange={(e) =>

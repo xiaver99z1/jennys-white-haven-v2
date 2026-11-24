@@ -178,6 +178,7 @@ describe('booking-actions', () => {
       vi.mocked(prisma.guest.findMany).mockResolvedValueOnce([
         mockGuest,
       ] as any)
+      vi.mocked(prisma.blockedDate.findMany).mockResolvedValueOnce([])
 
       const res = await getBookingsListHandler()
 

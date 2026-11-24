@@ -12,6 +12,7 @@ import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
   calculateNights,
   generateBookingReference,
+  getStayOverlapBounds,
 } from '#/server/booking-actions'
 import { createNotification } from '#/server/notification-actions'
 import type {
@@ -83,16 +84,15 @@ export async function getPublicRoomsHandler({
   let wholeHouseBooked = false
   let anyRoomBooked = false
   if (hasValidDates) {
-    const checkInDate = new Date(`${data.checkIn}T14:00:00+08:00`)
-    const checkOutDate = new Date(`${data.checkOut}T12:00:00+08:00`)
+    const bounds = getStayOverlapBounds(data.checkIn!, data.checkOut!)
     const [overlapping, overlappingBlocks] = await Promise.all([
       prisma.booking.findMany({
         where: {
           deletedAt: null,
           room: { deletedAt: null },
           status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-          checkIn: { lt: checkOutDate },
-          checkOut: { gt: checkInDate },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
         },
         select: {
           roomId: true,
@@ -101,8 +101,9 @@ export async function getPublicRoomsHandler({
       }),
       prisma.blockedDate.findMany({
         where: {
-          startDate: { lt: checkOutDate },
-          endDate: { gt: checkInDate },
+          startDate: { lt: bounds.ltUpperBound },
+          endDate: { gt: bounds.gtLowerBound },
+          OR: [{ roomId: null }, { room: { deletedAt: null } }],
         },
         select: {
           roomId: true,
@@ -207,11 +208,13 @@ export async function getPublicRoomByIdHandler({
         where: {
           endDate: { gt: startOfToday },
           ...(isWholeHouse
-            ? {}
+            ? {
+                OR: [{ roomId: null }, { room: { deletedAt: null } }],
+              }
             : {
                 OR: [
                   { roomId: null },
-                  { roomId: room.id },
+                  { roomId: room.id, room: { deletedAt: null } },
                   {
                     room: {
                       deletedAt: null,
@@ -281,8 +284,9 @@ export async function createPublicBookingHandler({
     throw new Error('Please provide valid check-in and check-out dates.')
   }
 
-  const checkInDate = new Date(`${data.checkIn}T14:00:00+08:00`)
-  const checkOutDate = new Date(`${data.checkOut}T12:00:00+08:00`)
+  const bounds = getStayOverlapBounds(data.checkIn, data.checkOut)
+  const checkInDate = bounds.checkInTimestamp
+  const checkOutDate = bounds.checkOutTimestamp
   const nights = calculateNights(checkInDate, checkOutDate)
 
   const firstName = data.firstName.trim()
@@ -330,14 +334,16 @@ export async function createPublicBookingHandler({
       if ((tx as { blockedDate?: typeof prisma.blockedDate }).blockedDate?.findFirst) {
         const overlappingBlock = await tx.blockedDate.findFirst({
           where: {
-            startDate: { lt: checkOutDate },
-            endDate: { gt: checkInDate },
+            startDate: { lt: bounds.ltUpperBound },
+            endDate: { gt: bounds.gtLowerBound },
             ...(isWholeHouse
-              ? {}
+              ? {
+                  OR: [{ roomId: null }, { room: { deletedAt: null } }],
+                }
               : {
                   OR: [
                     { roomId: null },
-                    { roomId: data.roomId },
+                    { roomId: data.roomId, room: { deletedAt: null } },
                     {
                       room: {
                         deletedAt: null,
@@ -359,8 +365,8 @@ export async function createPublicBookingHandler({
         where: {
           deletedAt: null,
           status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-          checkIn: { lt: checkOutDate },
-          checkOut: { gt: checkInDate },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
           ...(isWholeHouse
             ? { room: { deletedAt: null } }
             : {
@@ -452,8 +458,8 @@ export async function createPublicBookingHandler({
           guestId: guest.id,
           deletedAt: null,
           status: 'PENDING',
-          checkIn: { lt: checkOutDate },
-          checkOut: { gt: checkInDate },
+          checkIn: { lt: bounds.ltUpperBound },
+          checkOut: { gt: bounds.gtLowerBound },
           ...(isWholeHouse
             ? { room: { deletedAt: null } }
             : {
