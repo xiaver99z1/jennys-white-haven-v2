@@ -18,8 +18,10 @@ import {
 import {
   CMS_SECTION_META,
   parseHeroConfig,
+  parseImageCaptions,
   parseTouristSpots,
   serializeHeroConfig,
+  serializeImageCaptions,
   serializeTouristSpots,
 } from '#/lib/constants/cms'
 import { formatShortDate, getErrorMessage } from '#/lib/formatters'
@@ -104,10 +106,7 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     setError(null)
     try {
       const isSingleImageSection =
-        current.key === 'hero' ||
-        current.key === 'story' ||
-        current.key === 'amenities' ||
-        current.key === 'explore'
+        current.key === 'hero' || current.key === 'explore'
       const targetIndex =
         replaceIndex ??
         (isSingleImageSection && images.length > 0 ? 0 : undefined)
@@ -144,6 +143,27 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     }
   }
 
+  async function handleMultipleImagesUpload(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return
+    const files = Array.from(fileList)
+    for (const file of files) {
+      await handleImageUpload(file)
+    }
+  }
+
+  function handleUpdateImageCaption(index: number, caption: string) {
+    setMetadata((prev) => {
+      const existing = parseImageCaptions(prev.imageCaptionsJson)
+      const next = Array.from({ length: Math.max(images.length, index + 1) }, (_, i) =>
+        i === index ? caption : (existing[i] ?? ''),
+      )
+      return {
+        ...prev,
+        imageCaptionsJson: serializeImageCaptions(next),
+      }
+    })
+  }
+
   function handleAddImageUrl() {
     const trimmed = newImageUrl.trim()
     if (!trimmed) return
@@ -159,6 +179,15 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
 
   function handleRemoveImage(index: number) {
     setImages((prev) => prev.filter((_, i) => i !== index))
+    setMetadata((prev) => {
+      const existing = parseImageCaptions(prev.imageCaptionsJson)
+      if (existing.length === 0) return prev
+      const next = existing.filter((_, i) => i !== index)
+      return {
+        ...prev,
+        imageCaptionsJson: serializeImageCaptions(next),
+      }
+    })
   }
 
   function handleMoveImage(index: number, direction: -1 | 1) {
@@ -169,6 +198,20 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       const [item] = next.splice(index, 1)
       next.splice(target, 0, item)
       return next
+    })
+    setMetadata((prev) => {
+      const existing = parseImageCaptions(prev.imageCaptionsJson)
+      if (existing.length === 0) return prev
+      const padded = Array.from(
+        { length: images.length },
+        (_, i) => existing[i] ?? '',
+      )
+      const [item] = padded.splice(index, 1)
+      padded.splice(target, 0, item)
+      return {
+        ...prev,
+        imageCaptionsJson: serializeImageCaptions(padded),
+      }
     })
   }
 
@@ -581,8 +624,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         Section Images ({images.length})
                       </h3>
                       <p className="text-[11px] text-stone-400">
-                        Upload photography or paste image URLs. The first image
-                        is used as the primary photo.
+                        Upload one or multiple photos. Image #1 is the cover
+                        photo; additional photos appear in &ldquo;View More
+                        Pictures&rdquo;.
                       </p>
                     </div>
                     <button
@@ -596,19 +640,20 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                       ) : (
                         <ImagePlus className="w-3.5 h-3.5" />
                       )}
-                      {isUploading ? 'Uploading...' : 'Upload Image'}
+                      {isUploading ? 'Uploading...' : 'Upload Images'}
                     </button>
                     <input
                       ref={uploadInputRef}
                       type="file"
                       accept="image/*"
+                      multiple={current.key !== 'explore'}
                       tabIndex={-1}
                       className="hidden"
                       disabled={isUploading}
                       onChange={(e) => {
-                        const file = e.target.files?.[0]
+                        const files = e.target.files
+                        void handleMultipleImagesUpload(files)
                         e.target.value = ''
-                        void handleImageUpload(file)
                       }}
                     />
                   </div>
@@ -635,79 +680,105 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
 
                   {images.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {images.map((src, idx) => (
-                        <div
-                          key={`${src}-${idx}`}
-                          className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
-                        >
-                          <img
-                            src={src}
-                            alt={`${meta.label} ${idx + 1}`}
-                            className="w-full h-36 object-cover"
-                          />
-                          <div className="p-2 flex items-center justify-between gap-2 bg-white border-t border-stone-100">
-                            <span className="text-[11px] text-stone-500 truncate">
-                              #{idx + 1} · {src}
-                            </span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                disabled={isUploading}
-                                aria-label={`Replace image ${idx + 1}`}
-                                onClick={(e) => {
-                                  const input = e.currentTarget
-                                    .nextElementSibling as HTMLInputElement | null
-                                  input?.click()
-                                }}
-                                className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
-                              >
-                                Replace
-                              </button>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                tabIndex={-1}
-                                className="hidden"
-                                disabled={isUploading}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  e.target.value = ''
-                                  void handleImageUpload(file, idx)
-                                }}
+                      {images.map((src, idx) => {
+                        const captions = parseImageCaptions(
+                          metadata.imageCaptionsJson,
+                        )
+                        const captionValue = captions[idx] ?? ''
+                        return (
+                          <div
+                            key={`${src}-${idx}`}
+                            className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
+                          >
+                            <div className="relative">
+                              <img
+                                src={src}
+                                alt={`${meta.label} ${idx + 1}`}
+                                className="w-full h-36 object-cover"
                               />
-                              <button
-                                type="button"
-                                onClick={() => handleMoveImage(idx, -1)}
-                                disabled={isUploading || idx === 0}
-                                aria-label={`Move image ${idx + 1} up`}
-                                className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                              >
-                                <ArrowUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMoveImage(idx, 1)}
-                                disabled={
-                                  isUploading || idx === images.length - 1
+                              {idx === 0 && (
+                                <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-900/80 text-white">
+                                  Cover Photo
+                                </span>
+                              )}
+                            </div>
+                            <div className="p-2.5 space-y-2 bg-white border-t border-stone-100">
+                              <input
+                                type="text"
+                                value={captionValue}
+                                maxLength={80}
+                                onChange={(e) =>
+                                  handleUpdateImageCaption(idx, e.target.value)
                                 }
-                                aria-label={`Move image ${idx + 1} down`}
-                                className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
-                              >
-                                <ArrowDown className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={isUploading}
-                                onClick={() => handleRemoveImage(idx)}
-                                aria-label={`Remove image ${idx + 1}`}
-                                className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                                placeholder={`Photo #${idx + 1} label (e.g. Living Area, Primary Bedroom)`}
+                                aria-label={`Caption for image ${idx + 1}`}
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400"
+                              />
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-stone-400 truncate">
+                                  #{idx + 1} · {src}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    disabled={isUploading}
+                                    aria-label={`Replace image ${idx + 1}`}
+                                    onClick={(e) => {
+                                      const input = e.currentTarget
+                                        .nextElementSibling as HTMLInputElement | null
+                                      input?.click()
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-[10px] font-semibold text-stone-700 cursor-pointer transition disabled:opacity-50"
+                                  >
+                                    Replace
+                                  </button>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    tabIndex={-1}
+                                    className="hidden"
+                                    disabled={isUploading}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      e.target.value = ''
+                                      void handleImageUpload(file, idx)
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveImage(idx, -1)}
+                                    disabled={isUploading || idx === 0}
+                                    aria-label={`Move image ${idx + 1} up`}
+                                    className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveImage(idx, 1)}
+                                    disabled={
+                                      isUploading || idx === images.length - 1
+                                    }
+                                    aria-label={`Move image ${idx + 1} down`}
+                                    className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 disabled:opacity-30 cursor-pointer"
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isUploading}
+                                    onClick={() => handleRemoveImage(idx)}
+                                    aria-label={`Remove image ${idx + 1}`}
+                                    className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 disabled:opacity-30 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>

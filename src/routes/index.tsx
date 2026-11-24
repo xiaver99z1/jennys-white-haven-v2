@@ -1,10 +1,21 @@
+import { useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ArrowRight, MapPin, ShieldCheck, Sparkles, Star } from 'lucide-react'
+import {
+  ArrowRight,
+  Images,
+  MapPin,
+  ShieldCheck,
+  Sparkles,
+  Star,
+} from 'lucide-react'
+import { getSectionPhotoItems } from '#/lib/constants/cms'
+import type { SectionPhotoItem } from '#/lib/constants/cms'
 import { getPublicCmsSections } from '#/server/cms-actions'
 import { getPublicRooms } from '#/server/public-actions'
 import { getPublicReviews } from '#/server/review-actions'
 import { HeroCarouselSection } from '#/components/public/HeroCarouselSection'
 import { PublicLayout } from '#/components/public/PublicLayout'
+import { SectionPhotoGalleryModal } from '#/components/public/SectionPhotoGalleryModal'
 import { formatPeso } from '#/lib/formatters'
 
 export const Route = createFileRoute('/')({
@@ -39,6 +50,27 @@ function LandingPage() {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+
+  const storyPhotos = getSectionPhotoItems(
+    story?.images ?? [],
+    story?.metadata.imageCaptionsJson,
+  )
+  const amenitiesPhotos = getSectionPhotoItems(
+    amenities?.images ?? [],
+    amenities?.metadata.imageCaptionsJson,
+  )
+  const galleryPhotos = getSectionPhotoItems(
+    gallery?.images ?? [],
+    gallery?.metadata.imageCaptionsJson,
+  )
+
+  const [activeGalleryModal, setActiveGalleryModal] = useState<{
+    title: string
+    eyebrow?: string
+    photos: SectionPhotoItem[]
+    initialMode: 'grid' | 'lightbox'
+    initialIndex: number
+  } | null>(null)
 
   return (
     <PublicLayout
@@ -85,17 +117,38 @@ function LandingPage() {
               )}
             </div>
 
-            {story.images[0] && (
+            {storyPhotos[0] && (
               <div className="lg:col-span-6">
-                <div className="aspect-[4/5] rounded-3xl overflow-hidden bg-stone-200 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveGalleryModal({
+                      title: story.title || 'The Sanctuary',
+                      eyebrow: story.metadata.eyebrow || 'The Sanctuary',
+                      photos: storyPhotos,
+                      initialMode: 'grid',
+                      initialIndex: 0,
+                    })
+                  }
+                  aria-label="View more pictures of The Sanctuary"
+                  className="group relative aspect-[4/5] w-full rounded-3xl overflow-hidden bg-stone-200 shadow-lg block text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/60"
+                >
                   <img
-                    src={story.images[0]}
-                    alt={story.title}
+                    src={storyPhotos[0].url}
+                    alt={storyPhotos[0].caption || story.title}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
                   />
-                </div>
+                  <span className="absolute bottom-4 right-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold uppercase tracking-[0.14em] bg-stone-900/75 group-hover:bg-stone-900/90 text-[#FAF8F4] backdrop-blur-xs border border-white/15 shadow-md transition">
+                    <Images className="w-3.5 h-3.5" />
+                    <span>
+                      {storyPhotos.length > 1
+                        ? `View More Pictures (${storyPhotos.length})`
+                        : 'View More Pictures'}
+                    </span>
+                  </span>
+                </button>
               </div>
             )}
           </div>
@@ -199,17 +252,36 @@ function LandingPage() {
       {amenities && (
         <section className="max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 lg:py-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {amenities.images[0] && (
+            {amenitiesPhotos[0] && (
               <div className="lg:col-span-6 order-2 lg:order-1">
-                <div className="aspect-[16/11] rounded-3xl overflow-hidden bg-stone-200 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveGalleryModal({
+                      title: amenities.title || 'Amenities & Experience',
+                      eyebrow: 'Included With Every Stay',
+                      photos: amenitiesPhotos,
+                      initialMode: 'grid',
+                      initialIndex: 0,
+                    })
+                  }
+                  aria-label="View more pictures of Amenities"
+                  className="group relative aspect-[16/11] w-full rounded-3xl overflow-hidden bg-stone-200 shadow-lg block text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/60"
+                >
                   <img
-                    src={amenities.images[0]}
-                    alt={amenities.title}
+                    src={amenitiesPhotos[0].url}
+                    alt={amenitiesPhotos[0].caption || amenities.title}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-700"
                   />
-                </div>
+                  {amenitiesPhotos.length > 1 && (
+                    <span className="absolute bottom-4 right-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold uppercase tracking-[0.14em] bg-stone-900/75 group-hover:bg-stone-900/90 text-[#FAF8F4] backdrop-blur-xs border border-white/15 shadow-md transition">
+                      <Images className="w-3.5 h-3.5" />
+                      <span>View More Pictures ({amenitiesPhotos.length})</span>
+                    </span>
+                  )}
+                </button>
               </div>
             )}
 
@@ -267,19 +339,41 @@ function LandingPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gallery.images.map((src, idx) => (
-                <div
-                  key={`${src}-${idx}`}
-                  className="aspect-[4/3] rounded-2xl overflow-hidden bg-stone-200"
+              {galleryPhotos.map((photo, idx) => (
+                <button
+                  key={`${photo.url}-${idx}`}
+                  type="button"
+                  onClick={() =>
+                    setActiveGalleryModal({
+                      title: gallery.title || 'Photo Gallery',
+                      eyebrow: gallery.metadata.eyebrow || 'Atmosphere',
+                      photos: galleryPhotos,
+                      initialMode: 'lightbox',
+                      initialIndex: idx,
+                    })
+                  }
+                  aria-label={
+                    photo.caption
+                      ? `Open photo: ${photo.caption}`
+                      : `Open gallery photo ${idx + 1}`
+                  }
+                  className="group relative aspect-[4/3] rounded-2xl overflow-hidden bg-stone-200 text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/60"
                 >
                   <img
-                    src={src}
-                    alt={`${gallery.title} ${idx + 1}`}
+                    src={photo.url}
+                    alt={photo.caption || `${gallery.title} ${idx + 1}`}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover hover:scale-105 transition duration-500"
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                   />
-                </div>
+                  {photo.caption && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950/75 via-stone-950/30 to-transparent px-4 pt-8 pb-3">
+                      <p className="text-sm font-semibold text-white drop-shadow-xs">
+                        {photo.caption}
+                      </p>
+                    </div>
+                  )}
+                </button>
               ))}
             </div>
           </div>
@@ -449,6 +543,16 @@ function LandingPage() {
           </div>
         </section>
       )}
+
+      <SectionPhotoGalleryModal
+        isOpen={Boolean(activeGalleryModal)}
+        sectionTitle={activeGalleryModal?.title ?? ''}
+        sectionEyebrow={activeGalleryModal?.eyebrow}
+        photos={activeGalleryModal?.photos ?? []}
+        initialMode={activeGalleryModal?.initialMode ?? 'grid'}
+        initialIndex={activeGalleryModal?.initialIndex ?? 0}
+        onClose={() => setActiveGalleryModal(null)}
+      />
     </PublicLayout>
   )
 }
