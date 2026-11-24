@@ -327,12 +327,12 @@ function LandingPage() {
           </div>
 
           <Link
-            to="/reviews"
+            to={reviewsSummary.totalCount > 0 ? '/reviews' : '/booking-status'}
             className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] font-semibold text-stone-900 hover:text-amber-900 transition self-start sm:self-auto"
           >
             {reviewsSummary.totalCount > 0
               ? 'View All Reviews'
-              : 'Share Your Stay'}
+              : 'Review Your Stay'}
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -403,11 +403,10 @@ function LandingPage() {
               </p>
             </div>
             <Link
-              to="/reviews"
-              hash="write-review"
+              to="/booking-status"
               className="px-6 py-3 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-900 transition self-start sm:self-auto shrink-0"
             >
-              Write the First Review
+              Review Your Stay
             </Link>
           </div>
         )}

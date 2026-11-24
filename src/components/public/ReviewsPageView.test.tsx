@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { ReviewsPageView } from './ReviewsPageView'
 import type { PublicReviewsSummary } from '#/types'
 
-const submitPublicReviewMock = vi.fn()
-
-vi.mock('#/server/review-actions', () => ({
-  submitPublicReview: (...args: unknown[]) => submitPublicReviewMock(...args),
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, ...rest }: any) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
 }))
 
 const sampleSummary: PublicReviewsSummary = {
@@ -40,7 +42,7 @@ const sampleSummary: PublicReviewsSummary = {
       guestName: 'Marco Reyes',
       guestLocation: 'Manila',
       roomName: 'Deluxe Room',
-      isVerifiedStay: false,
+      isVerifiedStay: true,
       rating: 4,
       title: 'Warm hospitality',
       comment: 'Very helpful front desk for our port transfer.',
@@ -53,21 +55,27 @@ const sampleSummary: PublicReviewsSummary = {
 }
 
 describe('ReviewsPageView', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('renders aggregate rating, approved reviews, verified badge, and owner reply', () => {
+  it('renders read-only showcase of verified reviews, aggregate rating, owner reply, and Booking Status CTA', () => {
     render(<ReviewsPageView summary={sampleSummary} />)
 
     expect(screen.getByText('4.5')).toBeTruthy()
     expect(screen.getByText('Peaceful coastal escape')).toBeTruthy()
-    expect(screen.getByText('Verified Stay')).toBeTruthy()
+    expect(screen.getAllByText('Verified Stay')).toHaveLength(2)
     expect(
       screen.getByText(
         'Thank you so much Elena! Hope to welcome you back soon.',
       ),
     ).toBeTruthy()
+
+    // Ensure no open public submission form is rendered on /reviews
+    expect(screen.queryByRole('button', { name: 'Submit Review' })).toBeNull()
+
+    // Directs guests to /booking-status to verify their stay
+    const reviewLinks = screen.getAllByRole('link', {
+      name: /Review Your Stay/i,
+    })
+    expect(reviewLinks.length).toBeGreaterThan(0)
+    expect(reviewLinks[0].getAttribute('href')).toBe('/booking-status')
   })
 
   it('filters reviews when clicking a star filter pill', () => {
@@ -77,43 +85,5 @@ describe('ReviewsPageView', () => {
 
     expect(screen.queryByText('Peaceful coastal escape')).toBeNull()
     expect(screen.getByText('Warm hospitality')).toBeTruthy()
-  })
-
-  it('submits a guest review and shows pending-approval confirmation', async () => {
-    submitPublicReviewMock.mockResolvedValue({
-      success: true,
-      id: 'rev-new',
-      isVerifiedStay: true,
-    })
-
-    render(<ReviewsPageView summary={sampleSummary} />)
-
-    fireEvent.change(screen.getByLabelText('Your Name *'), {
-      target: { value: 'Sofia Lim' },
-    })
-    fireEvent.change(screen.getByLabelText('Booking Reference (Optional)'), {
-      target: { value: 'JWH-990011' },
-    })
-    fireEvent.change(screen.getByLabelText('Your Experience *'), {
-      target: { value: 'Calm mornings, clean linens, and friendly hosts.' },
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Review' }))
-
-    await waitFor(() => {
-      expect(submitPublicReviewMock).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          guestName: 'Sofia Lim',
-          bookingReference: 'JWH-990011',
-          rating: 5,
-          comment: 'Calm mornings, clean linens, and friendly hosts.',
-        }),
-      })
-    })
-
-    expect(
-      await screen.findByText('Thank you for sharing your stay!'),
-    ).toBeTruthy()
-    expect(screen.getByText(/Your booking reference was matched/i)).toBeTruthy()
   })
 })

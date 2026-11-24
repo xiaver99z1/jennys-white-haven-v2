@@ -13,6 +13,7 @@ const {
   mockLogActivity,
   mockCreateNotification,
   mockReviewFindMany,
+  mockReviewFindFirst,
   mockReviewCreate,
   mockReviewUpdate,
   mockReviewDelete,
@@ -23,6 +24,7 @@ const {
   mockLogActivity: vi.fn(),
   mockCreateNotification: vi.fn(),
   mockReviewFindMany: vi.fn(),
+  mockReviewFindFirst: vi.fn(),
   mockReviewCreate: vi.fn(),
   mockReviewUpdate: vi.fn(),
   mockReviewDelete: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock('#/lib/prisma', () => ({
   prisma: {
     review: {
       findMany: mockReviewFindMany,
+      findFirst: mockReviewFindFirst,
       create: mockReviewCreate,
       update: mockReviewUpdate,
       delete: mockReviewDelete,
@@ -121,36 +124,129 @@ describe('review-actions', () => {
     expect(empty.reviews).toEqual([])
   })
 
-  it('validates input, marks verified stay when booking reference matches, and creates pending review', async () => {
+  it('enforces verified post-stay gate (CHECKED_OUT + PAID + contact match + 1 review per booking)', async () => {
     await expect(
       submitPublicReviewHandler({
-        data: { guestName: 'A', rating: 5, comment: 'Too short name' },
+        data: {
+          bookingReference: '',
+          contact: '',
+          rating: 5,
+          comment: 'Valid length comment here.',
+        },
       }),
-    ).rejects.toThrow('Please enter your name')
+    ).rejects.toThrow('Booking reference and your registered phone or email')
 
-    await expect(
-      submitPublicReviewHandler({
-        data: { guestName: 'Maria', rating: 6, comment: 'Invalid star rating' },
-      }),
-    ).rejects.toThrow('Please choose a star rating')
-
-    await expect(
-      submitPublicReviewHandler({
-        data: { guestName: 'Maria', rating: 5, comment: 'Short' },
-      }),
-    ).rejects.toThrow('Please write a review')
-
+    // Rejects when booking status is not CHECKED_OUT or paymentStatus is not PAID
     mockBookingFindFirst.mockResolvedValueOnce({
       id: 'b1',
+      status: 'CONFIRMED',
+      paymentStatus: 'PARTIAL',
       room: { name: 'Garden Villa' },
+      guest: {
+        firstName: 'Maria',
+        lastName: 'Santos',
+        phone: '09171234567',
+        email: 'maria@example.com',
+      },
     })
-    mockReviewCreate.mockResolvedValueOnce({ id: 'rev-1' })
+
+    await expect(
+      submitPublicReviewHandler({
+        data: {
+          bookingReference: 'JWH-20261120-ABCD',
+          contact: 'maria@example.com',
+          rating: 5,
+          comment: 'Trying to review before checkout and full payment.',
+        },
+      }),
+    ).rejects.toThrow(
+      'Reviews can only be submitted after your stay is completed (checked out) and fully paid.',
+    )
+
+    // Rejects duplicate review for same booking
+    mockBookingFindFirst.mockResolvedValueOnce({
+      id: 'b1',
+      status: 'CHECKED_OUT',
+      paymentStatus: 'PAID',
+      room: { name: 'Garden Villa' },
+      guest: {
+        firstName: 'Maria',
+        lastName: 'Santos',
+        phone: '09171234567',
+        email: 'maria@example.com',
+      },
+    })
+    mockReviewFindFirst.mockResolvedValueOnce({ id: 'existing-rev' })
+
+    await expect(
+      submitPublicReviewHandler({
+        data: {
+          bookingReference: 'JWH-20261120-ABCD',
+          contact: '09171234567',
+          rating: 5,
+          comment: 'Trying to submit a second review for the same stay.',
+        },
+      }),
+    ).rejects.toThrow('A review has already been submitted')
+
+    // Rejects concurrent duplicate submission when create throws P2002
+    mockBookingFindFirst.mockResolvedValueOnce({
+      id: 'b1',
+      status: 'CHECKED_OUT',
+      paymentStatus: 'PAID',
+      room: { name: 'Garden Villa' },
+      guest: {
+        firstName: 'Maria',
+        lastName: 'Santos',
+        phone: '09171234567',
+        email: 'maria@example.com',
+      },
+    })
+    mockReviewFindFirst.mockResolvedValueOnce(null)
+    mockReviewCreate.mockRejectedValueOnce({ code: 'P2002' })
+
+    await expect(
+      submitPublicReviewHandler({
+        data: {
+          bookingReference: 'JWH-20261120-ABCD',
+          contact: '09171234567',
+          rating: 5,
+          comment: 'Concurrent duplicate submission hitting unique constraint.',
+        },
+      }),
+    ).rejects.toThrow(
+      'A review has already been submitted for this booking reference.',
+    )
+
+    // Succeeds for CHECKED_OUT + PAID + matching contact + no existing review
+    mockBookingFindFirst.mockResolvedValueOnce({
+      id: 'b1',
+      status: 'CHECKED_OUT',
+      paymentStatus: 'PAID',
+      room: { name: 'Garden Villa' },
+      guest: {
+        firstName: 'Maria',
+        lastName: 'Santos',
+        phone: '09171234567',
+        email: 'maria@example.com',
+      },
+    })
+    mockReviewFindFirst.mockResolvedValueOnce(null)
+    const createdAt = new Date('2026-11-24T00:00:00Z')
+    mockReviewCreate.mockResolvedValueOnce({
+      id: 'rev-1',
+      rating: 5,
+      title: 'Best staycation',
+      comment: 'Quiet rooms, friendly team, and very near Santiago Bay.',
+      status: 'PENDING',
+      createdAt,
+    })
 
     const res = await submitPublicReviewHandler({
       data: {
-        guestName: 'Maria Santos',
-        guestLocation: 'Cebu',
         bookingReference: 'jwh-20261120-abcd',
+        contact: 'MARIA@EXAMPLE.COM',
+        guestLocation: 'Cebu',
         rating: 5,
         title: 'Best staycation',
         comment: 'Quiet rooms, friendly team, and very near Santiago Bay.',
@@ -161,16 +257,13 @@ describe('review-actions', () => {
       success: true,
       id: 'rev-1',
       isVerifiedStay: true,
-    })
-    expect(mockBookingFindFirst).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        bookingReference: 'JWH-20261120-ABCD',
-        deletedAt: null,
-        status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
-        checkIn: { lte: expect.any(Date) },
-      }),
-      include: {
-        room: { select: { name: true } },
+      review: {
+        id: 'rev-1',
+        rating: 5,
+        title: 'Best staycation',
+        comment: 'Quiet rooms, friendly team, and very near Santiago Bay.',
+        status: 'PENDING',
+        createdAt,
       },
     })
     expect(mockReviewCreate).toHaveBeenCalledWith({

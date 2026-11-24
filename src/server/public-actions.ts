@@ -392,6 +392,31 @@ export async function lookupPublicBookingHandler({
   const totalAmount = Number(booking.totalAmount)
   const amountPaid = Number(booking.amountPaid)
 
+  let existingReview: PublicBookingLookupResult['existingReview'] = null
+  try {
+    const foundReview = await prisma.review.findFirst({
+      where: { bookingReference: booking.bookingReference },
+      select: {
+        id: true,
+        rating: true,
+        title: true,
+        comment: true,
+        status: true,
+        createdAt: true,
+      },
+    })
+    if (foundReview) {
+      existingReview = foundReview
+    }
+  } catch {
+    existingReview = null
+  }
+
+  const canSubmitReview =
+    booking.status === 'CHECKED_OUT' &&
+    booking.paymentStatus === 'PAID' &&
+    !existingReview
+
   return {
     bookingReference: booking.bookingReference,
     status: booking.status,
@@ -406,6 +431,8 @@ export async function lookupPublicBookingHandler({
     roomName: booking.room.name,
     roomNumber: booking.room.roomNumber,
     guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
+    canSubmitReview,
+    existingReview,
   }
 }
 

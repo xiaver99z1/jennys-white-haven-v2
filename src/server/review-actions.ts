@@ -22,6 +22,15 @@ function isMissingTableError(err: unknown): boolean {
   )
 }
 
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === 'P2002'
+  )
+}
+
 function toPublicReview(row: {
   id: string
   guestName: string
@@ -112,10 +121,9 @@ export const getPublicReviews = createServerFn({ method: 'GET' }).handler(
 )
 
 export interface SubmitPublicReviewInput {
-  guestName: string
+  bookingReference: string
+  contact: string
   guestLocation?: string
-  roomName?: string
-  bookingReference?: string
   rating: number
   title?: string
   comment: string
@@ -130,18 +138,30 @@ export const submitPublicReviewHandler = createServerOnlyFn(
     data,
   }: {
     data: SubmitPublicReviewInput
-  }): Promise<{ success: true; id: string; isVerifiedStay: boolean }> => {
-    const guestName = data.guestName.trim()
+  }): Promise<{
+    success: true
+    id: string
+    isVerifiedStay: true
+    review: {
+      id: string
+      rating: number
+      title: string | null
+      comment: string
+      status: ReviewStatus
+      createdAt: Date
+    }
+  }> => {
+    const bookingReference = data.bookingReference.trim().toUpperCase()
+    const contact = data.contact.trim().toLowerCase()
     const comment = data.comment.trim()
     const title = data.title?.trim() || null
     const guestLocation = data.guestLocation?.trim() || null
-    let roomName = data.roomName?.trim() || null
-    const bookingReference =
-      data.bookingReference?.trim().toUpperCase() || null
     const rating = Number(data.rating)
 
-    if (guestName.length < 2 || guestName.length > 80) {
-      throw new Error('Please enter your name (2 to 80 characters).')
+    if (!bookingReference || !contact) {
+      throw new Error(
+        'Booking reference and your registered phone or email are required.',
+      )
     }
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       throw new Error('Please choose a star rating between 1 and 5.')
@@ -150,53 +170,111 @@ export const submitPublicReviewHandler = createServerOnlyFn(
       throw new Error('Please write a review between 10 and 1,500 characters.')
     }
 
-    let isVerifiedStay = false
-    if (bookingReference) {
-      const booking = await prisma.booking.findFirst({
-        where: {
-          bookingReference,
-          deletedAt: null,
-          status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
-          checkIn: { lte: new Date() },
+    const booking = await prisma.booking.findFirst({
+      where: {
+        bookingReference,
+        deletedAt: null,
+      },
+      include: {
+        room: { select: { name: true } },
+        guest: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+          },
         },
-        include: {
-          room: { select: { name: true } },
-        },
-      })
-      if (booking) {
-        isVerifiedStay = true
-        if (!roomName) {
-          roomName = booking.room.name
-        }
-      }
-    }
-
-    const created = await prisma.review.create({
-      data: {
-        guestName,
-        guestLocation: guestLocation?.slice(0, 80) ?? null,
-        roomName: roomName?.slice(0, 80) ?? null,
-        bookingReference: bookingReference?.slice(0, 40) ?? null,
-        isVerifiedStay,
-        rating,
-        title: title?.slice(0, 120) ?? null,
-        comment,
-        status: 'PENDING',
-        isFeatured: false,
       },
     })
 
+    if (!booking) {
+      throw new Error(
+        'Could not verify your reservation. Please check your booking reference and contact details.',
+      )
+    }
+
+    const matchesPhone = booking.guest.phone.trim().toLowerCase() === contact
+    const matchesEmail =
+      (booking.guest.email?.trim().toLowerCase() ?? '') === contact
+
+    if (!matchesPhone && !matchesEmail) {
+      throw new Error(
+        'Could not verify your reservation. Please check your booking reference and contact details.',
+      )
+    }
+
+    if (booking.status !== 'CHECKED_OUT' || booking.paymentStatus !== 'PAID') {
+      throw new Error(
+        'Reviews can only be submitted after your stay is completed (checked out) and fully paid.',
+      )
+    }
+
+    const existingReview = await prisma.review.findFirst({
+      where: { bookingReference },
+      select: { id: true },
+    })
+    if (existingReview) {
+      throw new Error(
+        'A review has already been submitted for this booking reference.',
+      )
+    }
+
+    const guestName =
+      `${booking.guest.firstName} ${booking.guest.lastName}`.trim()
+    const roomName = booking.room.name
+
+    let created: {
+      id: string
+      rating: number
+      title: string | null
+      comment: string
+      status: ReviewStatus
+      createdAt: Date
+    }
+    try {
+      created = await prisma.review.create({
+        data: {
+          guestName: guestName.slice(0, 80),
+          guestLocation: guestLocation?.slice(0, 80) ?? null,
+          roomName: roomName.slice(0, 80),
+          bookingReference: bookingReference.slice(0, 40),
+          isVerifiedStay: true,
+          rating,
+          title: title?.slice(0, 120) ?? null,
+          comment,
+          status: 'PENDING',
+          isFeatured: false,
+        },
+      })
+    } catch (err) {
+      if (isUniqueConstraintError(err)) {
+        throw new Error(
+          'A review has already been submitted for this booking reference.',
+        )
+      }
+      throw err
+    }
+
     await createNotification({
       type: 'REVIEW_SUBMITTED',
-      title: `New ${rating}★ Guest Review from ${guestName}`,
-      message: title || comment.slice(0, 110),
+      title: `New ${rating}★ Verified Review (${bookingReference})`,
+      message: `${guestName}: ${title || comment.slice(0, 90)}`,
       href: '/admin/reviews',
     })
 
     return {
       success: true,
       id: created.id,
-      isVerifiedStay,
+      isVerifiedStay: true,
+      review: {
+        id: created.id,
+        rating: created.rating,
+        title: created.title,
+        comment: created.comment,
+        status: created.status,
+        createdAt: created.createdAt,
+      },
     }
   },
 )

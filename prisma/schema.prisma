@@ -392,8 +392,8 @@ model Review {
   guestName        String
   guestLocation    String?
   roomName         String?
-  bookingReference String?
-  isVerifiedStay   Boolean      @default(false)
+  bookingReference String?      @unique
+  isVerifiedStay   Boolean      @default(true)
   rating           Int
   title            String?
   comment          String       @db.Text
