@@ -4,8 +4,12 @@ import { X, CalendarPlus } from 'lucide-react'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import {
   BOOKING_STATUSES,
+  DEFAULT_EXTRA_PERSON_FEE,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
+  calculateExtraGuestsFee,
+  formatExtraGuestsNote,
+  getTotalExtraGuests,
   isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import type {
@@ -62,6 +66,9 @@ export function AddBookingModal({
     checkIn: defaultDates.checkIn,
     checkOut: defaultDates.checkOut,
     guestsCount: 2,
+    extraAdults: 0,
+    extraChildren: 0,
+    extraSeniors: 0,
     status: 'CONFIRMED' as BookingStatus,
     paymentStatus: 'UNPAID' as PaymentStatus,
     paymentMethod: '' as PaymentMethod | '',
@@ -103,10 +110,37 @@ export function AddBookingModal({
 
   const isValidStay = nights > 0
 
-  const calculatedTotal = useMemo(() => {
+  const extraPersonFeeRate = useMemo(
+    () =>
+      Number(selectedRoom?.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE),
+    [selectedRoom],
+  )
+
+  const totalExtraGuests = useMemo(
+    () => getTotalExtraGuests(formData),
+    [formData.extraAdults, formData.extraChildren, formData.extraSeniors],
+  )
+
+  const extraGuestsFeeTotal = useMemo(
+    () => calculateExtraGuestsFee(formData, extraPersonFeeRate, nights),
+    [
+      formData.extraAdults,
+      formData.extraChildren,
+      formData.extraSeniors,
+      extraPersonFeeRate,
+      nights,
+    ],
+  )
+
+  const baseRoomTotal = useMemo(() => {
     const rate = selectedRoom ? Number(selectedRoom.pricePerNight) : 0
     return nights * rate
   }, [nights, selectedRoom])
+
+  const calculatedTotal = useMemo(
+    () => baseRoomTotal + extraGuestsFeeTotal,
+    [baseRoomTotal, extraGuestsFeeTotal],
+  )
 
   if (!isOpen) return null
 
@@ -116,6 +150,16 @@ export function AddBookingModal({
     setError(null)
 
     try {
+      const extraNote = formatExtraGuestsNote(
+        formData,
+        extraPersonFeeRate,
+        nights,
+      )
+      const combinedSpecialRequests =
+        [formData.specialRequests.trim(), extraNote]
+          .filter(Boolean)
+          .join(' ') || undefined
+
       await createBooking({
         data: {
           roomId: formData.roomId,
@@ -128,7 +172,7 @@ export function AddBookingModal({
           paymentStatus: formData.paymentStatus,
           paymentMethod: formData.paymentMethod || undefined,
           status: formData.status,
-          specialRequests: formData.specialRequests.trim() || undefined,
+          specialRequests: combinedSpecialRequests,
         },
       })
 
@@ -138,6 +182,9 @@ export function AddBookingModal({
         checkIn: defaultDates.checkIn,
         checkOut: defaultDates.checkOut,
         guestsCount: 2,
+        extraAdults: 0,
+        extraChildren: 0,
+        extraSeniors: 0,
         status: 'CONFIRMED',
         paymentStatus: 'UNPAID',
         paymentMethod: '',
@@ -289,6 +336,95 @@ export function AddBookingModal({
               </div>
             </div>
 
+            {/* Additional Persons (Child / Adult / Senior) Auto-Compute */}
+            <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-stone-700 uppercase tracking-wider">
+                  Additional Persons (Auto-Compute Fee)
+                </span>
+                <span className="text-[11px] font-semibold text-amber-800">
+                  +{formatPeso(extraPersonFeeRate)} / night per person
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label
+                    htmlFor="add-booking-extra-adults"
+                    className="block text-[11px] font-medium text-stone-600 mb-1"
+                  >
+                    Adult
+                  </label>
+                  <input
+                    id="add-booking-extra-adults"
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={formData.extraAdults}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraAdults: Math.max(
+                          0,
+                          Math.floor(Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                    className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="add-booking-extra-children"
+                    className="block text-[11px] font-medium text-stone-600 mb-1"
+                  >
+                    Child
+                  </label>
+                  <input
+                    id="add-booking-extra-children"
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={formData.extraChildren}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraChildren: Math.max(
+                          0,
+                          Math.floor(Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                    className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="add-booking-extra-seniors"
+                    className="block text-[11px] font-medium text-stone-600 mb-1"
+                  >
+                    Senior
+                  </label>
+                  <input
+                    id="add-booking-extra-seniors"
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={formData.extraSeniors}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraSeniors: Math.max(
+                          0,
+                          Math.floor(Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                    className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-semibold text-amber-900 uppercase tracking-wider">
@@ -300,6 +436,10 @@ export function AddBookingModal({
                         selectedRoom
                           ? Number(selectedRoom.pricePerNight).toLocaleString()
                           : '0'
+                      }${
+                        totalExtraGuests > 0
+                          ? ` + ${totalExtraGuests} extra person(s) (${formatPeso(extraGuestsFeeTotal)})`
+                          : ''
                       }`
                     : 'Check-out date must be after check-in date'}
                 </p>

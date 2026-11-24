@@ -402,6 +402,54 @@ export function getSectionPhotoItems(
   return items
 }
 
+export const MAX_HOME_FEATURED_GALLERY_PHOTOS = 6
+
+export function parseFeaturedGalleryFlags(rawJson?: string | null): boolean[] {
+  if (!rawJson || !rawJson.trim()) return []
+  try {
+    const parsed: unknown = JSON.parse(rawJson)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => item === true)
+  } catch {
+    return []
+  }
+}
+
+export function serializeFeaturedGalleryFlags(flags: boolean[]): string {
+  return JSON.stringify(flags)
+}
+
+export function getFeaturedGalleryPhotos(
+  images: string[],
+  rawCaptionsJson?: string | null,
+  rawFeaturedFlagsJson?: string | null,
+  maxCount: number = MAX_HOME_FEATURED_GALLERY_PHOTOS,
+): SectionPhotoItem[] {
+  const captions = parseImageCaptions(rawCaptionsJson)
+  const flags = parseFeaturedGalleryFlags(rawFeaturedFlagsJson)
+  const pinned: SectionPhotoItem[] = []
+  const unpinned: SectionPhotoItem[] = []
+
+  images.forEach((rawUrl, idx) => {
+    const url = rawUrl.trim()
+    if (!url) return
+    const item: SectionPhotoItem = {
+      url,
+      caption: (captions[idx] ?? '').trim(),
+    }
+    if (flags[idx] === true && pinned.length < maxCount) {
+      pinned.push(item)
+    } else {
+      unpinned.push(item)
+    }
+  })
+
+  if (pinned.length >= maxCount) {
+    return pinned.slice(0, maxCount)
+  }
+  return [...pinned, ...unpinned].slice(0, maxCount)
+}
+
 export function serializeTouristSpots(spots: TouristSpotItem[]): string {
   return JSON.stringify(spots)
 }

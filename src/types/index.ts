@@ -168,6 +168,7 @@ export interface RoomItem {
   name: string
   type: RoomType | string
   pricePerNight: number | string
+  extraPersonFee?: number | string
   maxCapacity: number
   status: RoomStatus | string
   description?: string | null
@@ -196,6 +197,7 @@ export interface BookingRoomOption {
   type: string
   capacity: number
   pricePerNight: number
+  extraPersonFee?: number
 }
 
 export interface BookingGuestOption {
@@ -235,6 +237,7 @@ export interface BookingItem {
     name: string
     type: string
     pricePerNight: number
+    extraPersonFee?: number
   }
 }
 
@@ -649,6 +652,7 @@ export interface PublicRoomItem {
   description: string | null
   capacity: number
   pricePerNight: number
+  extraPersonFee: number
   amenities: string[]
   images: string[]
   status: RoomStatus

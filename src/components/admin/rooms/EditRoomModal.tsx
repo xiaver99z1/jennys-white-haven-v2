@@ -10,6 +10,7 @@ import {
   Check,
 } from 'lucide-react'
 import {
+  DEFAULT_EXTRA_PERSON_FEE,
   DEFAULT_WHOLE_HOUSE_PRICE,
   ROOM_TYPES,
   ROOM_STATUSES,
@@ -36,6 +37,7 @@ interface EditRoomModalProps {
     description?: string | null
     capacity: number
     pricePerNight: number | any
+    extraPersonFee?: number | any
     status: string
     amenities: string[]
     images?: string[]
@@ -50,6 +52,10 @@ const getInitialFormData = (room: EditRoomModalProps['room']) => ({
   description: room?.description ?? '',
   capacity: room?.capacity ?? 2,
   pricePerNight: room?.pricePerNight ? Number(room.pricePerNight) : 0,
+  extraPersonFee:
+    room?.extraPersonFee !== undefined
+      ? Number(room.extraPersonFee)
+      : DEFAULT_EXTRA_PERSON_FEE,
   status: (room?.status ?? 'AVAILABLE') as RoomStatus,
   amenities: room?.amenities ?? [],
   images: room?.images ?? [],
@@ -100,6 +106,7 @@ export function EditRoomModal({
     if (formData.description !== initial.description) return true
     if (formData.capacity !== initial.capacity) return true
     if (formData.pricePerNight !== initial.pricePerNight) return true
+    if (formData.extraPersonFee !== initial.extraPersonFee) return true
     if (formData.status !== initial.status) return true
 
     // Compare amenities array
@@ -191,6 +198,7 @@ export function EditRoomModal({
           description: formData.description || undefined,
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
+          extraPersonFee: Number(formData.extraPersonFee),
           status: formData.status,
           amenities: formData.amenities,
           images: formData.images,
@@ -426,24 +434,45 @@ export function EditRoomModal({
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">
-                  Capacity (Guests)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  required
-                  value={formData.capacity}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      capacity: Number(e.target.value),
-                    })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Capacity (Guests)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    required
+                    value={formData.capacity}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        capacity: Number(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Extra Person Fee (₱/night)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="50"
+                    required
+                    value={formData.extraPersonFee}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraPersonFee: Number(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
               </div>
 
               <div>

@@ -33,6 +33,49 @@ export const ROOM_TYPES: readonly RoomType[] = [
 ] as const
 
 export const DEFAULT_WHOLE_HOUSE_PRICE = 15000
+export const DEFAULT_EXTRA_PERSON_FEE = 500
+
+export interface ExtraGuestsCounts {
+  extraChildren: number
+  extraAdults: number
+  extraSeniors: number
+}
+
+export function getTotalExtraGuests(counts?: Partial<ExtraGuestsCounts>): number {
+  const children = Math.max(0, Math.floor(Number(counts?.extraChildren ?? 0)))
+  const adults = Math.max(0, Math.floor(Number(counts?.extraAdults ?? 0)))
+  const seniors = Math.max(0, Math.floor(Number(counts?.extraSeniors ?? 0)))
+  return children + adults + seniors
+}
+
+export function calculateExtraGuestsFee(
+  counts: Partial<ExtraGuestsCounts> | undefined,
+  extraPersonFeePerNight: number,
+  nights: number,
+): number {
+  const totalExtra = getTotalExtraGuests(counts)
+  const rate = Math.max(0, Number(extraPersonFeePerNight) || 0)
+  const validNights = Math.max(0, Math.floor(Number(nights) || 0))
+  return totalExtra * rate * validNights
+}
+
+export function formatExtraGuestsNote(
+  counts: Partial<ExtraGuestsCounts> | undefined,
+  extraPersonFeePerNight: number,
+  nights: number,
+): string {
+  const children = Math.max(0, Math.floor(Number(counts?.extraChildren ?? 0)))
+  const adults = Math.max(0, Math.floor(Number(counts?.extraAdults ?? 0)))
+  const seniors = Math.max(0, Math.floor(Number(counts?.extraSeniors ?? 0)))
+  const parts: string[] = []
+  if (adults > 0) parts.push(`${adults} Adult${adults > 1 ? 's' : ''}`)
+  if (children > 0) parts.push(`${children} Child${children > 1 ? 'ren' : ''}`)
+  if (seniors > 0) parts.push(`${seniors} Senior${seniors > 1 ? 's' : ''}`)
+  if (parts.length === 0) return ''
+  const feeTotal = calculateExtraGuestsFee(counts, extraPersonFeePerNight, nights)
+  const rate = Math.max(0, Number(extraPersonFeePerNight) || 0)
+  return `[Additional Persons: ${parts.join(', ')} · +₱${feeTotal.toLocaleString()} (₱${rate.toLocaleString()}/night)]`
+}
 
 export function isWholeHouseRoom(
   room?: { type?: string | null } | null,

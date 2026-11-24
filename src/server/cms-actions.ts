@@ -6,9 +6,11 @@ import { requirePermission } from '#/server/room-actions'
 import {
   DEFAULT_CMS_SECTIONS,
   getSpotImages,
+  parseFeaturedGalleryFlags,
   parseHeroConfig,
   parseImageCaptions,
   parseTouristSpots,
+  serializeFeaturedGalleryFlags,
   serializeHeroConfig,
   serializeImageCaptions,
   serializeTouristSpots,
@@ -230,15 +232,24 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     }
 
     const rawCaptions = parseImageCaptions(data.metadata.imageCaptionsJson)
-    const seenImageKeys = new Set<string>()
+    const rawFeaturedFlags = parseFeaturedGalleryFlags(
+      data.metadata.featuredHomeFlagsJson,
+    )
+    const seenImageKeyIndices = new Map<string, number>()
     let cleanImages: string[] = []
     const alignedCaptions: string[] = []
+    const alignedFeaturedFlags: boolean[] = []
     data.images.forEach((rawUrl, idx) => {
       const key = extractObjectKey(rawUrl)
-      if (key && !seenImageKeys.has(key)) {
-        seenImageKeys.add(key)
+      if (!key) return
+      const existingIdx = seenImageKeyIndices.get(key)
+      if (existingIdx === undefined) {
+        seenImageKeyIndices.set(key, cleanImages.length)
         cleanImages.push(key)
         alignedCaptions.push((rawCaptions[idx] ?? '').trim())
+        alignedFeaturedFlags.push(rawFeaturedFlags[idx] === true)
+      } else if (rawFeaturedFlags[idx] === true) {
+        alignedFeaturedFlags[existingIdx] = true
       }
     })
     const cleanMeta: Record<string, string> = {}
@@ -248,6 +259,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
     }
     if ('imageCaptionsJson' in cleanMeta) {
       cleanMeta.imageCaptionsJson = serializeImageCaptions(alignedCaptions)
+    }
+    if ('featuredHomeFlagsJson' in cleanMeta) {
+      cleanMeta.featuredHomeFlagsJson =
+        serializeFeaturedGalleryFlags(alignedFeaturedFlags)
     }
 
     const extraMediaKeys: string[] = []

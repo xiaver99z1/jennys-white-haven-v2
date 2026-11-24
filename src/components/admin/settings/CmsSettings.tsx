@@ -10,6 +10,7 @@ import {
   ExternalLink,
   ImagePlus,
   Loader2,
+  Pin,
   Plus,
   RotateCcw,
   Save,
@@ -17,9 +18,12 @@ import {
 } from 'lucide-react'
 import {
   CMS_SECTION_META,
+  MAX_HOME_FEATURED_GALLERY_PHOTOS,
+  parseFeaturedGalleryFlags,
   parseHeroConfig,
   parseImageCaptions,
   parseTouristSpots,
+  serializeFeaturedGalleryFlags,
   serializeHeroConfig,
   serializeImageCaptions,
   serializeTouristSpots,
@@ -195,6 +199,32 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
     })
   }
 
+  function handleToggleHomeFeaturedImage(index: number) {
+    setMetadata((prev) => {
+      const existing = parseFeaturedGalleryFlags(prev.featuredHomeFlagsJson)
+      const currentlyFeatured = existing[index] === true
+      const currentSelectedCount = existing.filter(Boolean).length
+      if (
+        !currentlyFeatured &&
+        currentSelectedCount >= MAX_HOME_FEATURED_GALLERY_PHOTOS
+      ) {
+        setError(
+          `You can select up to ${MAX_HOME_FEATURED_GALLERY_PHOTOS} photos for the Home Sanctuary Top 6 grid. Unpin one first to select another.`,
+        )
+        return prev
+      }
+      setError(null)
+      const next = Array.from(
+        { length: Math.max(images.length, index + 1) },
+        (_, i) => (i === index ? !currentlyFeatured : existing[i] === true),
+      )
+      return {
+        ...prev,
+        featuredHomeFlagsJson: serializeFeaturedGalleryFlags(next),
+      }
+    })
+  }
+
   function handleAddImageUrl() {
     const trimmed = newImageUrl.trim()
     if (!trimmed) return
@@ -215,13 +245,22 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
   function handleRemoveImage(index: number) {
     setImages((prev) => prev.filter((_, i) => i !== index))
     setMetadata((prev) => {
-      const existing = parseImageCaptions(prev.imageCaptionsJson)
-      if (existing.length === 0) return prev
-      const next = existing.filter((_, i) => i !== index)
-      return {
-        ...prev,
-        imageCaptionsJson: serializeImageCaptions(next),
+      const existingCaptions = parseImageCaptions(prev.imageCaptionsJson)
+      const existingFlags = parseFeaturedGalleryFlags(
+        prev.featuredHomeFlagsJson,
+      )
+      const nextMeta = { ...prev }
+      if (existingCaptions.length > 0) {
+        nextMeta.imageCaptionsJson = serializeImageCaptions(
+          existingCaptions.filter((_, i) => i !== index),
+        )
       }
+      if (existingFlags.length > 0) {
+        nextMeta.featuredHomeFlagsJson = serializeFeaturedGalleryFlags(
+          existingFlags.filter((_, i) => i !== index),
+        )
+      }
+      return nextMeta
     })
   }
 
@@ -235,18 +274,31 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       return next
     })
     setMetadata((prev) => {
-      const existing = parseImageCaptions(prev.imageCaptionsJson)
-      if (existing.length === 0) return prev
-      const padded = Array.from(
-        { length: images.length },
-        (_, i) => existing[i] ?? '',
+      const existingCaptions = parseImageCaptions(prev.imageCaptionsJson)
+      const existingFlags = parseFeaturedGalleryFlags(
+        prev.featuredHomeFlagsJson,
       )
-      const [item] = padded.splice(index, 1)
-      padded.splice(target, 0, item)
-      return {
-        ...prev,
-        imageCaptionsJson: serializeImageCaptions(padded),
+      const nextMeta = { ...prev }
+      if (existingCaptions.length > 0) {
+        const padded = Array.from(
+          { length: images.length },
+          (_, i) => existingCaptions[i] ?? '',
+        )
+        const [item] = padded.splice(index, 1)
+        padded.splice(target, 0, item)
+        nextMeta.imageCaptionsJson = serializeImageCaptions(padded)
       }
+      if (existingFlags.length > 0) {
+        const paddedFlags = Array.from(
+          { length: images.length },
+          (_, i) => existingFlags[i] === true,
+        )
+        const [flagItem] = paddedFlags.splice(index, 1)
+        paddedFlags.splice(target, 0, flagItem)
+        nextMeta.featuredHomeFlagsJson =
+          serializeFeaturedGalleryFlags(paddedFlags)
+      }
+      return nextMeta
     })
   }
 
@@ -665,12 +717,12 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
                         {current.key === 'gallery'
-                          ? `Gallery Images (${images.length})`
+                          ? `Gallery Images (${images.length}) · Home Top 6 Selected (${parseFeaturedGalleryFlags(metadata.featuredHomeFlagsJson).filter(Boolean).length}/${MAX_HOME_FEATURED_GALLERY_PHOTOS})`
                           : 'Section Cover Image'}
                       </h3>
                       <p className="text-[11px] text-stone-400">
                         {current.key === 'gallery'
-                          ? 'Upload multiple photos and add optional labels. All photos appear on the public /gallery page.'
+                          ? 'Upload gallery photos, add optional labels, and pin up to 6 photos to showcase in the Home Sanctuary section.'
                           : 'Upload a cover image for this section. Uploading a new photo replaces the existing cover image.'}
                       </p>
                     </div>
@@ -750,11 +802,19 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                         const captions = parseImageCaptions(
                           metadata.imageCaptionsJson,
                         )
+                        const featuredFlags = parseFeaturedGalleryFlags(
+                          metadata.featuredHomeFlagsJson,
+                        )
                         const captionValue = captions[idx] ?? ''
+                        const isHomeFeatured = featuredFlags[idx] === true
                         return (
                           <div
                             key={`${src}-${idx}`}
-                            className="group relative rounded-xl border border-stone-200 overflow-hidden bg-stone-50"
+                            className={`group relative rounded-xl border overflow-hidden bg-stone-50 ${
+                              current.key === 'gallery' && isHomeFeatured
+                                ? 'border-amber-500 ring-1 ring-amber-500/40'
+                                : 'border-stone-200'
+                            }`}
                           >
                             <div className="relative">
                               <img
@@ -762,12 +822,36 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                                 alt={`${meta.label} ${idx + 1}`}
                                 className="w-full h-36 object-cover"
                               />
-                              {idx === 0 && (
-                                <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-900/80 text-white">
-                                  {current.key === 'gallery'
-                                    ? 'Photo #1'
-                                    : 'Cover Photo'}
-                                </span>
+                              <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                                {idx === 0 && current.key !== 'gallery' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-900/80 text-white">
+                                    Cover Photo
+                                  </span>
+                                )}
+                                {current.key === 'gallery' && isHomeFeatured && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-800 text-white shadow-xs">
+                                    <Pin className="w-2.5 h-2.5" />
+                                    Home Top 6
+                                  </span>
+                                )}
+                              </div>
+                              {current.key === 'gallery' && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleHomeFeaturedImage(idx)
+                                  }
+                                  className={`absolute top-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition cursor-pointer shadow-xs ${
+                                    isHomeFeatured
+                                      ? 'bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200'
+                                      : 'bg-stone-900/75 text-white hover:bg-stone-900'
+                                  }`}
+                                >
+                                  <Pin className="w-2.5 h-2.5" />
+                                  {isHomeFeatured
+                                    ? 'Pinned to Home'
+                                    : 'Pin to Home Top 6'}
+                                </button>
                               )}
                             </div>
                             <div className="p-2.5 space-y-2 bg-white border-t border-stone-100">

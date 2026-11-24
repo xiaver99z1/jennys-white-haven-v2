@@ -123,9 +123,11 @@ model Room {
   name          String
   type          String
   description   String?
-  capacity      Int        @default(2)
-  pricePerNight Decimal    @db.Decimal(10, 2)
-  status        RoomStatus @default(AVAILABLE)
+  capacity       Int        @default(2)
+  pricePerNight  Decimal    @db.Decimal(10, 2)
+  // Rollout note: apply schema changes (`pnpm db:push`) to existing databases before starting or serving requests with new builds (`pnpm build` only runs `prisma generate`).
+  extraPersonFee Decimal    @default(500) @db.Decimal(10, 2)
+  status         RoomStatus @default(AVAILABLE)
   amenities     String[]   @default([])
   images        String[]   @default([])
   

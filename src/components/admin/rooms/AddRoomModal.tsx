@@ -1,7 +1,11 @@
 import { useState, useRef } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
-import { DEFAULT_WHOLE_HOUSE_PRICE, ROOM_TYPES } from '#/lib/constants/rooms'
+import {
+  DEFAULT_EXTRA_PERSON_FEE,
+  DEFAULT_WHOLE_HOUSE_PRICE,
+  ROOM_TYPES,
+} from '#/lib/constants/rooms'
 import type { RoomType } from '#/lib/constants/rooms'
 import { AmenitySelectorModal } from './AmenitySelectorModal'
 import {
@@ -38,6 +42,7 @@ export function AddRoomModal({
     description: '',
     capacity: 2,
     pricePerNight: 2500,
+    extraPersonFee: DEFAULT_EXTRA_PERSON_FEE,
     amenities: [
       'Wi-Fi',
       'Air conditioning / heating',
@@ -107,6 +112,7 @@ export function AddRoomModal({
           description: formData.description || undefined,
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
+          extraPersonFee: Number(formData.extraPersonFee),
           amenities: formData.amenities,
           images: formData.images,
         },
@@ -121,6 +127,7 @@ export function AddRoomModal({
         description: '',
         capacity: 2,
         pricePerNight: 2500,
+        extraPersonFee: DEFAULT_EXTRA_PERSON_FEE,
         amenities: [
           'Wi-Fi',
           'Air conditioning / heating',
@@ -306,7 +313,7 @@ export function AddRoomModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
                     Capacity (Guests)
@@ -340,6 +347,25 @@ export function AddRoomModal({
                       setFormData({
                         ...formData,
                         pricePerNight: Number(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Extra Person Fee (₱/night)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="50"
+                    required
+                    value={formData.extraPersonFee}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extraPersonFee: Number(e.target.value),
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"

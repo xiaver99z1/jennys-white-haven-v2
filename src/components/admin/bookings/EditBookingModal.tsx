@@ -4,8 +4,12 @@ import { X, CalendarCheck, Trash2 } from 'lucide-react'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import {
   BOOKING_STATUSES,
+  DEFAULT_EXTRA_PERSON_FEE,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
+  calculateExtraGuestsFee,
+  formatExtraGuestsNote,
+  getTotalExtraGuests,
   isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import type {
@@ -36,12 +40,25 @@ interface EditBookingModalProps {
   existingBookings?: BookingItem[]
 }
 
+const getPositiveNights = (checkIn: string, checkOut: string) => {
+  const start = new Date(checkIn)
+  const end = new Date(checkOut)
+  const diff = Math.round(
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+  )
+  return diff > 0 ? diff : 1
+}
+
 const getInitialFormData = (booking: EditBookingModalProps['booking']) => ({
   roomId: booking?.roomId ?? '',
   guestId: booking?.guestId ?? '',
   checkIn: formatDateInput(booking?.checkIn),
   checkOut: formatDateInput(booking?.checkOut),
   guestsCount: booking?.guestsCount ?? 2,
+  extraAdults: 0,
+  extraChildren: 0,
+  extraSeniors: 0,
+  appliedExtraFee: 0,
   totalAmount: booking?.totalAmount ? Number(booking.totalAmount) : 0,
   amountPaid: booking?.amountPaid ? Number(booking.amountPaid) : 0,
   paymentStatus: (booking?.paymentStatus ?? 'UNPAID') as PaymentStatus,
@@ -75,6 +92,98 @@ export function EditBookingModal({
     () => rooms.find((r) => r.id === formData.roomId),
     [rooms, formData.roomId],
   )
+
+  const nights = useMemo(
+    () => getPositiveNights(formData.checkIn, formData.checkOut),
+    [formData.checkIn, formData.checkOut],
+  )
+
+  const extraPersonFeeRate = useMemo(
+    () => Number(selectedRoom?.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE),
+    [selectedRoom],
+  )
+
+  const extraGuestsFeeTotal = useMemo(
+    () => calculateExtraGuestsFee(formData, extraPersonFeeRate, nights),
+    [
+      formData.extraAdults,
+      formData.extraChildren,
+      formData.extraSeniors,
+      extraPersonFeeRate,
+      nights,
+    ],
+  )
+
+  function handleExtraGuestChange(
+    field: 'extraAdults' | 'extraChildren' | 'extraSeniors',
+    rawValue: string,
+  ) {
+    const nextVal = Math.max(0, Math.floor(Number(rawValue) || 0))
+    setFormData((prev) => {
+      const nextCounts = { ...prev, [field]: nextVal }
+      const nextFee = calculateExtraGuestsFee(
+        nextCounts,
+        extraPersonFeeRate,
+        nights,
+      )
+      return {
+        ...prev,
+        [field]: nextVal,
+        appliedExtraFee: nextFee,
+        totalAmount: Math.max(
+          0,
+          Number(prev.totalAmount) - prev.appliedExtraFee + nextFee,
+        ),
+      }
+    })
+  }
+
+  function handleRoomChange(nextRoomId: string) {
+    const nextRoom = rooms.find((r) => r.id === nextRoomId)
+    const nextRate = Number(
+      nextRoom?.extraPersonFee ?? DEFAULT_EXTRA_PERSON_FEE,
+    )
+    setFormData((prev) => {
+      const nextNights = getPositiveNights(prev.checkIn, prev.checkOut)
+      const nextFee = calculateExtraGuestsFee(prev, nextRate, nextNights)
+      return {
+        ...prev,
+        roomId: nextRoomId,
+        appliedExtraFee: nextFee,
+        totalAmount: Math.max(
+          0,
+          Number(prev.totalAmount) - prev.appliedExtraFee + nextFee,
+        ),
+      }
+    })
+  }
+
+  function handleDatesChange({
+    checkIn,
+    checkOut,
+  }: {
+    checkIn: string
+    checkOut: string
+  }) {
+    setFormData((prev) => {
+      const nextNights = getPositiveNights(checkIn, checkOut)
+      const nextFee = calculateExtraGuestsFee(
+        prev,
+        extraPersonFeeRate,
+        nextNights,
+      )
+      return {
+        ...prev,
+        checkIn,
+        checkOut,
+        appliedExtraFee: nextFee,
+        totalAmount: Math.max(
+          0,
+          Number(prev.totalAmount) - prev.appliedExtraFee + nextFee,
+        ),
+      }
+    })
+  }
 
   const roomBookedRanges = useMemo<BookedDateRange[]>(() => {
     const selectedIsWholeHouse = isWholeHouseRoom(selectedRoom)
@@ -120,6 +229,7 @@ export function EditBookingModal({
     if (formData.paymentMethod !== initial.paymentMethod) return true
     if (formData.status !== initial.status) return true
     if (formData.specialRequests !== initial.specialRequests) return true
+    if (getTotalExtraGuests(formData) > 0) return true
 
     return false
   }, [formData, booking])
@@ -143,6 +253,18 @@ export function EditBookingModal({
     onSaveStart(booking.id)
 
     try {
+      const extraNote = formatExtraGuestsNote(
+        formData,
+        extraPersonFeeRate,
+        nights,
+      )
+      const combinedSpecialRequests = [
+        formData.specialRequests.trim(),
+        extraNote,
+      ]
+        .filter(Boolean)
+        .join(' ')
+
       await updateBooking({
         data: {
           id: booking.id,
@@ -156,7 +278,7 @@ export function EditBookingModal({
           paymentStatus: formData.paymentStatus,
           paymentMethod: formData.paymentMethod,
           status: formData.status,
-          specialRequests: formData.specialRequests,
+          specialRequests: combinedSpecialRequests,
         },
       })
       await onSuccess()
@@ -263,9 +385,7 @@ export function EditBookingModal({
                   <select
                     id="edit-booking-room"
                     value={formData.roomId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, roomId: e.target.value })
-                    }
+                    onChange={(e) => handleRoomChange(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
                   >
                     {rooms.map((room) => (
@@ -286,9 +406,7 @@ export function EditBookingModal({
                   checkOut={formData.checkOut}
                   bookedRanges={roomBookedRanges}
                   allowPastDates
-                  onChange={({ checkIn, checkOut }) =>
-                    setFormData((prev) => ({ ...prev, checkIn, checkOut }))
-                  }
+                  onChange={handleDatesChange}
                   className="sm:col-span-2"
                 />
                 <div>
@@ -313,6 +431,80 @@ export function EditBookingModal({
                     }
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
                   />
+                </div>
+              </div>
+
+              {/* Additional Persons (Child / Adult / Senior) Auto-Compute */}
+              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-stone-700 uppercase tracking-wider">
+                    Add Extra Persons (Auto-Compute Fee)
+                  </span>
+                  <span className="text-[11px] font-semibold text-amber-800">
+                    +₱{extraPersonFeeRate.toLocaleString()}/night each
+                    {extraGuestsFeeTotal > 0
+                      ? ` (+₱${extraGuestsFeeTotal.toLocaleString()})`
+                      : ''}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label
+                      htmlFor="edit-booking-extra-adults"
+                      className="block text-[11px] font-medium text-stone-600 mb-1"
+                    >
+                      Adult
+                    </label>
+                    <input
+                      id="edit-booking-extra-adults"
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={formData.extraAdults}
+                      onChange={(e) =>
+                        handleExtraGuestChange('extraAdults', e.target.value)
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-booking-extra-children"
+                      className="block text-[11px] font-medium text-stone-600 mb-1"
+                    >
+                      Child
+                    </label>
+                    <input
+                      id="edit-booking-extra-children"
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={formData.extraChildren}
+                      onChange={(e) =>
+                        handleExtraGuestChange('extraChildren', e.target.value)
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-booking-extra-seniors"
+                      className="block text-[11px] font-medium text-stone-600 mb-1"
+                    >
+                      Senior
+                    </label>
+                    <input
+                      id="edit-booking-extra-seniors"
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={formData.extraSeniors}
+                      onChange={(e) =>
+                        handleExtraGuestChange('extraSeniors', e.target.value)
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    />
+                  </div>
                 </div>
               </div>
 
