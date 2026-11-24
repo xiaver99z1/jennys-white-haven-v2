@@ -7,8 +7,10 @@ import {
   DEFAULT_CMS_SECTIONS,
   getSpotImages,
   parseHeroConfig,
+  parseImageCaptions,
   parseTouristSpots,
   serializeHeroConfig,
+  serializeImageCaptions,
   serializeTouristSpots,
 } from '#/lib/constants/cms'
 import {
@@ -227,13 +229,25 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       )
     }
 
-    let cleanImages = Array.from(
-      new Set(data.images.map((u) => extractObjectKey(u)).filter(Boolean)),
-    )
+    const rawCaptions = parseImageCaptions(data.metadata.imageCaptionsJson)
+    const seenImageKeys = new Set<string>()
+    let cleanImages: string[] = []
+    const alignedCaptions: string[] = []
+    data.images.forEach((rawUrl, idx) => {
+      const key = extractObjectKey(rawUrl)
+      if (key && !seenImageKeys.has(key)) {
+        seenImageKeys.add(key)
+        cleanImages.push(key)
+        alignedCaptions.push((rawCaptions[idx] ?? '').trim())
+      }
+    })
     const cleanMeta: Record<string, string> = {}
     for (const [k, v] of Object.entries(data.metadata)) {
       if (data.key === 'hero' && k === 'eyebrow') continue
       cleanMeta[k] = v.trim()
+    }
+    if ('imageCaptionsJson' in cleanMeta) {
+      cleanMeta.imageCaptionsJson = serializeImageCaptions(alignedCaptions)
     }
 
     const extraMediaKeys: string[] = []

@@ -364,6 +364,44 @@ export function getSpotImages(
   return combined
 }
 
+export interface SectionPhotoItem {
+  url: string
+  caption: string
+}
+
+export function parseImageCaptions(rawJson?: string | null): string[] {
+  if (!rawJson || !rawJson.trim()) return []
+  try {
+    const parsed: unknown = JSON.parse(rawJson)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => (typeof item === 'string' ? item : ''))
+  } catch {
+    return []
+  }
+}
+
+export function serializeImageCaptions(captions: string[]): string {
+  return JSON.stringify(captions)
+}
+
+export function getSectionPhotoItems(
+  images: string[],
+  rawCaptionsJson?: string | null,
+): SectionPhotoItem[] {
+  const captions = parseImageCaptions(rawCaptionsJson)
+  const items: SectionPhotoItem[] = []
+  images.forEach((rawUrl, idx) => {
+    const url = rawUrl.trim()
+    if (url) {
+      items.push({
+        url,
+        caption: (captions[idx] ?? '').trim(),
+      })
+    }
+  })
+  return items
+}
+
 export function serializeTouristSpots(spots: TouristSpotItem[]): string {
   return JSON.stringify(spots)
 }
