@@ -16,6 +16,9 @@ describe('image-compress helpers', () => {
   })
 
   it('returns exact CMS dimension and quality presets per section key', () => {
+    expect(getCmsUploadPreset('branding')).toEqual(
+      IMAGE_UPLOAD_PRESETS.logoBrand,
+    )
     expect(getCmsUploadPreset('hero')).toEqual(IMAGE_UPLOAD_PRESETS.hero)
     expect(getCmsUploadPreset('story')).toEqual(IMAGE_UPLOAD_PRESETS.editorial)
     expect(getCmsUploadPreset('amenities')).toEqual(

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { DEFAULT_ADMIN_ICON_LOGO } from '#/lib/constants/cms'
 import { hasPermission } from '#/lib/permissions'
 import { formatRoleLabel } from '#/lib/formatters'
 import type { GlobalSearchResults, NotificationsResponse } from '#/types'
@@ -11,6 +12,7 @@ import {
 
 interface AdminNavbarProps {
   user: any
+  logoUrl?: string
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   profileMenuOpen: boolean
@@ -21,6 +23,7 @@ interface AdminNavbarProps {
 
 export function AdminNavbar({
   user,
+  logoUrl,
   sidebarOpen,
   setSidebarOpen,
   profileMenuOpen,
@@ -143,9 +146,12 @@ export function AdminNavbar({
       <div className="flex items-center gap-0 flex-1 max-w-2xl">
         <Link to="/admin" className="flex items-center shrink-0 cursor-pointer">
           <img
-            src="/logo.png"
+            src={logoUrl || DEFAULT_ADMIN_ICON_LOGO}
             alt="Jenny's White Haven"
-            className="h-9 w-auto object-contain"
+            width={220}
+            height={138}
+            decoding="async"
+            className="h-10 w-auto object-contain"
           />
         </Link>
 

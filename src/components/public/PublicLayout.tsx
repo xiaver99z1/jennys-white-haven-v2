@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronDown, Images, MapPin, Menu, Phone, Star, X } from 'lucide-react'
+import { resolveBrandLogos } from '#/lib/constants/cms'
 import { AnalyticsTracker } from '#/components/public/AnalyticsTracker'
 import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
 import type { CmsSectionData } from '#/types'
@@ -9,14 +10,17 @@ import type { CmsSectionData } from '#/types'
 interface PublicLayoutProps {
   children: ReactNode
   contactSection?: CmsSectionData
+  brandingSection?: CmsSectionData
   showExploreLink?: boolean
 }
 
 export function PublicLayout({
   children,
   contactSection,
+  brandingSection,
   showExploreLink = true,
 }: PublicLayoutProps) {
+  const brandLogos = resolveBrandLogos(brandingSection)
   const [menuOpen, setMenuOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [cookieModalOpen, setCookieModalOpen] = useState(false)
@@ -126,6 +130,13 @@ export function PublicLayout({
     }
   }
 
+  useEffect(() => {
+    const iconEl = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+    if (iconEl && brandLogos.adminIconLogo) {
+      iconEl.href = brandLogos.adminIconLogo
+    }
+  }, [brandLogos.adminIconLogo])
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F4] text-stone-900 selection:bg-amber-200/60">
       {/* Minimal Aman-inspired Header */}
@@ -133,15 +144,19 @@ export function PublicLayout({
         <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 md:h-20 flex items-center justify-between">
           <Link
             to="/"
-            className="flex flex-col leading-none group"
+            aria-label="Jenny's White Haven"
+            className="flex items-center shrink-0 py-1 group"
             onClick={() => setMenuOpen(false)}
           >
-            <span className="text-lg sm:text-xl font-serif tracking-wide text-stone-900 group-hover:text-amber-900 transition">
-              Jenny&apos;s White Haven
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.28em] text-stone-500 mt-1">
-              Camotes Island · Cebu
-            </span>
+            <img
+              src={brandLogos.publicBrandLogo}
+              alt="Jenny's White Haven"
+              width={320}
+              height={205}
+              fetchPriority="high"
+              decoding="async"
+              className="h-11 sm:h-12 md:h-14 w-auto object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -401,9 +416,15 @@ export function PublicLayout({
       <footer className="border-t border-stone-200/80 bg-[#F3EFE7] text-stone-700">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 sm:py-12 lg:py-14 grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
           <div className="space-y-3">
-            <p className="font-serif text-xl text-stone-900">
-              Jenny&apos;s White Haven
-            </p>
+            <img
+              src={brandLogos.publicBrandLogo}
+              alt="Jenny's White Haven"
+              width={320}
+              height={205}
+              loading="lazy"
+              decoding="async"
+              className="h-14 w-auto object-contain"
+            />
             <p className="text-sm text-stone-600 leading-relaxed max-w-sm">
               {contactSection?.body ||
                 'A quiet rooms-only coastal retreat on Camotes Island, Cebu, designed for unhurried island stays.'}

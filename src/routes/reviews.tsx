@@ -28,11 +28,13 @@ export const Route = createFileRoute('/reviews')({
 function PublicReviewsPage() {
   const { sections, summary } = Route.useLoaderData()
   const contactSection = sections.find((s) => s.key === 'contact')
+  const brandingSection = sections.find((s) => s.key === 'branding')
   const showExploreLink = sections.some((s) => s.key === 'explore')
 
   return (
     <PublicLayout
       contactSection={contactSection}
+      brandingSection={brandingSection}
       showExploreLink={showExploreLink}
     >
       <ReviewsPageView summary={summary} />

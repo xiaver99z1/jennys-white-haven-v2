@@ -67,8 +67,13 @@ describe('CmsSettings', () => {
     ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Our Sanctuary/i }))
+    expect(screen.getByLabelText(/Section Eyebrow/i)).toHaveValue(
+      DEFAULT_CMS_SECTIONS[1].metadata.eyebrow,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Rooms Showcase/i }))
     expect(screen.getByLabelText(/Section Title/i)).toHaveValue(
-      DEFAULT_CMS_SECTIONS[1].title,
+      DEFAULT_CMS_SECTIONS[2].title,
     )
     expect(screen.getByLabelText(/Section Title/i)).not.toBeRequired()
   })
@@ -77,16 +82,16 @@ describe('CmsSettings', () => {
     mockUpsertCmsSection.mockResolvedValue({
       success: true,
       section: {
-        ...DEFAULT_CMS_SECTIONS[1],
-        title: 'Updated Sanctuary Story',
+        ...DEFAULT_CMS_SECTIONS[2],
+        title: 'Updated Rooms Showcase',
       },
     })
 
     render(<CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Our Sanctuary/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Rooms Showcase/i }))
     fireEvent.change(screen.getByLabelText(/Section Title/i), {
-      target: { value: 'Updated Sanctuary Story' },
+      target: { value: 'Updated Rooms Showcase' },
     })
     fireEvent.click(screen.getByRole('button', { name: /Save Changes/i }))
 
@@ -94,14 +99,27 @@ describe('CmsSettings', () => {
       expect(mockUpsertCmsSection).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            key: 'story',
-            title: 'Updated Sanctuary Story',
+            key: 'rooms',
+            title: 'Updated Rooms Showcase',
           }),
         }),
       )
       expect(mockInvalidate).toHaveBeenCalled()
     })
-    expect(screen.getByText(/Our Sanctuary \(Story\) saved/i)).toBeInTheDocument()
+    expect(screen.getByText(/Rooms Showcase saved/i)).toBeInTheDocument()
+  })
+
+  it('renders BrandLogosEditor when Brand Logos section is selected', () => {
+    render(<CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Brand Logos/i }))
+    expect(
+      screen.getByText('Admin Navbar & Favicon Icon'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Admin Login & Auth Logo')).toBeInTheDocument()
+    expect(
+      screen.getByText('Public Website Header & Footer Logo'),
+    ).toBeInTheDocument()
   })
 
   it('adds image by URL and resets a section after confirmation', async () => {

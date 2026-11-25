@@ -58,6 +58,7 @@ function PublicRoomsPage() {
   const navigate = useNavigate({ from: '/rooms/' })
 
   const contact = sections.find((s) => s.key === 'contact')
+  const branding = sections.find((s) => s.key === 'branding')
   const roomsSection = sections.find((s) => s.key === 'rooms')
 
   const [checkIn, setCheckIn] = useState(search.checkIn ?? '')
@@ -95,7 +96,7 @@ function PublicRoomsPage() {
   }
 
   return (
-    <PublicLayout contactSection={contact}>
+    <PublicLayout contactSection={contact} brandingSection={branding}>
       <section className="max-w-7xl mx-auto px-6 lg:px-10 py-16 space-y-10">
         {/* Heading */}
         <div className="max-w-2xl space-y-3">

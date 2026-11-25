@@ -1,4 +1,5 @@
 import type {
+  BrandLogosConfig,
   CmsSectionData,
   CmsSectionKey,
   HeroCarouselConfig,
@@ -12,6 +13,24 @@ import {
   buildDefaultHeroContentHtml,
   sanitizeHeroRichText,
 } from '#/lib/hero-rich-text'
+
+export const DEFAULT_ADMIN_ICON_LOGO = '/logo.png'
+export const DEFAULT_ADMIN_AUTH_LOGO = '/admin-login-logo.png'
+export const DEFAULT_PUBLIC_BRAND_LOGO = '/brand-logo.png'
+
+export function resolveBrandLogos(
+  brandingSection?: Pick<CmsSectionData, 'metadata'> | null,
+): BrandLogosConfig {
+  const meta = brandingSection?.metadata ?? {}
+  return {
+    adminIconLogo:
+      (meta.adminIconLogo || '').trim() || DEFAULT_ADMIN_ICON_LOGO,
+    adminAuthLogo:
+      (meta.adminAuthLogo || '').trim() || DEFAULT_ADMIN_AUTH_LOGO,
+    publicBrandLogo:
+      (meta.publicBrandLogo || '').trim() || DEFAULT_PUBLIC_BRAND_LOGO,
+  }
+}
 
 export const HERO_CANVAS_WIDTH = 1280
 export const HERO_CANVAS_HEIGHT = 720
@@ -537,6 +556,17 @@ export const CMS_SECTION_META: Record<
     metadataFields: Array<{ key: string; label: string; placeholder: string }>
   }
 > = {
+  branding: {
+    label: 'Brand Logos',
+    description:
+      'Manage and optimize logos for the Admin Navbar, Admin Login, and Public Website Header.',
+    showTitle: false,
+    showSubtitle: false,
+    showBody: false,
+    showCta: false,
+    showImages: false,
+    metadataFields: [],
+  },
   hero: {
     label: 'Hero Banner',
     description:
@@ -807,5 +837,21 @@ export const DEFAULT_CMS_SECTIONS: CmsSectionData[] = [
     },
     isPublished: true,
     sortOrder: 6,
+  },
+  {
+    key: 'branding',
+    title: 'Brand Logos',
+    subtitle: '',
+    body: '',
+    ctaLabel: '',
+    ctaHref: '',
+    images: [],
+    metadata: {
+      adminIconLogo: '',
+      adminAuthLogo: '',
+      publicBrandLogo: '',
+    },
+    isPublished: true,
+    sortOrder: 7,
   },
 ]

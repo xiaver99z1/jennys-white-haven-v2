@@ -5,6 +5,10 @@ import { PublicLayout } from './PublicLayout'
 import { DEFAULT_CMS_SECTIONS } from '#/lib/constants/cms'
 
 vi.mock('@tanstack/react-router', () => ({
+  useRouterState: (opts?: { select?: (s: { location: { pathname: string } }) => unknown }) =>
+    opts?.select
+      ? opts.select({ location: { pathname: '/' } })
+      : { location: { pathname: '/' } },
   Link: ({
     to,
     children,
@@ -33,6 +37,9 @@ describe('PublicLayout', () => {
     )
 
     expect(screen.getByText('Hero Content')).toBeInTheDocument()
+    expect(
+      screen.getAllByAltText("Jenny's White Haven")[0],
+    ).toHaveAttribute('src', '/brand-logo.png')
     expect(screen.getByText('Rooms')).toBeInTheDocument()
     expect(screen.getByText('Explore Camotes')).toBeInTheDocument()
     expect(screen.getByText('Camotes Island Guide')).toBeInTheDocument()
