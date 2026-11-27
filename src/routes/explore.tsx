@@ -27,10 +27,12 @@ function ExploreCamotesPage() {
   const { sections } = Route.useLoaderData()
   const exploreSection = sections.find((s) => s.key === 'explore')
   const contactSection = sections.find((s) => s.key === 'contact')
+  const brandingSection = sections.find((s) => s.key === 'branding')
 
   return (
     <PublicLayout
       contactSection={contactSection}
+      brandingSection={brandingSection}
       showExploreLink={Boolean(exploreSection)}
     >
       <ExploreGuideView exploreSection={exploreSection} />

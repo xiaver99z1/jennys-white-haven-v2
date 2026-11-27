@@ -72,6 +72,7 @@ export const Route = createFileRoute('/contact')({
 function ContactAndMapPage() {
   const { sections } = Route.useLoaderData()
   const contactSection = sections.find((s) => s.key === 'contact')
+  const brandingSection = sections.find((s) => s.key === 'branding')
   const showExploreLink = sections.some((s) => s.key === 'explore')
   const meta = contactSection?.metadata ?? {}
 
@@ -92,6 +93,7 @@ function ContactAndMapPage() {
   return (
     <PublicLayout
       contactSection={contactSection}
+      brandingSection={brandingSection}
       showExploreLink={showExploreLink}
     >
       {/* Editorial Header */}

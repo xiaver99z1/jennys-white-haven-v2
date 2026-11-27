@@ -36,6 +36,7 @@ import {
 import { resetCmsSection, upsertCmsSection } from '#/server/cms-actions'
 import { uploadAvatar } from '#/server/upload'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { BrandLogosEditor } from '#/components/admin/settings/BrandLogosEditor'
 import { HeroCarouselEditor } from '#/components/admin/settings/HeroCarouselEditor'
 import { TouristSpotsEditor } from '#/components/admin/settings/TouristSpotsEditor'
 import type { CmsSectionData, CmsSectionKey } from '#/types'
@@ -336,6 +337,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       )
       loadSectionIntoForm(res.section)
       setSuccessMsg(`${CMS_SECTION_META[current.key].label} saved.`)
+      if (current.key === 'branding') {
+        window.dispatchEvent(new Event('brand-logos-updated'))
+      }
       await router.invalidate()
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to save section.'))
@@ -357,6 +361,9 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
       loadSectionIntoForm(res.section)
       setConfirmResetOpen(false)
       setSuccessMsg(`${CMS_SECTION_META[current.key].label} reset to defaults.`)
+      if (current.key === 'branding') {
+        window.dispatchEvent(new Event('brand-logos-updated'))
+      }
       await router.invalidate()
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to reset section.'))
@@ -495,17 +502,19 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
                 )}
               </div>
 
-              <label className="inline-flex items-center gap-2.5 px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer self-start">
-                <input
-                  type="checkbox"
-                  checked={isPublished}
-                  onChange={(e) => setIsPublished(e.target.checked)}
-                  className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
-                />
-                <span className="text-xs font-semibold text-stone-700">
-                  Published on site
-                </span>
-              </label>
+              {current.key !== 'branding' && (
+                <label className="inline-flex items-center gap-2.5 px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 cursor-pointer self-start">
+                  <input
+                    type="checkbox"
+                    checked={isPublished}
+                    onChange={(e) => setIsPublished(e.target.checked)}
+                    className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
+                  />
+                  <span className="text-xs font-semibold text-stone-700">
+                    Published on site
+                  </span>
+                </label>
+              )}
             </div>
 
             {error && (
@@ -527,8 +536,16 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
               </div>
             )}
 
-            {/* Hero Carousel Visual Editor */}
-            {current.key === 'hero' ? (
+            {/* Brand Logos Editor or Hero Carousel Visual Editor */}
+            {current.key === 'branding' ? (
+              <BrandLogosEditor
+                metadata={metadata}
+                disabled={isSaving || isResetting}
+                onChange={setMetadata}
+                onError={setError}
+                onUploadingChange={setIsHeroUploading}
+              />
+            ) : current.key === 'hero' ? (
               <HeroCarouselEditor
                 config={parseHeroConfig(metadata.heroConfigJson, {
                   title,

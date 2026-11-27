@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { DEFAULT_ADMIN_AUTH_LOGO } from '#/lib/constants/cms'
+import { getPublicBrandLogos } from '#/server/cms-actions'
 
 export function useCooldown(activeKey = 'default') {
   const [expiries, setExpiries] = useState<Record<string, number>>({})
@@ -58,13 +60,39 @@ export function AuthPageShell({
   cardClassName = '',
   logoAlt = "Jenny's White Haven",
 }: AuthPageShellProps) {
+  const [logoSrc, setLogoSrc] = useState(DEFAULT_ADMIN_AUTH_LOGO)
+
+  useEffect(() => {
+    let active = true
+    getPublicBrandLogos()
+      .then((logos) => {
+        if (
+          active &&
+          logos.adminAuthLogo &&
+          logos.adminAuthLogo !== DEFAULT_ADMIN_AUTH_LOGO
+        ) {
+          setLogoSrc(logos.adminAuthLogo)
+        }
+      })
+      .catch(() => {
+        /* fall back to bundled default logo */
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-200 via-amber-200/60 to-teal-100 px-4 py-8 font-sans">
       <div className="mb-6 flex flex-col items-center">
         <img
-          src="/admin-login-logo.png"
+          src={logoSrc}
           alt={logoAlt}
-          className="h-24 w-auto object-contain"
+          width={420}
+          height={269}
+          fetchPriority="high"
+          decoding="async"
+          className="h-28 sm:h-32 w-auto object-contain drop-shadow-2xs"
         />
       </div>
 

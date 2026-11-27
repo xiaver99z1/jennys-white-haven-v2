@@ -412,4 +412,59 @@ describe('cms-actions', () => {
     expect(saved.section.metadata.spotsJson).toContain('cms/santiago.webp')
     expect(saved.section.metadata.spotsJson).toContain('cms/santiago-2.webp')
   })
+
+  it('stores object keys in DB and resolves branding metadata URLs in save response', async () => {
+    mockUpsert.mockResolvedValueOnce({
+      id: 'sec-branding',
+      key: 'branding',
+      title: 'Brand Logos',
+      subtitle: null,
+      body: null,
+      ctaLabel: null,
+      ctaHref: null,
+      images: ['cms/custom-logo.webp'],
+      metadata: {
+        adminIconLogo: 'cms/custom-logo.webp',
+        adminAuthLogo: '',
+        publicBrandLogo: 'cms/public-logo.webp',
+      },
+      isPublished: true,
+      sortOrder: 7,
+      updatedAt: new Date('2026-03-04T00:00:00Z'),
+      updatedBy: { name: 'Jenny Owner' },
+    })
+
+    const saved = await upsertCmsSectionHandler({
+      data: {
+        key: 'branding',
+        title: 'Brand Logos',
+        images: [],
+        metadata: {
+          adminIconLogo: '/api/media/view?key=cms%2Fcustom-logo.webp',
+          adminAuthLogo: '',
+          publicBrandLogo: '/api/media/view?key=cms%2Fpublic-logo.webp',
+        },
+        isPublished: true,
+      },
+    })
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          metadata: {
+            adminIconLogo: 'cms/custom-logo.webp',
+            adminAuthLogo: '',
+            publicBrandLogo: 'cms/public-logo.webp',
+          },
+        }),
+      }),
+    )
+    expect(saved.section.metadata.adminIconLogo).toBe(
+      '/uploads/cms/custom-logo.webp',
+    )
+    expect(saved.section.metadata.publicBrandLogo).toBe(
+      '/uploads/cms/public-logo.webp',
+    )
+    expect(saved.section.metadata.adminAuthLogo).toBe('')
+  })
 })

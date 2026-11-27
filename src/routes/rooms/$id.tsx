@@ -71,6 +71,7 @@ function PublicRoomDetailPage() {
   const search = Route.useSearch()
 
   const contact = sections.find((s) => s.key === 'contact')
+  const branding = sections.find((s) => s.key === 'branding')
   const [selectedImageIdx, setSelectedImageIdx] = useState(0)
 
   const [checkIn, setCheckIn] = useState(search.checkIn ?? '')
@@ -96,7 +97,7 @@ function PublicRoomDetailPage() {
 
   if (!room) {
     return (
-      <PublicLayout contactSection={contact}>
+      <PublicLayout contactSection={contact} brandingSection={branding}>
         <div className="max-w-3xl mx-auto px-6 py-24 text-center space-y-4">
           <h1 className="text-3xl font-serif text-stone-900">
             Room Not Found
@@ -167,7 +168,7 @@ function PublicRoomDetailPage() {
   }
 
   return (
-    <PublicLayout contactSection={contact}>
+    <PublicLayout contactSection={contact} brandingSection={branding}>
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12 space-y-10">
         <Link
           to="/rooms"

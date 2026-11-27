@@ -7,7 +7,9 @@ import {
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
+import { DEFAULT_ADMIN_ICON_LOGO } from '#/lib/constants/cms'
 import { logUserLogout } from '#/server/auth-actions'
+import { getPublicBrandLogos } from '#/server/cms-actions'
 import { checkInitialSetupRequiredHandler } from '#/server/setup-actions'
 import { useEffect, useState, useRef } from 'react'
 import { AdminSidebar } from '#/components/common/AdminSidebar'
@@ -85,8 +87,33 @@ function AdminLayout() {
     normalizedPath === '/admin/login' || normalizedPath === '/admin/setup'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessionData, setSessionData] = useState<any>(null)
+  const [adminIconLogo, setAdminIconLogo] = useState(DEFAULT_ADMIN_ICON_LOGO)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const syncBrandLogos = () => {
+      getPublicBrandLogos()
+        .then((logos) => {
+          setAdminIconLogo((prev) =>
+            prev === logos.adminIconLogo ? prev : logos.adminIconLogo,
+          )
+          const iconEl = document.querySelector<HTMLLinkElement>(
+            'link[rel="icon"]',
+          )
+          if (iconEl && logos.adminIconLogo) {
+            iconEl.href = logos.adminIconLogo
+          }
+        })
+        .catch(() => {
+          /* fall back to bundled default logo */
+        })
+    }
+    syncBrandLogos()
+    window.addEventListener('brand-logos-updated', syncBrandLogos)
+    return () =>
+      window.removeEventListener('brand-logos-updated', syncBrandLogos)
+  }, [])
 
   // Close sidebar on route change for small screens
   useEffect(() => {
@@ -181,6 +208,7 @@ function AdminLayout() {
       {/* Top Navbar Header Component */}
       <AdminNavbar
         user={user}
+        logoUrl={adminIconLogo}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         profileMenuOpen={profileMenuOpen}

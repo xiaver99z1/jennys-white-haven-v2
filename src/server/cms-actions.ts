@@ -10,6 +10,7 @@ import {
   parseHeroConfig,
   parseImageCaptions,
   parseTouristSpots,
+  resolveBrandLogos,
   serializeFeaturedGalleryFlags,
   serializeHeroConfig,
   serializeImageCaptions,
@@ -25,7 +26,7 @@ import {
   normalizeImageMimeType,
   purgeReplacedR2Objects,
 } from '#/server/upload'
-import type { CmsSectionData, CmsSectionKey } from '#/types'
+import type { BrandLogosConfig, CmsSectionData, CmsSectionKey } from '#/types'
 
 const VALID_KEYS = new Set<string>(DEFAULT_CMS_SECTIONS.map((s) => s.key))
 
@@ -110,6 +111,30 @@ function extractSpotImageKeys(metadata: unknown): string[] {
     .filter(Boolean)
 }
 
+const BRAND_LOGO_KEYS = [
+  'adminIconLogo',
+  'adminAuthLogo',
+  'publicBrandLogo',
+] as const
+
+function resolveBrandingMetadata(
+  metadata: Record<string, string>,
+): Record<string, string> {
+  const next = { ...metadata }
+  for (const field of BRAND_LOGO_KEYS) {
+    const raw = (next[field] ?? '').trim()
+    next[field] =
+      raw && !isBase64DataUrl(raw) ? resolvePublicMediaUrl(raw) : ''
+  }
+  return next
+}
+
+function extractBrandingImageKeys(metadata: unknown): string[] {
+  const record = toStringRecord(metadata)
+  return BRAND_LOGO_KEYS.map((field) => extractObjectKey(record[field] ?? ''))
+    .filter((key) => Boolean(key) && isR2ManagedObjectKey(key))
+}
+
 function mergeWithDefaults(
   rows: Array<{
     key: string
@@ -149,8 +174,12 @@ function mergeWithDefaults(
       ctaHref: row.ctaHref ?? '',
       images: rowImages,
       metadata:
-        def.key === 'explore' ? resolveExploreMetadata(mergedMeta) : mergedMeta,
-      isPublished: row.isPublished,
+        def.key === 'explore'
+          ? resolveExploreMetadata(mergedMeta)
+          : def.key === 'branding'
+            ? resolveBrandingMetadata(mergedMeta)
+            : mergedMeta,
+      isPublished: def.key === 'branding' ? true : row.isPublished,
       sortOrder: row.sortOrder,
       updatedAt: row.updatedAt,
       updatedByName: row.updatedBy?.name ?? null,
@@ -174,6 +203,26 @@ export const getPublicCmsSectionsHandler = createServerOnlyFn(
 
 export const getPublicCmsSections = createServerFn({ method: 'GET' }).handler(
   getPublicCmsSectionsHandler,
+)
+
+export const getPublicBrandLogosHandler = createServerOnlyFn(
+  async (): Promise<BrandLogosConfig> => {
+    try {
+      const row = await prisma.siteSection.findUnique({
+        where: { key: 'branding' },
+        select: { metadata: true },
+      })
+      if (!row) return resolveBrandLogos(null)
+      const resolvedMeta = resolveBrandingMetadata(toStringRecord(row.metadata))
+      return resolveBrandLogos({ metadata: resolvedMeta })
+    } catch {
+      return resolveBrandLogos(null)
+    }
+  },
+)
+
+export const getPublicBrandLogos = createServerFn({ method: 'GET' }).handler(
+  getPublicBrandLogosHandler,
 )
 
 export const getAdminCmsSectionsHandler = createServerOnlyFn(
@@ -327,6 +376,27 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
       cleanMeta.spotsJson = serializeTouristSpots(normalizedSpots)
     }
 
+    if (data.key === 'branding') {
+      for (const field of BRAND_LOGO_KEYS) {
+        const rawVal = cleanMeta[field] ?? ''
+        if (!rawVal) {
+          cleanMeta[field] = ''
+          continue
+        }
+        if (isBase64DataUrl(rawVal)) {
+          throw new Error(
+            'Binary Base64 image data is not allowed in PostgreSQL. Upload via Cloudflare R2 instead.',
+          )
+        }
+        const key = extractObjectKey(rawVal)
+        cleanMeta[field] = key
+        if (key && isR2ManagedObjectKey(key)) {
+          extraMediaKeys.push(key)
+        }
+      }
+      cleanImages = Array.from(new Set(extraMediaKeys))
+    }
+
     const allMediaKeys = Array.from(new Set([...cleanImages, ...extraMediaKeys]))
 
     const session = await authSession()
@@ -341,6 +411,7 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
           : []),
         ...extractHeroSlideImageKeys(existingRow?.metadata),
         ...extractSpotImageKeys(existingRow?.metadata),
+        ...extractBrandingImageKeys(existingRow?.metadata),
       ]),
     )
 
@@ -434,8 +505,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
                   subtitle: rawSubtitle,
                   images: savedImages,
                 })
-              : savedMeta,
-        isPublished: saved.isPublished,
+              : data.key === 'branding'
+                ? resolveBrandingMetadata(savedMeta)
+                : savedMeta,
+        isPublished: data.key === 'branding' ? true : saved.isPublished,
         sortOrder: saved.sortOrder,
         updatedAt: saved.updatedAt,
         updatedByName: saved.updatedBy?.name ?? null,
@@ -475,6 +548,7 @@ export const resetCmsSectionHandler = createServerOnlyFn(
           : []),
         ...extractHeroSlideImageKeys(existingRow?.metadata),
         ...extractSpotImageKeys(existingRow?.metadata),
+        ...extractBrandingImageKeys(existingRow?.metadata),
       ]),
     )
 

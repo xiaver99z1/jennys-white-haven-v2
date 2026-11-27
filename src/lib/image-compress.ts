@@ -11,6 +11,8 @@ export interface ImageUploadPreset {
  */
 export const IMAGE_UPLOAD_PRESETS = {
   avatar: { maxDimension: 400, quality: 0.82 },
+  logoIcon: { maxDimension: 256, quality: 0.9 },
+  logoBrand: { maxDimension: 560, quality: 0.9 },
   hero: { maxDimension: 2560, quality: 0.88 },
   editorial: { maxDimension: 1280, quality: 0.82 },
   gallery: { maxDimension: 1200, quality: 0.82 },
@@ -21,6 +23,8 @@ export function getCmsUploadPreset(
   sectionKey: CmsSectionKey,
 ): ImageUploadPreset {
   switch (sectionKey) {
+    case 'branding':
+      return IMAGE_UPLOAD_PRESETS.logoBrand
     case 'hero':
       return IMAGE_UPLOAD_PRESETS.hero
     case 'story':

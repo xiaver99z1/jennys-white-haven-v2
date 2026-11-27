@@ -39,6 +39,7 @@ export const Route = createFileRoute('/booking-status')({
 function BookingStatusPage() {
   const { sections } = Route.useLoaderData()
   const contactSection = sections.find((s) => s.key === 'contact')
+  const brandingSection = sections.find((s) => s.key === 'branding')
 
   const [bookingReference, setBookingReference] = useState('')
   const [contact, setContact] = useState('')
@@ -144,7 +145,10 @@ function BookingStatusPage() {
   const activeRatingDisplay = hoverRating ?? rating
 
   return (
-    <PublicLayout contactSection={contactSection}>
+    <PublicLayout
+      contactSection={contactSection}
+      brandingSection={brandingSection}
+    >
       <section className="max-w-2xl mx-auto px-6 py-16 sm:py-24 space-y-10">
         <div className="text-center space-y-3">
           <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">

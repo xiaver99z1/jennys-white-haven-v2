@@ -582,6 +582,7 @@ export interface AnalyticsReportData {
 }
 
 export type CmsSectionKey =
+  | 'branding'
   | 'hero'
   | 'story'
   | 'rooms'
@@ -589,6 +590,12 @@ export type CmsSectionKey =
   | 'gallery'
   | 'explore'
   | 'contact'
+
+export interface BrandLogosConfig {
+  adminIconLogo: string
+  adminAuthLogo: string
+  publicBrandLogo: string
+}
 
 export interface HeroElementPosition {
   x: number

@@ -39,6 +39,7 @@ function LandingPage() {
   )
 
   const byKey = new Map(sections.map((s) => [s.key, s]))
+  const branding = byKey.get('branding')
   const hero = byKey.get('hero')
   const story = byKey.get('story')
   const roomsSection = byKey.get('rooms')
@@ -62,6 +63,7 @@ function LandingPage() {
   return (
     <PublicLayout
       contactSection={contact}
+      brandingSection={branding}
       showExploreLink={Boolean(byKey.get('explore'))}
     >
       {/* Hero Carousel Section */}
