@@ -14,7 +14,7 @@ import { getPublicReviews } from '#/server/review-actions'
 import { HeroCarouselSection } from '#/components/public/HeroCarouselSection'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { SectionPhotoGalleryModal } from '#/components/public/SectionPhotoGalleryModal'
-import { formatPeso } from '#/lib/formatters'
+import { useCurrency } from '#/lib/currency'
 
 export const Route = createFileRoute('/')({
   loader: async () => {
@@ -33,6 +33,7 @@ export const Route = createFileRoute('/')({
 
 function LandingPage() {
   const { sections, rooms, reviewsSummary } = Route.useLoaderData()
+  const { formatPrice } = useCurrency()
   const navigate = useNavigate()
   const [selectedTopPhotoIdx, setSelectedTopPhotoIdx] = useState<number | null>(
     null,
@@ -251,7 +252,7 @@ function LandingPage() {
                       </div>
                       <div className="pt-3 border-t border-stone-200/70 flex items-center justify-between">
                         <span className="text-sm font-semibold text-stone-900">
-                          {formatPeso(room.pricePerNight)}
+                          {formatPrice(room.pricePerNight)}
                           <span className="text-xs font-normal text-stone-500">
                             {' '}
                             / night

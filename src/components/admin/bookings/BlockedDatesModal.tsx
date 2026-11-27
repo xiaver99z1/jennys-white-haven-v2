@@ -209,8 +209,8 @@ export function BlockedDatesModal({
 
             <StayDateRangePicker
               idPrefix="block-dates"
-              checkInLabel="Unavailable From (Check-In)"
-              checkOutLabel="Available Again On (Check-Out)"
+              checkInLabel="Unavailable From"
+              checkOutLabel="Available Again"
               checkIn={startDate}
               checkOut={endDate}
               bookedRanges={existingRanges}

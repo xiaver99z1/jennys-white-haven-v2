@@ -93,6 +93,16 @@ describe('EditUserProfileModal', () => {
     const pwdInput = screen.getByPlaceholderText(/8-16 chars/i)
     const confirmInput = screen.getByPlaceholderText(/re-enter new password/i)
 
+    expect(pwdInput).toHaveAttribute('type', 'password')
+    await user.click(screen.getByRole('button', { name: /show new password/i }))
+    expect(pwdInput).toHaveAttribute('type', 'text')
+
+    expect(confirmInput).toHaveAttribute('type', 'password')
+    await user.click(
+      screen.getByRole('button', { name: /show password confirmation/i }),
+    )
+    expect(confirmInput).toHaveAttribute('type', 'text')
+
     await user.type(pwdInput, 'Short1!')
     await user.type(confirmInput, 'Short1!')
 

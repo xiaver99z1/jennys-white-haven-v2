@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useCooldown } from '#/components/admin/auth/AuthPageShell'
 import { authClient } from '#/lib/auth-client'
 import {
@@ -34,6 +35,9 @@ export function ProfileSettings() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Loading & Message States
   const [profileLoading, setProfileLoading] = useState(false)
@@ -86,6 +90,9 @@ export function ProfileSettings() {
     setCurrentPassword('')
     setNewPassword('')
     setConfirmPassword('')
+    setShowCurrentPassword(false)
+    setShowNewPassword(false)
+    setShowConfirmPassword(false)
     setMessage(null)
   }
 
@@ -272,6 +279,9 @@ export function ProfileSettings() {
         setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
+        setShowCurrentPassword(false)
+        setShowNewPassword(false)
+        setShowConfirmPassword(false)
       }
     } catch {
       setMessage({
@@ -502,14 +512,29 @@ export function ProfileSettings() {
           >
             Current Password
           </label>
-          <input
-            id="current-password"
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            placeholder="••••••••"
-            className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 transition text-stone-800"
-          />
+          <div className="relative">
+            <input
+              id="current-password"
+              type={showCurrentPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-3.5 py-2 pr-10 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden transition text-stone-800"
+            />
+            <button
+              type="button"
+              aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+              onClick={() => setShowCurrentPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+            >
+              {showCurrentPassword ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -520,14 +545,31 @@ export function ProfileSettings() {
             >
               New Password
             </label>
-            <input
-              id="new-password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 transition text-stone-800"
-            />
+            <div className="relative">
+              <input
+                id="new-password"
+                type={showNewPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3.5 py-2 pr-10 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden transition text-stone-800"
+              />
+              <button
+                type="button"
+                aria-label={
+                  showNewPassword ? 'Hide new password' : 'Show new password'
+                }
+                onClick={() => setShowNewPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+              >
+                {showNewPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -537,14 +579,33 @@ export function ProfileSettings() {
             >
               Confirm New Password
             </label>
-            <input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 transition text-stone-800"
-            />
+            <div className="relative">
+              <input
+                id="confirm-password"
+                type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3.5 py-2 pr-10 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden transition text-stone-800"
+              />
+              <button
+                type="button"
+                aria-label={
+                  showConfirmPassword
+                    ? 'Hide password confirmation'
+                    : 'Show password confirmation'
+                }
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
