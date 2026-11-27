@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { Lock } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Eye, EyeOff, Lock } from 'lucide-react'
 
 interface PasswordChallengeModalProps {
   isOpen: boolean
@@ -22,8 +22,10 @@ export function PasswordChallengeModal({
 }: PasswordChallengeModalProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
+    setShowPassword(false)
     if (!isOpen) return
 
     previousFocusRef.current = document.activeElement as HTMLElement | null
@@ -104,16 +106,34 @@ export function PasswordChallengeModal({
           >
             Your Administrator Password
           </label>
-          <input
-            ref={inputRef}
-            id="admin-auth-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => onPasswordChange(e.target.value)}
-            placeholder="Enter your password"
-            className="w-full rounded-lg border border-stone-300 px-3.5 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50"
-          />
+          <div className="relative">
+            <input
+              ref={inputRef}
+              id="admin-auth-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => onPasswordChange(e.target.value)}
+              placeholder="Enter your password"
+              className="w-full rounded-lg border border-stone-300 px-3.5 py-2 pr-10 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+            />
+            <button
+              type="button"
+              aria-label={
+                showPassword
+                  ? 'Hide administrator password'
+                  : 'Show administrator password'
+              }
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+            >
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

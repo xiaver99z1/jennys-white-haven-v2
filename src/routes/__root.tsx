@@ -2,6 +2,7 @@ import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { NotFoundPage } from '#/components/common/NotFoundPage'
+import { CurrencyProvider } from '#/lib/currency'
 
 import appCss from '../styles.css?url'
 
@@ -54,7 +55,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <CurrencyProvider>{children}</CurrencyProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

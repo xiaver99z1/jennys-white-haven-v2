@@ -7,6 +7,7 @@ import { lookupPublicBooking } from '#/server/public-actions'
 import { submitPublicReview } from '#/server/review-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StatusBadge } from '#/components/common/StatusBadge'
+import { useCurrency } from '#/lib/currency'
 import {
   formatDate,
   formatPeso,
@@ -38,6 +39,7 @@ export const Route = createFileRoute('/booking-status')({
 
 function BookingStatusPage() {
   const { sections } = Route.useLoaderData()
+  const { currency, isConverted, formatPrice } = useCurrency()
   const contactSection = sections.find((s) => s.key === 'contact')
   const brandingSection = sections.find((s) => s.key === 'branding')
 
@@ -288,16 +290,22 @@ function BookingStatusPage() {
               <div className="rounded-2xl bg-stone-50 border border-stone-200/70 p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-stone-600">
                   <span>Total Amount</span>
-                  <span>{formatPeso(result.totalAmount)}</span>
+                  <span>{formatPrice(result.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between text-stone-600">
                   <span>Amount Paid</span>
-                  <span>{formatPeso(result.amountPaid)}</span>
+                  <span>{formatPrice(result.amountPaid)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-stone-900 pt-2 border-t border-stone-200/70">
                   <span>Remaining Balance</span>
-                  <span>{formatPeso(balance)}</span>
+                  <span>{formatPrice(balance)}</span>
                 </div>
+                {isConverted && (
+                  <p className="text-[11px] text-stone-500 pt-1">
+                    Approx. in {currency} · Official billing total:{' '}
+                    {formatPeso(result.totalAmount)} PHP.
+                  </p>
+                )}
               </div>
 
               {balance > 0 && contactSection?.metadata.paymentInfo && (

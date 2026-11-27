@@ -1,4 +1,5 @@
 import { Minus, Plus } from 'lucide-react'
+import { useCurrency } from '#/lib/currency'
 import { formatPeso } from '#/lib/formatters'
 
 interface ExtraGuestsCounterFieldProps {
@@ -35,21 +36,30 @@ export function ExtraGuestsCounterField({
   onChangeChildren,
 }: ExtraGuestsCounterFieldProps) {
   const isPublic = variant === 'public'
+  const { formatPrice } = useCurrency()
+  const formatAmount = isPublic ? formatPrice : formatPeso
+  const adultRateLabel = `+${formatAmount(extraAdultFee)} / night`
+  const childRateLabel = `+${formatAmount(extraChildFee)} / night`
 
   return (
     <div
       className={
         isPublic
-          ? 'rounded-2xl bg-[#FAF8F4] border border-stone-200/80 p-3.5 space-y-3'
+          ? 'rounded-2xl bg-[#FAF8F4] border border-stone-200/80 p-3.5 space-y-2.5'
           : 'p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-2.5'
       }
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 min-w-0">
         <span
+          title={
+            isPublic
+              ? 'Additional Persons (Optional)'
+              : 'Additional Persons (Auto-Compute Fee)'
+          }
           className={
             isPublic
-              ? 'text-[11px] uppercase tracking-[0.16em] text-stone-600 font-semibold'
-              : 'text-[11px] font-semibold text-stone-700 uppercase tracking-wider'
+              ? 'text-[11px] uppercase tracking-[0.16em] text-stone-600 font-semibold truncate'
+              : 'text-[11px] font-semibold text-stone-700 uppercase tracking-wider truncate'
           }
         >
           {isPublic
@@ -57,24 +67,27 @@ export function ExtraGuestsCounterField({
             : 'Additional Persons (Auto-Compute Fee)'}
         </span>
         {extraTotalFee > 0 && (
-          <span className="text-[11px] font-semibold text-amber-800">
-            +{formatPeso(extraTotalFee)}
+          <span className="text-[11px] font-semibold text-amber-800 whitespace-nowrap shrink-0">
+            +{formatAmount(extraTotalFee)}
           </span>
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 gap-2">
         {/* Extra Adult Stepper */}
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-white border border-stone-200/90 px-3 py-2">
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-white border border-stone-200/90 px-3.5 py-2.5">
           <div className="min-w-0">
             <label
               htmlFor={`${idPrefix}-extra-adults`}
-              className="block text-xs font-semibold text-stone-800"
+              className="block text-xs font-semibold text-stone-800 truncate"
             >
               Adult
             </label>
-            <span className="block text-[11px] text-amber-900 font-medium">
-              +{formatPeso(extraAdultFee)} / night
+            <span
+              title={adultRateLabel}
+              className="block text-[11px] text-amber-900 font-medium whitespace-nowrap truncate"
+            >
+              {adultRateLabel}
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -115,16 +128,19 @@ export function ExtraGuestsCounterField({
         </div>
 
         {/* Extra Child Stepper */}
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-white border border-stone-200/90 px-3 py-2">
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-white border border-stone-200/90 px-3.5 py-2.5">
           <div className="min-w-0">
             <label
               htmlFor={`${idPrefix}-extra-children`}
-              className="block text-xs font-semibold text-stone-800"
+              className="block text-xs font-semibold text-stone-800 truncate"
             >
               Child
             </label>
-            <span className="block text-[11px] text-amber-900 font-medium">
-              +{formatPeso(extraChildFee)} / night
+            <span
+              title={childRateLabel}
+              className="block text-[11px] text-amber-900 font-medium whitespace-nowrap truncate"
+            >
+              {childRateLabel}
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">

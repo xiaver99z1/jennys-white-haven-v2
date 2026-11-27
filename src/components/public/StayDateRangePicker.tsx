@@ -358,8 +358,8 @@ export function StayDateRangePicker({
   }
 
   const labelClass = compact
-    ? 'flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5'
-    : 'flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5'
+    ? 'flex items-center gap-1 min-w-0 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5'
+    : 'flex items-center gap-1.5 min-w-0 text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5'
 
   const buttonBaseClass = compact
     ? 'w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border bg-white text-left text-xs sm:text-sm transition flex items-center justify-between gap-1.5 cursor-pointer'
@@ -406,7 +406,7 @@ export function StayDateRangePicker({
             <button
               type="button"
               aria-pressed={activeField === 'checkIn'}
-              aria-label={`Select ${checkInLabel}: ${checkInDisplay || 'not selected'}`}
+              aria-label={`Switch to start date (${checkInDisplay || 'not selected'})`}
               onClick={() => setActiveField('checkIn')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                 activeField === 'checkIn'
@@ -422,7 +422,7 @@ export function StayDateRangePicker({
             <button
               type="button"
               aria-pressed={activeField === 'checkOut'}
-              aria-label={`Select ${checkOutLabel}: ${checkOutDisplay || 'not selected'}`}
+              aria-label={`Switch to end date (${checkOutDisplay || 'not selected'})`}
               onClick={() => setActiveField('checkOut')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                 activeField === 'checkOut'
@@ -562,18 +562,24 @@ export function StayDateRangePicker({
   return (
     <div
       ref={triggerWrapperRef}
-      className={`grid grid-cols-2 gap-2 sm:gap-3 ${className}`}
+      className={`grid grid-cols-2 items-end gap-2 sm:gap-3 ${className}`}
     >
       {/* Check-in Trigger */}
-      <div>
-        <label htmlFor={`${idPrefix}-checkin`} className={labelClass}>
+      <div className="min-w-0">
+        <label
+          htmlFor={`${idPrefix}-checkin`}
+          title={checkInLabel}
+          className={labelClass}
+        >
           <Calendar
-            className={compact ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'}
+            className={
+              compact
+                ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0'
+                : 'w-3.5 h-3.5 shrink-0'
+            }
           />
-          <span>
-            {checkInLabel}
-            {required && <span className="text-rose-500 ml-0.5">*</span>}
-          </span>
+          <span className="truncate">{checkInLabel}</span>
+          {required && <span className="text-rose-500 shrink-0">*</span>}
         </label>
         <button
           ref={checkInBtnRef}
@@ -600,15 +606,21 @@ export function StayDateRangePicker({
       </div>
 
       {/* Check-out Trigger */}
-      <div>
-        <label htmlFor={`${idPrefix}-checkout`} className={labelClass}>
+      <div className="min-w-0">
+        <label
+          htmlFor={`${idPrefix}-checkout`}
+          title={checkOutLabel}
+          className={labelClass}
+        >
           <Calendar
-            className={compact ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'}
+            className={
+              compact
+                ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0'
+                : 'w-3.5 h-3.5 shrink-0'
+            }
           />
-          <span>
-            {checkOutLabel}
-            {required && <span className="text-rose-500 ml-0.5">*</span>}
-          </span>
+          <span className="truncate">{checkOutLabel}</span>
+          {required && <span className="text-rose-500 shrink-0">*</span>}
         </label>
         <button
           ref={checkOutBtnRef}

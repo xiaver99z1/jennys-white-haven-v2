@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { PublicLayout } from './PublicLayout'
 import { DEFAULT_CMS_SECTIONS } from '#/lib/constants/cms'
+import { useCurrency } from '#/lib/currency'
 
 vi.mock('@tanstack/react-router', () => ({
   useRouterState: (opts?: { select?: (s: { location: { pathname: string } }) => unknown }) =>
@@ -28,6 +29,10 @@ vi.mock('@tanstack/react-router', () => ({
 
 describe('PublicLayout', () => {
   const contactSection = DEFAULT_CMS_SECTIONS.find((s) => s.key === 'contact')
+
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
 
   it('renders header navigation, main content, and CMS contact footer', () => {
     render(
@@ -76,5 +81,58 @@ describe('PublicLayout', () => {
 
     expect(screen.queryByText('Explore Camotes')).not.toBeInTheDocument()
     expect(screen.queryByText('Camotes Island Guide')).not.toBeInTheDocument()
+  })
+
+  it('opens More dropdown on mouse hover and closes after mouse leave', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <PublicLayout contactSection={contactSection}>
+          <div>Body</div>
+        </PublicLayout>,
+      )
+
+      const moreTrigger = screen.getByRole('button', { name: /More/i })
+      expect(
+        screen.queryByRole('menu', { name: /More pages/i }),
+      ).not.toBeInTheDocument()
+
+      fireEvent.mouseEnter(moreTrigger.parentElement!)
+      const moreMenu = screen.getByRole('menu', { name: /More pages/i })
+      expect(moreMenu).toBeInTheDocument()
+      expect(within(moreMenu).getByText('Photo Gallery')).toBeInTheDocument()
+
+      fireEvent.mouseLeave(moreTrigger.parentElement!)
+      act(() => {
+        vi.advanceTimersByTime(200)
+      })
+      expect(
+        screen.queryByRole('menu', { name: /More pages/i }),
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('switches displayed rates across public content via header CurrencySelector', () => {
+    function SampleRoomCard() {
+      const { formatPrice } = useCurrency()
+      return <div data-testid="sample-price">{formatPrice(3500)}</div>
+    }
+
+    render(
+      <PublicLayout contactSection={contactSection}>
+        <SampleRoomCard />
+      </PublicLayout>,
+    )
+
+    expect(screen.getByTestId('sample-price')).toHaveTextContent('₱3,500')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Select currency \(current: PHP\)/i }),
+    )
+    fireEvent.click(screen.getByRole('option', { name: /United States/i }))
+
+    expect(screen.getByTestId('sample-price')).toHaveTextContent('$60.20')
   })
 })

@@ -8,6 +8,7 @@ import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterField'
 import { calculateExtraGuestsFee } from '#/lib/constants/rooms'
+import { useCurrency } from '#/lib/currency'
 import {
   formatPeso,
   getErrorMessage,
@@ -68,6 +69,7 @@ function computeNightCount(checkIn: string, checkOut: string): number {
 
 function PublicRoomDetailPage() {
   const { room, sections } = Route.useLoaderData()
+  const { currency, isConverted, formatPrice } = useCurrency()
   const search = Route.useSearch()
 
   const contact = sections.find((s) => s.key === 'contact')
@@ -274,7 +276,7 @@ function PublicRoomDetailPage() {
               <div className="flex items-baseline justify-between pb-4 border-b border-stone-100">
                 <div>
                   <span className="text-2xl font-serif text-stone-900">
-                    {formatPeso(room.pricePerNight)}
+                    {formatPrice(room.pricePerNight)}
                   </span>
                   <span className="text-xs text-stone-500"> / night</span>
                 </div>
@@ -314,8 +316,13 @@ function PublicRoomDetailPage() {
                     </div>
                     <div className="flex justify-between">
                       <span>Estimated Total</span>
-                      <span className="font-semibold">
-                        {formatPeso(confirmation.totalAmount)}
+                      <span className="font-semibold text-right">
+                        {formatPrice(confirmation.totalAmount)}
+                        {isConverted && (
+                          <span className="block text-[11px] font-normal text-stone-500">
+                            Billed as {formatPeso(confirmation.totalAmount)} PHP
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -483,41 +490,58 @@ function PublicRoomDetailPage() {
 
                   {nights > 0 && (
                     <div className="rounded-2xl bg-stone-50 border border-stone-200/70 p-4 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-stone-600">
+                      <div className="flex justify-between gap-2 text-stone-600">
                         <span>
-                          {formatPeso(room.pricePerNight)} × {nights}{' '}
+                          {formatPrice(room.pricePerNight)} × {nights}{' '}
                           {nights === 1 ? 'night' : 'nights'}
                         </span>
-                        <span>{formatPeso(baseRoomTotal)}</span>
+                        <span className="whitespace-nowrap">
+                          {formatPrice(baseRoomTotal)}
+                        </span>
                       </div>
                       {extraAdults > 0 && (
-                        <div className="flex justify-between text-amber-900">
+                        <div className="flex justify-between gap-2 text-amber-900">
                           <span>
                             +{extraAdults} extra{' '}
                             {extraAdults === 1 ? 'adult' : 'adults'} ×{' '}
-                            {formatPeso(extraAdultFeeRate)} × {nights}n
+                            {formatPrice(extraAdultFeeRate)} × {nights}n
                           </span>
-                          <span>
-                            +{formatPeso(extraAdults * extraAdultFeeRate * nights)}
+                          <span className="whitespace-nowrap">
+                            +
+                            {formatPrice(
+                              extraAdults * extraAdultFeeRate * nights,
+                            )}
                           </span>
                         </div>
                       )}
                       {extraChildren > 0 && (
-                        <div className="flex justify-between text-amber-900">
+                        <div className="flex justify-between gap-2 text-amber-900">
                           <span>
                             +{extraChildren} extra{' '}
                             {extraChildren === 1 ? 'child' : 'children'} ×{' '}
-                            {formatPeso(extraChildFeeRate)} × {nights}n
+                            {formatPrice(extraChildFeeRate)} × {nights}n
                           </span>
-                          <span>
-                            +{formatPeso(extraChildren * extraChildFeeRate * nights)}
+                          <span className="whitespace-nowrap">
+                            +
+                            {formatPrice(
+                              extraChildren * extraChildFeeRate * nights,
+                            )}
                           </span>
                         </div>
                       )}
-                      <div className="flex justify-between font-semibold text-stone-900 pt-1.5 border-t border-stone-200/70">
+                      <div className="flex justify-between gap-2 font-semibold text-stone-900 pt-1.5 border-t border-stone-200/70">
                         <span>Total Stay</span>
-                        <span>{formatPeso(estimatedTotal)}</span>
+                        <span className="whitespace-nowrap">
+                          {formatPrice(estimatedTotal)}
+                        </span>
                       </div>
+                      {isConverted && (
+                        <p className="text-[11px] text-stone-500 pt-1 leading-snug">
+                          Approx. in {currency} (from{' '}
+                          {formatPeso(estimatedTotal)} PHP) · Reservations are
+                          billed in PHP.
+                        </p>
+                      )}
                     </div>
                   )}
 

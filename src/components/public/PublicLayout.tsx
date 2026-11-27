@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronDown, Images, MapPin, Menu, Phone, Star, X } from 'lucide-react'
 import { resolveBrandLogos } from '#/lib/constants/cms'
+import { CurrencyContext, CurrencyProvider } from '#/lib/currency'
 import { AnalyticsTracker } from '#/components/public/AnalyticsTracker'
 import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
+import { CurrencySelector } from '#/components/public/CurrencySelector'
 import type { CmsSectionData } from '#/types'
 
 interface PublicLayoutProps {
@@ -20,6 +22,7 @@ export function PublicLayout({
   brandingSection,
   showExploreLink = true,
 }: PublicLayoutProps) {
+  const existingCurrencyContext = useContext(CurrencyContext)
   const brandLogos = resolveBrandLogos(brandingSection)
   const [menuOpen, setMenuOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -27,9 +30,38 @@ export function PublicLayout({
   const moreMenuRef = useRef<HTMLDivElement>(null)
   const moreTriggerRef = useRef<HTMLButtonElement>(null)
   const moreItemRefs = useRef<Array<HTMLAnchorElement | null>>([])
+  const moreCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cookieTriggerRef = useRef<HTMLElement | null>(null)
   const footerCookieBtnRef = useRef<HTMLButtonElement>(null)
   const meta = contactSection?.metadata ?? {}
+
+  function clearMoreCloseTimer() {
+    if (moreCloseTimerRef.current !== null) {
+      clearTimeout(moreCloseTimerRef.current)
+      moreCloseTimerRef.current = null
+    }
+  }
+
+  function handleMoreMouseEnter() {
+    clearMoreCloseTimer()
+    setMoreOpen(true)
+  }
+
+  function handleMoreMouseLeave() {
+    clearMoreCloseTimer()
+    moreCloseTimerRef.current = setTimeout(() => {
+      setMoreOpen(false)
+      moreCloseTimerRef.current = null
+    }, 140)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (moreCloseTimerRef.current !== null) {
+        clearTimeout(moreCloseTimerRef.current)
+      }
+    }
+  }, [])
 
   function focusMoreItem(index: number) {
     const items = moreItemRefs.current.filter(
@@ -137,7 +169,7 @@ export function PublicLayout({
     }
   }, [brandLogos.adminIconLogo])
 
-  return (
+  const layoutContent = (
     <div className="min-h-screen flex flex-col bg-[#FAF8F4] text-stone-900 selection:bg-amber-200/60">
       {/* Minimal Aman-inspired Header */}
       <header className="sticky top-0 z-40 bg-[#FAF8F4]/90 backdrop-blur-md border-b border-stone-200/60">
@@ -160,7 +192,7 @@ export function PublicLayout({
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8 text-xs uppercase tracking-[0.18em] text-stone-600">
+          <nav className="hidden md:flex items-center gap-4 lg:gap-6 xl:gap-7 text-xs uppercase tracking-[0.18em] text-stone-600">
             <Link
               to="/"
               className="hover:text-stone-900 transition"
@@ -192,10 +224,12 @@ export function PublicLayout({
               Booking Status
             </Link>
 
-            {/* More Dropdown Menu */}
+            {/* More Dropdown Menu (triggers on hover + click) */}
             <div
               ref={moreMenuRef}
               className="relative"
+              onMouseEnter={handleMoreMouseEnter}
+              onMouseLeave={handleMoreMouseLeave}
               onBlur={(event) => {
                 if (
                   moreMenuRef.current &&
@@ -203,6 +237,7 @@ export function PublicLayout({
                     !(event.relatedTarget instanceof Node) ||
                     !moreMenuRef.current.contains(event.relatedTarget))
                 ) {
+                  clearMoreCloseTimer()
                   setMoreOpen(false)
                 }
               }}
@@ -213,7 +248,10 @@ export function PublicLayout({
                 aria-expanded={moreOpen}
                 aria-haspopup="menu"
                 aria-controls="more-nav-menu"
-                onClick={() => setMoreOpen((prev) => !prev)}
+                onClick={() => {
+                  clearMoreCloseTimer()
+                  setMoreOpen((prev) => !prev)
+                }}
                 onKeyDown={handleMoreTriggerKeyDown}
                 className="inline-flex items-center gap-1.5 hover:text-stone-900 transition cursor-pointer uppercase tracking-[0.18em] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 rounded-md px-1 py-0.5"
               >
@@ -224,93 +262,109 @@ export function PublicLayout({
               </button>
 
               {moreOpen && (
-                <div
-                  id="more-nav-menu"
-                  role="menu"
-                  aria-label="More pages"
-                  onKeyDown={handleMoreMenuKeyDown}
-                  className="absolute right-0 mt-4 w-64 rounded-2xl bg-[#FAF8F4] border border-stone-200/80 shadow-xl py-2 z-50 normal-case tracking-normal"
-                >
-                  <Link
-                    ref={(el) => {
-                      moreItemRefs.current[0] = el
-                    }}
-                    to="/gallery"
-                    role="menuitem"
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
+                <div className="absolute right-0 top-full pt-3 z-50">
+                  <div
+                    id="more-nav-menu"
+                    role="menu"
+                    aria-label="More pages"
+                    onKeyDown={handleMoreMenuKeyDown}
+                    className="w-64 rounded-2xl bg-[#FAF8F4] border border-stone-200/80 shadow-xl py-2 normal-case tracking-normal"
                   >
-                    <Images className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                        Photo Gallery
-                      </p>
-                      <p className="text-[11px] text-stone-500 mt-0.5">
-                        Spaces &amp; daily life at the haven
-                      </p>
-                    </div>
-                  </Link>
-                  <Link
-                    ref={(el) => {
-                      moreItemRefs.current[1] = el
-                    }}
-                    to="/reviews"
-                    role="menuitem"
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
-                  >
-                    <Star className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                        Guest Reviews
-                      </p>
-                      <p className="text-[11px] text-stone-500 mt-0.5">
-                        Ratings &amp; stories from past stays
-                      </p>
-                    </div>
-                  </Link>
-                  <Link
-                    ref={(el) => {
-                      moreItemRefs.current[2] = el
-                    }}
-                    to="/contact"
-                    hash="map"
-                    role="menuitem"
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
-                  >
-                    <MapPin className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                        Google Map
-                      </p>
-                      <p className="text-[11px] text-stone-500 mt-0.5">
-                        Directions to Santiago Bay, Camotes
-                      </p>
-                    </div>
-                  </Link>
-                  <Link
-                    ref={(el) => {
-                      moreItemRefs.current[3] = el
-                    }}
-                    to="/contact"
-                    role="menuitem"
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
-                  >
-                    <Phone className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                        Contact Us
-                      </p>
-                      <p className="text-[11px] text-stone-500 mt-0.5">
-                        Phone, email, hours &amp; port guide
-                      </p>
-                    </div>
-                  </Link>
+                    <Link
+                      ref={(el) => {
+                        moreItemRefs.current[0] = el
+                      }}
+                      to="/gallery"
+                      role="menuitem"
+                      onClick={() => {
+                        clearMoreCloseTimer()
+                        setMoreOpen(false)
+                      }}
+                      className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
+                    >
+                      <Images className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
+                          Photo Gallery
+                        </p>
+                        <p className="text-[11px] text-stone-500 mt-0.5">
+                          Spaces &amp; daily life at the haven
+                        </p>
+                      </div>
+                    </Link>
+                    <Link
+                      ref={(el) => {
+                        moreItemRefs.current[1] = el
+                      }}
+                      to="/reviews"
+                      role="menuitem"
+                      onClick={() => {
+                        clearMoreCloseTimer()
+                        setMoreOpen(false)
+                      }}
+                      className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
+                    >
+                      <Star className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
+                          Guest Reviews
+                        </p>
+                        <p className="text-[11px] text-stone-500 mt-0.5">
+                          Ratings &amp; stories from past stays
+                        </p>
+                      </div>
+                    </Link>
+                    <Link
+                      ref={(el) => {
+                        moreItemRefs.current[2] = el
+                      }}
+                      to="/contact"
+                      hash="map"
+                      role="menuitem"
+                      onClick={() => {
+                        clearMoreCloseTimer()
+                        setMoreOpen(false)
+                      }}
+                      className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
+                    >
+                      <MapPin className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
+                          Google Map
+                        </p>
+                        <p className="text-[11px] text-stone-500 mt-0.5">
+                          Directions to Santiago Bay, Camotes
+                        </p>
+                      </div>
+                    </Link>
+                    <Link
+                      ref={(el) => {
+                        moreItemRefs.current[3] = el
+                      }}
+                      to="/contact"
+                      role="menuitem"
+                      onClick={() => {
+                        clearMoreCloseTimer()
+                        setMoreOpen(false)
+                      }}
+                      className="flex items-start gap-3 px-4 py-3 hover:bg-[#F3EFE7] focus:bg-[#F3EFE7] focus:outline-none transition group"
+                    >
+                      <Phone className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
+                          Contact Us
+                        </p>
+                        <p className="text-[11px] text-stone-500 mt-0.5">
+                          Phone, email, hours &amp; port guide
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
+
+            <CurrencySelector variant="desktop" />
 
             <Link
               to="/rooms"
@@ -398,6 +452,7 @@ export function PublicLayout({
                 Contact Us
               </Link>
             </div>
+            <CurrencySelector variant="mobile" />
             <Link
               to="/rooms"
               className="inline-block px-5 py-2.5 rounded-full bg-stone-900 text-[#FAF8F4]"
@@ -515,5 +570,11 @@ export function PublicLayout({
       />
       <AnalyticsTracker />
     </div>
+  )
+
+  return existingCurrencyContext ? (
+    layoutContent
+  ) : (
+    <CurrencyProvider>{layoutContent}</CurrencyProvider>
   )
 }

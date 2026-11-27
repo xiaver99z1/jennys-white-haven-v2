@@ -310,6 +310,21 @@ describe('ProfileSettings', () => {
     const newPw = screen.getByLabelText(/^new password$/i)
     const confirmPw = screen.getByLabelText(/confirm new password/i)
 
+    // Toggle show/hide eye icons on all 3 password inputs
+    expect(currentPw).toHaveAttribute('type', 'password')
+    fireEvent.click(screen.getByRole('button', { name: /^show password$/i }))
+    expect(currentPw).toHaveAttribute('type', 'text')
+
+    expect(newPw).toHaveAttribute('type', 'password')
+    fireEvent.click(screen.getByRole('button', { name: /show new password/i }))
+    expect(newPw).toHaveAttribute('type', 'text')
+
+    expect(confirmPw).toHaveAttribute('type', 'password')
+    fireEvent.click(
+      screen.getByRole('button', { name: /show password confirmation/i }),
+    )
+    expect(confirmPw).toHaveAttribute('type', 'text')
+
     // 1. Type and cancel password input
     fireEvent.change(currentPw, { target: { value: 'oldpass123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))

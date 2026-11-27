@@ -8,7 +8,8 @@ import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { EmptyState } from '#/components/common/EmptyState'
 import { ROOM_TYPES } from '#/lib/constants/rooms'
-import { formatPeso, isValidCalendarDate } from '#/lib/formatters'
+import { useCurrency } from '#/lib/currency'
+import { isValidCalendarDate } from '#/lib/formatters'
 
 interface RoomsSearch {
   checkIn?: string
@@ -54,6 +55,7 @@ const ROOM_TYPE_FILTERS = ['ALL', ...ROOM_TYPES] as const
 
 function PublicRoomsPage() {
   const { rooms, sections } = Route.useLoaderData()
+  const { formatPrice } = useCurrency()
   const search = Route.useSearch()
   const navigate = useNavigate({ from: '/rooms/' })
 
@@ -253,7 +255,7 @@ function PublicRoomsPage() {
 
                   <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
                     <span className="text-base font-semibold text-stone-900">
-                      {formatPeso(room.pricePerNight)}
+                      {formatPrice(room.pricePerNight)}
                       <span className="text-xs font-normal text-stone-500">
                         {' '}
                         / night

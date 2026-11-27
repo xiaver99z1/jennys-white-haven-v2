@@ -122,6 +122,26 @@ describe('CmsSettings', () => {
     ).toBeInTheDocument()
   })
 
+  it('toggles the desktop Public Site Sections menu to expand the editor to full width', () => {
+    const { container } = render(
+      <CmsSettings initialSections={DEFAULT_CMS_SECTIONS} />,
+    )
+
+    const sidebar = container.querySelector('#cms-sections-sidebar')!
+    const form = container.querySelector('form')!
+
+    expect(sidebar.className).toContain('lg:col-span-4')
+    expect(form.className).toContain('lg:col-span-8')
+
+    fireEvent.click(screen.getByRole('button', { name: /Hide Menu/i }))
+    expect(sidebar.className).toContain('lg:hidden')
+    expect(form.className).toContain('lg:col-span-12')
+
+    fireEvent.click(screen.getByRole('button', { name: /Show Menu/i }))
+    expect(sidebar.className).toContain('lg:col-span-4')
+    expect(form.className).toContain('lg:col-span-8')
+  })
+
   it('adds image by URL and resets a section after confirmation', async () => {
     mockResetCmsSection.mockResolvedValue({
       success: true,

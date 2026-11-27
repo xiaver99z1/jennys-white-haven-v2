@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
 import { PasswordChallengeModal } from '#/components/common/PasswordChallengeModal'
 import {
@@ -25,6 +26,8 @@ export function EditUserProfileModal({
   const [role, setRole] = useState<ResortRole>('RECEPTIONIST')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
 
   const [loading, setLoading] = useState(false)
@@ -49,6 +52,8 @@ export function EditUserProfileModal({
       setRole((user.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole)
       setPassword('')
       setConfirmPassword('')
+      setShowPassword(false)
+      setShowConfirmPassword(false)
       setAdminPassword('')
       setMessage(null)
       setShowConfirm(false)
@@ -166,32 +171,76 @@ export function EditUserProfileModal({
           </div>
 
           <div className="pt-2 border-t border-stone-100">
-            <label className="block text-sm font-medium text-stone-700 mb-1">
+            <label
+              htmlFor="edit-staff-new-password"
+              className="block text-sm font-medium text-stone-700 mb-1"
+            >
               New Password{' '}
               <span className="text-xs text-stone-400 font-normal">
                 (Leave blank to keep current)
               </span>
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="8-16 chars, upper, lower, number, special"
-              className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 text-sm"
-            />
+            <div className="relative">
+              <input
+                id="edit-staff-new-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="8-16 chars, upper, lower, number, special"
+                className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 pr-10 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden text-sm"
+              />
+              <button
+                type="button"
+                aria-label={
+                  showPassword ? 'Hide new password' : 'Show new password'
+                }
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
+            <label
+              htmlFor="edit-staff-confirm-password"
+              className="block text-sm font-medium text-stone-700 mb-1"
+            >
               Confirm New Password
             </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter new password"
-              className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 text-sm"
-            />
+            <div className="relative">
+              <input
+                id="edit-staff-confirm-password"
+                type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter new password"
+                className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 pr-10 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden text-sm"
+              />
+              <button
+                type="button"
+                aria-label={
+                  showConfirmPassword
+                    ? 'Hide password confirmation'
+                    : 'Show password confirmation'
+                }
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 flex justify-end space-x-3 pt-2">
