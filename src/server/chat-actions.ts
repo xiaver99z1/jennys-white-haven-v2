@@ -1,18 +1,16 @@
 import { createServerFn } from '@tanstack/react-start'
 import { authSession } from '#/lib/auth-helpers'
-import {
-  EMAIL_REGEX,
-  extractRequestClientMeta,
-} from '#/lib/constants/auth'
+import { extractRequestClientMeta } from '#/lib/constants/auth'
 import {
   generateActivationToken,
   hashActivationToken,
+  isSingleMailboxEmail,
   sendChatInquiryAlertEmail,
   sendChatReplyToGuestEmail,
 } from '#/lib/email'
 import { formatFullName } from '#/lib/formatters'
+import { hasPermission } from '#/lib/permissions'
 import { prisma } from '#/lib/prisma'
-import { createNotification } from '#/server/notification-actions'
 import type {
   AdminChatConversationSummary,
   AdminChatInboxResponse,
@@ -25,10 +23,20 @@ import type {
 export const STAFF_ONLINE_WINDOW_MS = 2 * 60 * 1000
 export const EMAIL_ALERT_IDLE_COOLDOWN_MS = 30 * 60 * 1000
 export const VISITOR_OFFLINE_EMAIL_THRESHOLD_MS = 2 * 60 * 1000
+export const PUBLIC_MESSAGE_PAGE_SIZE = 150
+export const ADMIN_MESSAGE_PAGE_SIZE = 250
 const VISITOR_TOKEN_REGEX = /^[a-f0-9]{64}$/
 const MAX_VISITOR_MESSAGES_PER_MINUTE = 12
 const MAX_NEW_THREADS_PER_IP_PER_MINUTE = 5
 const ALERT_RECIPIENT_ROLES = new Set(['super_admin', 'owner', 'manager'])
+
+export async function requireChatPermission() {
+  const session = await authSession()
+  if (!hasPermission(session.user, 'manage:chat')) {
+    throw new Error('Unauthorized: Insufficient permissions.')
+  }
+  return session.user
+}
 
 function isValidVisitorToken(value: unknown): value is string {
   return typeof value === 'string' && VISITOR_TOKEN_REGEX.test(value.trim())
@@ -39,15 +47,19 @@ function buildPreview(text: string): string {
   return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized
 }
 
-async function getOnlineStaffCount(now = new Date()): Promise<number> {
-  const cutoff = new Date(now.getTime() - STAFF_ONLINE_WINDOW_MS)
-  return prisma.user.count({
-    where: {
-      banned: { not: true },
-      chatAvailable: true,
-      lastSeenAt: { gte: cutoff },
-    },
-  })
+async function getOnlineStaffCountSafe(now = new Date()): Promise<number> {
+  try {
+    const cutoff = new Date(now.getTime() - STAFF_ONLINE_WINDOW_MS)
+    return await prisma.user.count({
+      where: {
+        banned: { not: true },
+        chatAvailable: true,
+        lastSeenAt: { gte: cutoff },
+      },
+    })
+  } catch {
+    return 0
+  }
 }
 
 async function getRequestIpSafe(): Promise<string> {
@@ -56,6 +68,15 @@ async function getRequestIpSafe(): Promise<string> {
     return extractRequestClientMeta(getRequestHeaders()).ipAddress
   } catch {
     return 'unknown'
+  }
+}
+
+async function acquireRateLimitLock(
+  tx: { $executeRaw?: (query: TemplateStringsArray, ...values: unknown[]) => Promise<unknown> },
+  key: string,
+) {
+  if (typeof tx.$executeRaw === 'function') {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`
   }
 }
 
@@ -95,6 +116,167 @@ async function resolveInquiryAlertRecipients(): Promise<string[]> {
   return recipients
 }
 
+interface RawMessageRecord {
+  id: string
+  conversationId: string
+  senderType: 'VISITOR' | 'STAFF'
+  senderName: string
+  body: string
+  createdAt: Date
+}
+
+function toChronologicalPage(
+  descendingRows: RawMessageRecord[],
+  pageSize: number,
+): {
+  messages: ChatMessageItem[]
+  olderCursor: string | null
+  newestMessage: RawMessageRecord | undefined
+} {
+  const hasOlder = descendingRows.length > pageSize
+  const sliced = hasOlder ? descendingRows.slice(0, pageSize) : descendingRows
+  const chronological = [...sliced].reverse()
+  return {
+    messages: chronological.map((m) => ({
+      id: m.id,
+      conversationId: m.conversationId,
+      senderType: m.senderType,
+      senderName: m.senderName,
+      body: m.body,
+      createdAt: m.createdAt,
+    })),
+    olderCursor: hasOlder ? (chronological.at(0)?.id ?? null) : null,
+    newestMessage: chronological.at(-1),
+  }
+}
+
+async function acknowledgeUnreadThroughMessage(options: {
+  conversationId: string
+  observedLastMessageAt: Date
+  counterField: 'unreadByVisitor' | 'unreadByStaff'
+  unreadSenderType: 'STAFF' | 'VISITOR'
+  newestReturnedMessage: RawMessageRecord | undefined
+  additionalData?: Record<string, unknown>
+}): Promise<number> {
+  const {
+    conversationId,
+    observedLastMessageAt,
+    counterField,
+    unreadSenderType,
+    newestReturnedMessage,
+    additionalData = {},
+  } = options
+
+  // Fast atomic conditional clear when no newer message arrived during the read
+  const conditionalRes = await prisma.chatConversation.updateMany({
+    where: {
+      id: conversationId,
+      lastMessageAt: observedLastMessageAt,
+    },
+    data: {
+      [counterField]: 0,
+      ...additionalData,
+    },
+  })
+
+  if (conditionalRes.count > 0) {
+    return 0
+  }
+
+  // Concurrent message arrived: preserve unread count for messages strictly newer than the last returned message
+  const remainingUnread = await prisma.chatMessage.count({
+    where: {
+      conversationId,
+      senderType: unreadSenderType,
+      ...(newestReturnedMessage
+        ? {
+            OR: [
+              { createdAt: { gt: newestReturnedMessage.createdAt } },
+              {
+                createdAt: newestReturnedMessage.createdAt,
+                id: { gt: newestReturnedMessage.id },
+              },
+            ],
+          }
+        : {}),
+    },
+  })
+
+  await prisma.chatConversation.update({
+    where: { id: conversationId },
+    data: {
+      [counterField]: remainingUnread,
+      ...additionalData,
+    },
+  })
+
+  return remainingUnread
+}
+
+async function dispatchPendingInquiryEmail(params: {
+  conversationId: string
+  messageId: string
+  visitorName: string
+  visitorEmail: string | null
+  visitorPhone: string | null
+  messageBody: string
+}) {
+  try {
+    const recipients = await resolveInquiryAlertRecipients()
+    await sendChatInquiryAlertEmail({
+      recipients,
+      visitorName: params.visitorName,
+      visitorEmail: params.visitorEmail,
+      visitorPhone: params.visitorPhone,
+      messageBody: params.messageBody,
+      conversationId: params.conversationId,
+    })
+    const sentAt = new Date()
+    await prisma.chatConversation.updateMany({
+      where: {
+        id: params.conversationId,
+        pendingEmailAlertMessageId: params.messageId,
+      },
+      data: {
+        lastEmailAlertSentAt: sentAt,
+        lastAlertSentAt: sentAt,
+        pendingEmailAlertMessageId: null,
+      },
+    })
+  } catch (error) {
+    console.error('Failed to send chat inquiry alert email (retained for retry):', error)
+  }
+}
+
+async function dispatchPendingGuestReplyEmail(params: {
+  messageId: string
+  to: string
+  visitorName: string
+  staffName: string
+  replyBody: string
+}) {
+  try {
+    await sendChatReplyToGuestEmail({
+      to: params.to,
+      visitorName: params.visitorName,
+      staffName: params.staffName,
+      replyBody: params.replyBody,
+    })
+    await prisma.chatMessage.updateMany({
+      where: {
+        id: params.messageId,
+        guestEmailPending: true,
+      },
+      data: {
+        guestEmailPending: false,
+        guestEmailSentAt: new Date(),
+      },
+    })
+  } catch (error) {
+    console.error('Failed to send chat reply email to guest (retained for retry):', error)
+  }
+}
+
 // ==========================================
 // PUBLIC VISITOR CHAT HANDLERS
 // ==========================================
@@ -102,6 +284,8 @@ async function resolveInquiryAlertRecipients(): Promise<string[]> {
 export interface GetPublicChatStateInput {
   visitorToken?: string
   markRead?: boolean
+  isWidgetOpen?: boolean
+  beforeMessageId?: string
 }
 
 export function validateGetPublicChatState(
@@ -117,7 +301,7 @@ export async function getPublicChatStateHandler({
 }): Promise<PublicChatStateResponse> {
   const now = new Date()
   const rawToken = data?.visitorToken?.trim()
-  const onlineCount = await getOnlineStaffCount(now)
+  const onlineCount = await getOnlineStaffCountSafe(now)
   const staffOnline = onlineCount > 0
 
   if (!isValidVisitorToken(rawToken)) {
@@ -125,17 +309,20 @@ export async function getPublicChatStateHandler({
       staffOnline,
       conversation: null,
       messages: [],
+      olderCursor: null,
     }
   }
 
   const tokenHash = hashActivationToken(rawToken)
-  const conversation = await prisma.chatConversation.findFirst({
+  const cursorId = data?.beforeMessageId?.trim() || undefined
+
+  const conversation = await prisma.chatConversation.findUnique({
     where: { visitorTokenHash: tokenHash },
-    orderBy: { updatedAt: 'desc' },
     include: {
       messages: {
-        orderBy: { createdAt: 'asc' },
-        take: 150,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: PUBLIC_MESSAGE_PAGE_SIZE + 1,
+        ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
       },
     },
   })
@@ -145,19 +332,38 @@ export async function getPublicChatStateHandler({
       staffOnline,
       conversation: null,
       messages: [],
+      olderCursor: null,
     }
   }
 
-  const shouldClearUnread =
-    Boolean(data?.markRead) && conversation.unreadByVisitor > 0
+  const { messages, olderCursor, newestMessage } = toChronologicalPage(
+    conversation.messages,
+    PUBLIC_MESSAGE_PAGE_SIZE,
+  )
 
-  await prisma.chatConversation.update({
-    where: { id: conversation.id },
-    data: {
-      lastVisitorActiveAt: now,
-      ...(shouldClearUnread ? { unreadByVisitor: 0 } : {}),
-    },
-  })
+  const activelyViewing = Boolean(data?.isWidgetOpen || data?.markRead)
+  const shouldClearUnread =
+    Boolean(data?.markRead) &&
+    !cursorId &&
+    conversation.unreadByVisitor > 0
+
+  let nextUnread = conversation.unreadByVisitor
+
+  if (shouldClearUnread) {
+    nextUnread = await acknowledgeUnreadThroughMessage({
+      conversationId: conversation.id,
+      observedLastMessageAt: conversation.lastMessageAt,
+      counterField: 'unreadByVisitor',
+      unreadSenderType: 'STAFF',
+      newestReturnedMessage: newestMessage,
+      additionalData: activelyViewing ? { lastVisitorActiveAt: now } : {},
+    })
+  } else if (activelyViewing) {
+    await prisma.chatConversation.update({
+      where: { id: conversation.id },
+      data: { lastVisitorActiveAt: now },
+    })
+  }
 
   return {
     staffOnline,
@@ -167,20 +373,12 @@ export async function getPublicChatStateHandler({
       visitorEmail: conversation.visitorEmail,
       visitorPhone: conversation.visitorPhone,
       status: conversation.status,
-      unreadByVisitor: shouldClearUnread ? 0 : conversation.unreadByVisitor,
+      unreadByVisitor: nextUnread,
       lastMessageAt: conversation.lastMessageAt,
       createdAt: conversation.createdAt,
     },
-    messages: conversation.messages.map(
-      (m): ChatMessageItem => ({
-        id: m.id,
-        conversationId: m.conversationId,
-        senderType: m.senderType,
-        senderName: m.senderName,
-        body: m.body,
-        createdAt: m.createdAt,
-      }),
-    ),
+    messages,
+    olderCursor,
   }
 }
 
@@ -230,171 +428,237 @@ export async function sendVisitorChatMessageHandler({
   const validated = validateSendVisitorChatMessage(data)
   const now = new Date()
   const oneMinuteAgo = new Date(now.getTime() - 60 * 1000)
+  const alertCooldownCutoff = new Date(
+    now.getTime() - EMAIL_ALERT_IDLE_COOLDOWN_MS,
+  )
 
-  let rawToken = validated.visitorToken?.trim() ?? ''
-  let tokenHash = ''
-  if (!validated.forceNewThread && isValidVisitorToken(rawToken)) {
-    tokenHash = hashActivationToken(rawToken)
-  } else {
-    const generated = generateActivationToken()
-    rawToken = generated.rawToken
-    tokenHash = generated.tokenHash
-  }
-
-  const existingConversation = validated.forceNewThread
-    ? null
-    : await prisma.chatConversation.findFirst({
-        where: { visitorTokenHash: tokenHash },
-        orderBy: { updatedAt: 'desc' },
-      })
+  const candidateToken = validated.visitorToken?.trim() ?? ''
+  const lookupHash =
+    !validated.forceNewThread && isValidVisitorToken(candidateToken)
+      ? hashActivationToken(candidateToken)
+      : null
 
   const preview = buildPreview(validated.message)
   const ipAddress = await getRequestIpSafe()
 
-  let activeConversation = existingConversation
-  let isNewConversation = false
+  const txResult = await prisma.$transaction(async (tx) => {
+    const existingConversation = lookupHash
+      ? await tx.chatConversation.findUnique({
+          where: { visitorTokenHash: lookupHash },
+        })
+      : null
 
-  if (!activeConversation) {
-    isNewConversation = true
-    const visitorName = (validated.name ?? '').trim()
-    const visitorEmail = (validated.email ?? '').trim() || null
-    const visitorPhone = (validated.phone ?? '').trim() || null
+    let rawToken = candidateToken
+    let activeConversation = existingConversation
+    let isNewConversation = false
+    const wasResolved = existingConversation?.status === 'RESOLVED'
 
-    if (visitorName.length < 2 || visitorName.length > 80) {
-      throw new Error('Please enter your name (2–80 characters).')
-    }
-    if (!visitorEmail && !visitorPhone) {
-      throw new Error(
-        'Please provide an email address or phone number so we can follow up.',
-      )
-    }
-    if (visitorEmail && !EMAIL_REGEX.test(visitorEmail)) {
-      throw new Error('Please enter a valid email address.')
-    }
-    if (visitorPhone && (visitorPhone.length < 7 || visitorPhone.length > 30)) {
-      throw new Error('Please enter a valid phone number.')
-    }
+    if (!activeConversation) {
+      isNewConversation = true
+      const visitorName = (validated.name ?? '').trim()
+      const visitorEmail = (validated.email ?? '').trim() || null
+      const visitorPhone = (validated.phone ?? '').trim() || null
 
-    if (ipAddress !== 'unknown') {
-      const recentThreadsFromIp = await prisma.chatConversation.count({
-        where: {
+      if (visitorName.length < 2 || visitorName.length > 80) {
+        throw new Error('Please enter your name (2–80 characters).')
+      }
+      if (!visitorEmail && !visitorPhone) {
+        throw new Error(
+          'Please provide an email address or phone number so we can follow up.',
+        )
+      }
+      if (visitorEmail && !isSingleMailboxEmail(visitorEmail)) {
+        throw new Error('Please enter a valid single email address.')
+      }
+      if (visitorPhone && (visitorPhone.length < 7 || visitorPhone.length > 30)) {
+        throw new Error('Please enter a valid phone number.')
+      }
+
+      if (ipAddress !== 'unknown') {
+        await acquireRateLimitLock(tx, `chat:new-ip:${ipAddress}`)
+        const recentThreadsFromIp = await tx.chatConversation.count({
+          where: {
+            ipAddress,
+            createdAt: { gte: oneMinuteAgo },
+          },
+        })
+        if (recentThreadsFromIp >= MAX_NEW_THREADS_PER_IP_PER_MINUTE) {
+          throw new Error(
+            'Too many new chat sessions started. Please wait a moment and try again.',
+          )
+        }
+      }
+
+      // Always mint a fresh server-generated token for every new conversation
+      const generated = generateActivationToken()
+      rawToken = generated.rawToken
+
+      activeConversation = await tx.chatConversation.create({
+        data: {
+          visitorTokenHash: generated.tokenHash,
+          visitorName,
+          visitorEmail,
+          visitorPhone,
+          status: 'OPEN',
+          unreadByStaff: 0,
+          unreadByVisitor: 0,
+          lastMessageAt: now,
+          lastMessagePreview: preview,
+          lastVisitorActiveAt: now,
           ipAddress,
+        },
+      })
+    } else {
+      await acquireRateLimitLock(tx, `chat:thread:${activeConversation.id}`)
+      const recentMessagesCount = await tx.chatMessage.count({
+        where: {
+          conversationId: activeConversation.id,
+          senderType: 'VISITOR',
           createdAt: { gte: oneMinuteAgo },
         },
       })
-      if (recentThreadsFromIp >= MAX_NEW_THREADS_PER_IP_PER_MINUTE) {
+      if (recentMessagesCount >= MAX_VISITOR_MESSAGES_PER_MINUTE) {
         throw new Error(
-          'Too many new chat sessions started. Please wait a moment and try again.',
+          'Too many messages sent. Please wait a moment before sending another.',
         )
       }
     }
 
-    activeConversation = await prisma.chatConversation.create({
-      data: {
-        visitorTokenHash: tokenHash,
-        visitorName,
-        visitorEmail,
-        visitorPhone,
-        status: 'OPEN',
-        unreadByStaff: 0,
-        unreadByVisitor: 0,
-        lastMessageAt: now,
-        lastMessagePreview: preview,
-        lastVisitorActiveAt: now,
-        ipAddress,
-      },
-    })
-  } else {
-    const recentMessagesCount = await prisma.chatMessage.count({
-      where: {
-        conversationId: activeConversation.id,
-        senderType: 'VISITOR',
-        createdAt: { gte: oneMinuteAgo },
-      },
-    })
-    if (recentMessagesCount >= MAX_VISITOR_MESSAGES_PER_MINUTE) {
-      throw new Error(
-        'Too many messages sent. Please wait a moment before sending another.',
-      )
-    }
-  }
-
-  const shouldSendAlert =
-    isNewConversation ||
-    activeConversation.status === 'RESOLVED' ||
-    !activeConversation.lastAlertSentAt ||
-    now.getTime() - activeConversation.lastAlertSentAt.getTime() >=
-      EMAIL_ALERT_IDLE_COOLDOWN_MS
-
-  const [createdMessage, updatedConversation, onlineCount] = await Promise.all([
-    prisma.chatMessage.create({
+    const createdMessage = await tx.chatMessage.create({
       data: {
         conversationId: activeConversation.id,
         senderType: 'VISITOR',
         senderName: activeConversation.visitorName,
         body: validated.message,
       },
-    }),
-    prisma.chatConversation.update({
+    })
+
+    // Preserve unreadByVisitor on send (do not treat sending as reading unseen staff replies)
+    const updatedConversation = await tx.chatConversation.update({
       where: { id: activeConversation.id },
       data: {
         status: 'OPEN',
         unreadByStaff: { increment: 1 },
-        unreadByVisitor: 0,
         lastMessageAt: now,
         lastMessagePreview: preview,
         lastVisitorActiveAt: now,
-        ...(shouldSendAlert ? { lastAlertSentAt: now } : {}),
       },
-    }),
-    getOnlineStaffCount(now),
-  ])
-
-  if (shouldSendAlert) {
-    await createNotification({
-      type: 'CHAT_INQUIRY',
-      title: isNewConversation
-        ? `New Chat Inquiry: ${updatedConversation.visitorName}`
-        : `Chat Follow-up: ${updatedConversation.visitorName}`,
-      message: preview,
-      href: '/admin/chat',
     })
 
-    try {
-      const recipients = await resolveInquiryAlertRecipients()
-      await sendChatInquiryAlertEmail({
-        recipients,
-        visitorName: updatedConversation.visitorName,
-        visitorEmail: updatedConversation.visitorEmail,
-        visitorPhone: updatedConversation.visitorPhone,
-        messageBody: validated.message,
-        conversationId: updatedConversation.id,
-      })
-    } catch (error) {
-      console.error('Failed to send chat inquiry alert email:', error)
+    return {
+      rawToken,
+      isNewConversation,
+      wasResolved,
+      previousAppAlertAt: activeConversation.lastAppAlertSentAt,
+      previousEmailAlertAt: activeConversation.lastEmailAlertSentAt,
+      previousPendingEmailId: activeConversation.pendingEmailAlertMessageId,
+      createdMessage,
+      updatedConversation,
     }
+  })
+
+  // 1. Atomic claim + independent retry tracking for In-App Notification channel
+  const appAlertEligibleCondition = txResult.wasResolved
+    ? { id: txResult.updatedConversation.id }
+    : {
+        id: txResult.updatedConversation.id,
+        OR: [
+          { lastAppAlertSentAt: null },
+          { lastAppAlertSentAt: { lte: alertCooldownCutoff } },
+        ],
+      }
+
+  try {
+    const appClaim = await prisma.chatConversation.updateMany({
+      where: appAlertEligibleCondition,
+      data: { lastAppAlertSentAt: now },
+    })
+
+    if (appClaim.count > 0) {
+      try {
+        await prisma.notification.create({
+          data: {
+            type: 'CHAT_INQUIRY',
+            title: txResult.isNewConversation
+              ? `New Chat Inquiry: ${txResult.updatedConversation.visitorName}`
+              : `Chat Follow-up: ${txResult.updatedConversation.visitorName}`,
+            message: preview,
+            href: '/admin/chat',
+          },
+        })
+      } catch (notifErr) {
+        // Restore previous marker so failed in-app notification remains eligible for retry
+        await prisma.chatConversation.updateMany({
+          where: {
+            id: txResult.updatedConversation.id,
+            lastAppAlertSentAt: now,
+          },
+          data: { lastAppAlertSentAt: txResult.previousAppAlertAt ?? null },
+        })
+        console.error('Failed to persist in-app chat notification:', notifErr)
+      }
+    }
+  } catch (err) {
+    console.error('App alert claim check failed:', err)
   }
 
+  // 2. Atomic durable claim + non-blocking background dispatch for Email Alert channel
+  const emailAlertEligibleCondition = txResult.wasResolved
+    ? { id: txResult.updatedConversation.id }
+    : {
+        id: txResult.updatedConversation.id,
+        OR: [
+          { lastEmailAlertSentAt: null },
+          { lastEmailAlertSentAt: { lte: alertCooldownCutoff } },
+          { pendingEmailAlertMessageId: { not: null } },
+        ],
+      }
+
+  try {
+    const emailClaim = await prisma.chatConversation.updateMany({
+      where: emailAlertEligibleCondition,
+      data: {
+        pendingEmailAlertMessageId: txResult.createdMessage.id,
+      },
+    })
+
+    if (emailClaim.count > 0) {
+      // Fire asynchronously without blocking the committed chat response
+      void dispatchPendingInquiryEmail({
+        conversationId: txResult.updatedConversation.id,
+        messageId: txResult.createdMessage.id,
+        visitorName: txResult.updatedConversation.visitorName,
+        visitorEmail: txResult.updatedConversation.visitorEmail,
+        visitorPhone: txResult.updatedConversation.visitorPhone,
+        messageBody: validated.message,
+      })
+    }
+  } catch (err) {
+    console.error('Email alert claim check failed:', err)
+  }
+
+  const onlineCount = await getOnlineStaffCountSafe(now)
+
   return {
-    visitorToken: rawToken,
+    visitorToken: txResult.rawToken,
     staffOnline: onlineCount > 0,
     conversation: {
-      id: updatedConversation.id,
-      visitorName: updatedConversation.visitorName,
-      visitorEmail: updatedConversation.visitorEmail,
-      visitorPhone: updatedConversation.visitorPhone,
-      status: updatedConversation.status,
-      unreadByVisitor: updatedConversation.unreadByVisitor,
-      lastMessageAt: updatedConversation.lastMessageAt,
-      createdAt: updatedConversation.createdAt,
+      id: txResult.updatedConversation.id,
+      visitorName: txResult.updatedConversation.visitorName,
+      visitorEmail: txResult.updatedConversation.visitorEmail,
+      visitorPhone: txResult.updatedConversation.visitorPhone,
+      status: txResult.updatedConversation.status,
+      unreadByVisitor: txResult.updatedConversation.unreadByVisitor,
+      lastMessageAt: txResult.updatedConversation.lastMessageAt,
+      createdAt: txResult.updatedConversation.createdAt,
     },
     message: {
-      id: createdMessage.id,
-      conversationId: createdMessage.conversationId,
-      senderType: createdMessage.senderType,
-      senderName: createdMessage.senderName,
-      body: createdMessage.body,
-      createdAt: createdMessage.createdAt,
+      id: txResult.createdMessage.id,
+      conversationId: txResult.createdMessage.conversationId,
+      senderType: txResult.createdMessage.senderType,
+      senderName: txResult.createdMessage.senderName,
+      body: txResult.createdMessage.body,
+      createdAt: txResult.createdMessage.createdAt,
     },
   }
 }
@@ -426,12 +690,12 @@ export async function heartbeatAdminPresenceHandler({
   unreadThreadsCount: number
   unreadMessagesCount: number
 }> {
-  const session = await authSession()
+  const user = await requireChatPermission()
   const now = new Date()
 
   const [updatedUser, unreadAgg, unreadThreadsCount] = await Promise.all([
     prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: user.id },
       data: {
         lastSeenAt: now,
         ...(typeof data?.setAvailable === 'boolean'
@@ -460,6 +724,53 @@ export const heartbeatAdminPresence = createServerFn({ method: 'POST' })
   .validator(validateHeartbeatAdminPresence)
   .handler(heartbeatAdminPresenceHandler)
 
+interface MatchedGuestSummary {
+  id: string
+  name: string
+}
+
+async function findDeterministicMatchedGuest(
+  visitorEmail: string | null,
+  visitorPhone: string | null,
+): Promise<MatchedGuestSummary | null> {
+  const normalizedEmail = visitorEmail?.trim().toLowerCase() || ''
+  if (normalizedEmail) {
+    const emailMatches = await prisma.guest.findMany({
+      where: {
+        deletedAt: null,
+        email: { equals: normalizedEmail, mode: 'insensitive' },
+      },
+      take: 2,
+      select: { id: true, firstName: true, lastName: true },
+    })
+    if (emailMatches.length === 1) {
+      const g = emailMatches[0]
+      return { id: g.id, name: formatFullName(g.firstName, g.lastName) }
+    }
+    if (emailMatches.length > 1) {
+      return null
+    }
+  }
+
+  const normalizedPhone = visitorPhone?.trim() || ''
+  if (normalizedPhone) {
+    const phoneMatches = await prisma.guest.findMany({
+      where: {
+        deletedAt: null,
+        phone: normalizedPhone,
+      },
+      take: 2,
+      select: { id: true, firstName: true, lastName: true },
+    })
+    if (phoneMatches.length === 1) {
+      const g = phoneMatches[0]
+      return { id: g.id, name: formatFullName(g.firstName, g.lastName) }
+    }
+  }
+
+  return null
+}
+
 export interface GetAdminChatInboxInput {
   status?: 'ALL' | ChatThreadStatus
   search?: string
@@ -476,7 +787,7 @@ export async function getAdminChatInboxHandler({
 }: {
   data?: GetAdminChatInboxInput
 }): Promise<AdminChatInboxResponse> {
-  const session = await authSession()
+  const user = await requireChatPermission()
   const now = new Date()
 
   const statusFilter =
@@ -496,35 +807,32 @@ export async function getAdminChatInboxHandler({
         }
       : {}
 
-  const [
-    updatedUser,
-    conversations,
-    unreadThreadsCount,
-    unreadAgg,
-    onlineStaffCount,
-  ] = await Promise.all([
-    prisma.user.update({
-      where: { id: session.user.id },
-      data: { lastSeenAt: now },
-      select: { chatAvailable: true },
-    }),
-    prisma.chatConversation.findMany({
-      where: {
-        ...statusFilter,
-        ...searchFilter,
-      },
-      orderBy: { lastMessageAt: 'desc' },
-      take: 100,
-    }),
-    prisma.chatConversation.count({
-      where: { unreadByStaff: { gt: 0 } },
-    }),
-    prisma.chatConversation.aggregate({
-      _sum: { unreadByStaff: true },
-      where: { unreadByStaff: { gt: 0 } },
-    }),
-    getOnlineStaffCount(now),
-  ])
+  // Update current staff member's presence before counting online staff, while running inbox queries in parallel
+  const [updatedUser, conversations, unreadThreadsCount, unreadAgg] =
+    await Promise.all([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { lastSeenAt: now },
+        select: { chatAvailable: true },
+      }),
+      prisma.chatConversation.findMany({
+        where: {
+          ...statusFilter,
+          ...searchFilter,
+        },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 100,
+      }),
+      prisma.chatConversation.count({
+        where: { unreadByStaff: { gt: 0 } },
+      }),
+      prisma.chatConversation.aggregate({
+        _sum: { unreadByStaff: true },
+        where: { unreadByStaff: { gt: 0 } },
+      }),
+    ])
+
+  const onlineStaffCount = await getOnlineStaffCountSafe(now)
 
   const emails = Array.from(
     new Set(
@@ -565,28 +873,49 @@ export async function getAdminChatInboxHandler({
         })
       : []
 
-  const guestByEmail = new Map<string, { id: string; name: string }>()
-  const guestByPhone = new Map<string, { id: string; name: string }>()
+  const guestByEmail = new Map<string, MatchedGuestSummary | 'AMBIGUOUS'>()
+  const guestByPhone = new Map<string, MatchedGuestSummary | 'AMBIGUOUS'>()
   for (const guest of matchedGuests) {
-    const summary = {
+    const summary: MatchedGuestSummary = {
       id: guest.id,
       name: formatFullName(guest.firstName, guest.lastName),
     }
     if (guest.email) {
-      guestByEmail.set(guest.email.trim().toLowerCase(), summary)
+      const key = guest.email.trim().toLowerCase()
+      const existing = guestByEmail.get(key)
+      if (!existing) {
+        guestByEmail.set(key, summary)
+      } else if (existing === 'AMBIGUOUS' || existing.id !== summary.id) {
+        guestByEmail.set(key, 'AMBIGUOUS')
+      }
     }
     if (guest.phone) {
-      guestByPhone.set(guest.phone.trim(), summary)
+      const key = guest.phone.trim()
+      const existing = guestByPhone.get(key)
+      if (!existing) {
+        guestByPhone.set(key, summary)
+      } else if (existing === 'AMBIGUOUS' || existing.id !== summary.id) {
+        guestByPhone.set(key, 'AMBIGUOUS')
+      }
     }
   }
 
   return {
     conversations: conversations.map((c): AdminChatConversationSummary => {
-      const matched =
-        (c.visitorEmail
-          ? guestByEmail.get(c.visitorEmail.trim().toLowerCase())
-          : undefined) ??
-        (c.visitorPhone ? guestByPhone.get(c.visitorPhone.trim()) : undefined)
+      const emailKey = c.visitorEmail?.trim().toLowerCase() || ''
+      const phoneKey = c.visitorPhone?.trim() || ''
+
+      // Deterministic priority: email match first; fall back to phone only when there is no email match; reject ambiguous matches
+      const emailMatch = emailKey ? guestByEmail.get(emailKey) : undefined
+      let matched: MatchedGuestSummary | null = null
+      if (emailMatch === 'AMBIGUOUS') {
+        matched = null
+      } else if (emailMatch) {
+        matched = emailMatch
+      } else if (phoneKey) {
+        const phoneMatch = guestByPhone.get(phoneKey)
+        matched = phoneMatch && phoneMatch !== 'AMBIGUOUS' ? phoneMatch : null
+      }
 
       return {
         id: c.id,
@@ -613,78 +942,81 @@ export const getAdminChatInbox = createServerFn({ method: 'GET' })
   .validator(validateGetAdminChatInbox)
   .handler(getAdminChatInboxHandler)
 
-export function validateConversationId(data: { conversationId: string }) {
+export interface GetAdminChatThreadInput {
+  conversationId: string
+  beforeMessageId?: string
+}
+
+export function validateConversationId(
+  data: GetAdminChatThreadInput,
+): GetAdminChatThreadInput {
   if (!data.conversationId.trim()) {
     throw new Error('Conversation ID is required.')
   }
-  return { conversationId: data.conversationId.trim() }
+  return {
+    conversationId: data.conversationId.trim(),
+    beforeMessageId: data.beforeMessageId?.trim() || undefined,
+  }
 }
 
 export async function getAdminChatThreadHandler({
   data,
 }: {
-  data: { conversationId: string }
+  data: GetAdminChatThreadInput
 }): Promise<AdminChatThreadDetail> {
-  const session = await authSession()
-  const { conversationId } = validateConversationId(data)
+  const user = await requireChatPermission()
+  const { conversationId, beforeMessageId } = validateConversationId(data)
   const now = new Date()
 
-  const [conversation] = await Promise.all([
-    prisma.chatConversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          take: 250,
-        },
+  const conversation = await prisma.chatConversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      messages: {
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: ADMIN_MESSAGE_PAGE_SIZE + 1,
+        ...(beforeMessageId
+          ? { cursor: { id: beforeMessageId }, skip: 1 }
+          : {}),
       },
-    }),
-    prisma.user.update({
-      where: { id: session.user.id },
-      data: { lastSeenAt: now },
-      select: { id: true },
-    }),
-  ])
+    },
+  })
 
   if (!conversation) {
     throw new Error('Conversation not found.')
   }
 
-  if (conversation.unreadByStaff > 0) {
-    await prisma.chatConversation.update({
-      where: { id: conversation.id },
-      data: { unreadByStaff: 0 },
+  // Record staff presence non-fatally
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastSeenAt: now },
+      select: { id: true },
     })
+  } catch {
+    // Ignore ancillary presence failure
   }
 
-  const matchedGuest =
-    conversation.visitorEmail || conversation.visitorPhone
-      ? await prisma.guest.findFirst({
-          where: {
-            deletedAt: null,
-            OR: [
-              ...(conversation.visitorEmail
-                ? [
-                    {
-                      email: {
-                        equals: conversation.visitorEmail.trim(),
-                        mode: 'insensitive' as const,
-                      },
-                    },
-                  ]
-                : []),
-              ...(conversation.visitorPhone
-                ? [{ phone: conversation.visitorPhone.trim() }]
-                : []),
-            ],
-          },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        })
-      : null
+  // Perform deterministic guest lookup BEFORE acknowledging unread messages so a failed lookup preserves unread state
+  const matchedGuest = await findDeterministicMatchedGuest(
+    conversation.visitorEmail,
+    conversation.visitorPhone,
+  )
+
+  const { messages, olderCursor, newestMessage } = toChronologicalPage(
+    conversation.messages,
+    ADMIN_MESSAGE_PAGE_SIZE,
+  )
+
+  let nextUnread = conversation.unreadByStaff
+  if (!beforeMessageId && conversation.unreadByStaff > 0) {
+    nextUnread = await acknowledgeUnreadThroughMessage({
+      conversationId: conversation.id,
+      observedLastMessageAt: conversation.lastMessageAt,
+      counterField: 'unreadByStaff',
+      unreadSenderType: 'VISITOR',
+      newestReturnedMessage: newestMessage,
+    })
+  }
 
   return {
     conversation: {
@@ -693,23 +1025,15 @@ export async function getAdminChatThreadHandler({
       visitorEmail: conversation.visitorEmail,
       visitorPhone: conversation.visitorPhone,
       status: conversation.status,
-      unreadByStaff: 0,
+      unreadByStaff: nextUnread,
       lastMessageAt: conversation.lastMessageAt,
       lastMessagePreview: conversation.lastMessagePreview,
       createdAt: conversation.createdAt,
       matchedGuestId: matchedGuest?.id ?? null,
-      matchedGuestName: matchedGuest
-        ? formatFullName(matchedGuest.firstName, matchedGuest.lastName)
-        : null,
+      matchedGuestName: matchedGuest?.name ?? null,
     },
-    messages: conversation.messages.map((m) => ({
-      id: m.id,
-      conversationId: m.conversationId,
-      senderType: m.senderType,
-      senderName: m.senderName,
-      body: m.body,
-      createdAt: m.createdAt,
-    })),
+    messages,
+    olderCursor,
   }
 }
 
@@ -744,71 +1068,87 @@ export async function sendAdminChatReplyHandler({
 }: {
   data: SendAdminChatReplyInput
 }): Promise<ChatMessageItem> {
-  const session = await authSession()
+  const user = await requireChatPermission()
   const { conversationId, body } = validateSendAdminChatReply(data)
   const now = new Date()
-
-  const existing = await prisma.chatConversation.findUnique({
-    where: { id: conversationId },
-  })
-  if (!existing) {
-    throw new Error('Conversation not found.')
-  }
-
-  const staffName = session.user.name.trim() || 'Resort Team'
+  const staffName = user.name.trim() || 'Resort Team'
   const preview = buildPreview(body)
 
-  const [createdMessage] = await Promise.all([
-    prisma.chatMessage.create({
+  const txResult = await prisma.$transaction(async (tx) => {
+    const existing = await tx.chatConversation.findUnique({
+      where: { id: conversationId },
+    })
+    if (!existing) {
+      throw new Error('Conversation not found.')
+    }
+
+    const visitorIsLikelyOffline =
+      now.getTime() - existing.lastVisitorActiveAt.getTime() >=
+      VISITOR_OFFLINE_EMAIL_THRESHOLD_MS
+
+    const shouldQueueGuestEmail = Boolean(
+      existing.visitorEmail &&
+        isSingleMailboxEmail(existing.visitorEmail) &&
+        visitorIsLikelyOffline,
+    )
+
+    const createdMessage = await tx.chatMessage.create({
       data: {
         conversationId,
         senderType: 'STAFF',
         senderName: staffName,
-        senderUserId: session.user.id,
+        senderUserId: user.id,
         body,
+        guestEmailPending: shouldQueueGuestEmail,
       },
-    }),
-    prisma.chatConversation.update({
+    })
+
+    // Preserve unreadByStaff on send (do not treat sending a reply as reading concurrent unseen visitor messages)
+    await tx.chatConversation.update({
       where: { id: conversationId },
       data: {
         status: 'OPEN',
-        unreadByStaff: 0,
         unreadByVisitor: { increment: 1 },
         lastMessageAt: now,
         lastMessagePreview: preview,
       },
-    }),
-    prisma.user.update({
-      where: { id: session.user.id },
+    })
+
+    return {
+      existing,
+      createdMessage,
+      shouldQueueGuestEmail,
+    }
+  })
+
+  // Ancillary presence update kept outside transaction so its failure cannot reject a committed reply
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
       data: { lastSeenAt: now },
       select: { id: true },
-    }),
-  ])
+    })
+  } catch {
+    // Ignore ancillary presence failure
+  }
 
-  const visitorIsLikelyOffline =
-    now.getTime() - existing.lastVisitorActiveAt.getTime() >=
-    VISITOR_OFFLINE_EMAIL_THRESHOLD_MS
-
-  if (existing.visitorEmail && visitorIsLikelyOffline) {
-    try {
-      await sendChatReplyToGuestEmail({
-        to: existing.visitorEmail,
-        visitorName: existing.visitorName,
-        staffName,
-        replyBody: body,
-      })
-    } catch (error) {
-      console.error('Failed to send chat reply email to guest:', error)
-    }
+  if (txResult.shouldQueueGuestEmail && txResult.existing.visitorEmail) {
+    void dispatchPendingGuestReplyEmail({
+      messageId: txResult.createdMessage.id,
+      to: txResult.existing.visitorEmail,
+      visitorName: txResult.existing.visitorName,
+      staffName,
+      replyBody: body,
+    })
   }
 
   return {
-    id: createdMessage.id,
-    conversationId: createdMessage.conversationId,
-    senderType: createdMessage.senderType,
-    senderName: createdMessage.senderName,
-    body: createdMessage.body,
-    createdAt: createdMessage.createdAt,
+    id: txResult.createdMessage.id,
+    conversationId: txResult.createdMessage.conversationId,
+    senderType: txResult.createdMessage.senderType,
+    senderName: txResult.createdMessage.senderName,
+    body: txResult.createdMessage.body,
+    createdAt: txResult.createdMessage.createdAt,
   }
 }
 
@@ -840,7 +1180,7 @@ export async function updateAdminChatStatusHandler({
 }: {
   data: UpdateAdminChatStatusInput
 }): Promise<{ success: true; status: ChatThreadStatus }> {
-  await authSession()
+  await requireChatPermission()
   const { conversationId, status } = validateUpdateAdminChatStatus(data)
 
   await prisma.chatConversation.update({

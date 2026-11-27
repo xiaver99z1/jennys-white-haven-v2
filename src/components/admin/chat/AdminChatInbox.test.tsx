@@ -111,7 +111,12 @@ describe('AdminChatInbox', () => {
     })
     expect(screen.getByText(/Guest Profile: Maria Santos/i)).toBeInTheDocument()
 
-    // Toggle Online -> Away
+    // Toggle Online -> Away and verify Away state persists after inbox refresh
+    mockGetAdminChatInbox.mockResolvedValueOnce({
+      ...initialData,
+      chatAvailable: false,
+      onlineStaffCount: 0,
+    })
     fireEvent.click(
       screen.getByRole('button', { name: /Status: Online for Live Chat/i }),
     )
@@ -119,6 +124,9 @@ describe('AdminChatInbox', () => {
       expect(mockHeartbeatAdminPresence).toHaveBeenCalledWith({
         data: { setAvailable: false },
       })
+      expect(
+        screen.getByRole('button', { name: /Status: Away \(Message Mode\)/i }),
+      ).toBeInTheDocument()
     })
 
     // Select a quick-reply chip and send

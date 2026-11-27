@@ -21,6 +21,7 @@ const FULL_PERMISSIONS = [
   'block-user:users',
   'view:reports',
   'manage:cms',
+  'manage:chat',
 ] as const
 
 export const ROLES = {
@@ -39,6 +40,7 @@ export const ROLES = {
     'view:users',
     'view:reports',
     'manage:cms',
+    'manage:chat',
   ],
   receptionist: [
     'view:rooms',
@@ -46,6 +48,7 @@ export const ROLES = {
     'create:bookings',
     'view:guests',
     'create:guests',
+    'manage:chat',
   ],
 } as const
 

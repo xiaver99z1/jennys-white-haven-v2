@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { waitFor } from '@testing-library/react'
 import {
   EMAIL_ALERT_IDLE_COOLDOWN_MS,
   VISITOR_OFFLINE_EMAIL_THRESHOLD_MS,
@@ -13,47 +14,46 @@ import {
 
 const {
   mockAuthSession,
-  mockCreateNotification,
   mockSendChatInquiryAlertEmail,
   mockSendChatReplyToGuestEmail,
   mockPrisma,
 } = vi.hoisted(() => ({
   mockAuthSession: vi.fn(),
-  mockCreateNotification: vi.fn(),
   mockSendChatInquiryAlertEmail: vi.fn(),
   mockSendChatReplyToGuestEmail: vi.fn(),
   mockPrisma: {
+    $transaction: vi.fn(),
+    $executeRaw: vi.fn(),
     user: {
       count: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    notification: {
+      create: vi.fn(),
+    },
     chatConversation: {
-      findFirst: vi.fn(),
-      findMany: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       count: vi.fn(),
       aggregate: vi.fn(),
     },
     chatMessage: {
       create: vi.fn(),
       count: vi.fn(),
+      updateMany: vi.fn(),
     },
     guest: {
       findMany: vi.fn(),
-      findFirst: vi.fn(),
     },
   },
 }))
 
 vi.mock('#/lib/auth-helpers', () => ({
   authSession: mockAuthSession,
-}))
-
-vi.mock('#/server/notification-actions', () => ({
-  createNotification: mockCreateNotification,
 }))
 
 vi.mock('#/lib/email', async (importOriginal) => {
@@ -75,6 +75,10 @@ describe('chat-actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.SMTP_USER = 'resort@jennyswhitehaven.com'
+    mockPrisma.$transaction.mockImplementation(
+      async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(mockPrisma),
+    )
+    mockPrisma.$executeRaw.mockResolvedValue(1)
     mockAuthSession.mockResolvedValue({
       user: { id: 'staff-1', name: 'Jenny Host', role: 'OWNER' },
     })
@@ -84,76 +88,140 @@ describe('chat-actions', () => {
       { email: 'frontdesk@jennyswhitehaven.com', role: 'RECEPTIONIST' },
     ])
     mockPrisma.user.update.mockResolvedValue({ chatAvailable: true })
+    mockPrisma.notification.create.mockResolvedValue({ id: 'notif-1' })
     mockPrisma.chatConversation.count.mockResolvedValue(0)
+    mockPrisma.chatConversation.updateMany.mockResolvedValue({ count: 1 })
     mockPrisma.chatMessage.count.mockResolvedValue(0)
+    mockPrisma.chatMessage.updateMany.mockResolvedValue({ count: 1 })
     mockPrisma.chatConversation.aggregate.mockResolvedValue({
       _sum: { unreadByStaff: 0 },
     })
+    mockSendChatInquiryAlertEmail.mockResolvedValue({ messageId: '<alert>' })
+    mockSendChatReplyToGuestEmail.mockResolvedValue({ messageId: '<reply>' })
   })
 
-  it('returns online status and empty state when visitor token is absent or invalid', async () => {
-    const res = await getPublicChatStateHandler({ data: {} })
-    expect(res).toEqual({
-      staffOnline: true,
-      conversation: null,
-      messages: [],
+  it('rejects non-staff sessions on all admin chat handlers', async () => {
+    mockAuthSession.mockResolvedValue({
+      user: { id: 'user-self-reg', name: 'Visitor', role: 'user' },
     })
-    expect(mockPrisma.chatConversation.findFirst).not.toHaveBeenCalled()
+
+    await expect(heartbeatAdminPresenceHandler({ data: {} })).rejects.toThrow(
+      'Unauthorized: Insufficient permissions.',
+    )
+    await expect(getAdminChatInboxHandler({ data: {} })).rejects.toThrow(
+      'Unauthorized: Insufficient permissions.',
+    )
+    await expect(
+      getAdminChatThreadHandler({ data: { conversationId: 'conv-1' } }),
+    ).rejects.toThrow('Unauthorized: Insufficient permissions.')
+    await expect(
+      sendAdminChatReplyHandler({
+        data: { conversationId: 'conv-1', body: 'Hi' },
+      }),
+    ).rejects.toThrow('Unauthorized: Insufficient permissions.')
+    await expect(
+      updateAdminChatStatusHandler({
+        data: { conversationId: 'conv-1', status: 'RESOLVED' },
+      }),
+    ).rejects.toThrow('Unauthorized: Insufficient permissions.')
   })
 
-  it('loads existing visitor conversation and marks unreadByVisitor=0 when markRead=true', async () => {
-    const now = new Date()
-    mockPrisma.chatConversation.findFirst.mockResolvedValueOnce({
+  it('returns chronological newest messages, skips presence refresh on closed background polls, and acknowledges read conditionally', async () => {
+    const t1 = new Date('2026-11-27T05:00:00.000Z')
+    const t2 = new Date('2026-11-27T05:01:00.000Z')
+
+    // Closed background poll: does NOT update lastVisitorActiveAt
+    mockPrisma.chatConversation.findUnique.mockResolvedValueOnce({
       id: 'conv-1',
       visitorName: 'Maria Santos',
       visitorEmail: 'maria@example.com',
       visitorPhone: null,
       status: 'OPEN',
-      unreadByVisitor: 2,
-      lastMessageAt: now,
-      createdAt: now,
+      unreadByVisitor: 1,
+      lastMessageAt: t2,
+      createdAt: t1,
+      // Query fetches descending (newest first), handler reverses to chronological
       messages: [
         {
-          id: 'm1',
+          id: 'm2',
           conversationId: 'conv-1',
           senderType: 'STAFF',
           senderName: 'Jenny Host',
-          body: 'Welcome!',
-          createdAt: now,
+          body: 'Second',
+          createdAt: t2,
+        },
+        {
+          id: 'm1',
+          conversationId: 'conv-1',
+          senderType: 'VISITOR',
+          senderName: 'Maria Santos',
+          body: 'First',
+          createdAt: t1,
         },
       ],
     })
-    mockPrisma.chatConversation.update.mockResolvedValueOnce({})
 
-    const res = await getPublicChatStateHandler({
-      data: { visitorToken: validToken, markRead: true },
+    const bgRes = await getPublicChatStateHandler({
+      data: { visitorToken: validToken, markRead: false, isWidgetOpen: false },
     })
 
-    expect(res.staffOnline).toBe(true)
-    expect(res.conversation?.unreadByVisitor).toBe(0)
-    expect(res.messages).toHaveLength(1)
-    expect(mockPrisma.chatConversation.update).toHaveBeenCalledWith(
+    expect(bgRes.messages.map((m) => m.body)).toEqual(['First', 'Second'])
+    expect(bgRes.conversation?.unreadByVisitor).toBe(1)
+    expect(mockPrisma.chatConversation.update).not.toHaveBeenCalled()
+    expect(mockPrisma.chatConversation.updateMany).not.toHaveBeenCalled()
+
+    // Open widget with markRead=true: conditionally clears unread and refreshes lastVisitorActiveAt
+    mockPrisma.chatConversation.findUnique.mockResolvedValueOnce({
+      id: 'conv-1',
+      visitorName: 'Maria Santos',
+      visitorEmail: 'maria@example.com',
+      visitorPhone: null,
+      status: 'OPEN',
+      unreadByVisitor: 1,
+      lastMessageAt: t2,
+      createdAt: t1,
+      messages: [
+        {
+          id: 'm2',
+          conversationId: 'conv-1',
+          senderType: 'STAFF',
+          senderName: 'Jenny Host',
+          body: 'Second',
+          createdAt: t2,
+        },
+      ],
+    })
+
+    const openRes = await getPublicChatStateHandler({
+      data: { visitorToken: validToken, markRead: true, isWidgetOpen: true },
+    })
+
+    expect(openRes.conversation?.unreadByVisitor).toBe(0)
+    expect(mockPrisma.chatConversation.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'conv-1' },
-        data: expect.objectContaining({ unreadByVisitor: 0 }),
+        where: { id: 'conv-1', lastMessageAt: t2 },
       }),
     )
   })
 
-  it('validates visitor onboarding, creates new conversation, and sends app + email alerts to SMTP_USER and Owner/Manager', async () => {
+  it('validates single-mailbox email, commits conversation + message in transaction, and dispatches alerts', async () => {
     await expect(
       sendVisitorChatMessageHandler({
         data: { message: 'Hello', honeypot: 'http://spam.bot' },
       }),
     ).rejects.toThrow('Spam submission blocked.')
 
-    mockPrisma.chatConversation.findFirst.mockResolvedValue(null)
+    mockPrisma.chatConversation.findUnique.mockResolvedValue(null)
 
     await expect(
       sendVisitorChatMessageHandler({
-        data: { name: 'Maria', message: 'Is Deluxe open?' },
+        data: {
+          name: 'Maria',
+          email: 'alice,bob@example.com',
+          message: 'Is Deluxe open?',
+        },
       }),
-    ).rejects.toThrow(/provide an email address or phone number/i)
+    ).rejects.toThrow(/valid single email address/i)
 
     const now = new Date()
     mockPrisma.chatConversation.create.mockResolvedValueOnce({
@@ -162,7 +230,9 @@ describe('chat-actions', () => {
       visitorEmail: 'maria@example.com',
       visitorPhone: '+63 917 000 0000',
       status: 'OPEN',
-      lastAlertSentAt: null,
+      lastAppAlertSentAt: null,
+      lastEmailAlertSentAt: null,
+      pendingEmailAlertMessageId: null,
     })
     mockPrisma.chatMessage.create.mockResolvedValueOnce({
       id: 'msg-1',
@@ -178,7 +248,7 @@ describe('chat-actions', () => {
       visitorEmail: 'maria@example.com',
       visitorPhone: '+63 917 000 0000',
       status: 'OPEN',
-      unreadByVisitor: 0,
+      unreadByVisitor: 1,
       lastMessageAt: now,
       createdAt: now,
     })
@@ -193,41 +263,49 @@ describe('chat-actions', () => {
     })
 
     expect(res.visitorToken).toMatch(/^[a-f0-9]{64}$/)
-    expect(mockCreateNotification).toHaveBeenCalledWith(
+    // Preserves unreadByVisitor instead of resetting it on visitor send
+    expect(res.conversation.unreadByVisitor).toBe(1)
+    expect(mockPrisma.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'CHAT_INQUIRY',
-        title: 'New Chat Inquiry: Maria Santos',
-        href: '/admin/chat',
+        data: expect.objectContaining({
+          type: 'CHAT_INQUIRY',
+          title: 'New Chat Inquiry: Maria Santos',
+          href: '/admin/chat',
+        }),
       }),
     )
-    // Sends to SMTP_USER + OWNER, excluding RECEPTIONIST per A4 preference
-    expect(mockSendChatInquiryAlertEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        recipients: [
-          'resort@jennyswhitehaven.com',
-          'owner@jennyswhitehaven.com',
-        ],
-        conversationId: 'conv-new',
-      }),
-    )
+
+    await waitFor(() => {
+      expect(mockSendChatInquiryAlertEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipients: [
+            'resort@jennyswhitehaven.com',
+            'owner@jennyswhitehaven.com',
+          ],
+          conversationId: 'conv-new',
+        }),
+      )
+    })
   })
 
-  it('throttles duplicate alerts on rapid follow-up messages and re-alerts after 30m idle', async () => {
+  it('throttles duplicate alerts when atomic claims report 0 rows and re-alerts after cooldown', async () => {
     const recentAlert = new Date(Date.now() - 2 * 60 * 1000)
-    mockPrisma.chatConversation.findFirst.mockResolvedValueOnce({
+    mockPrisma.chatConversation.findUnique.mockResolvedValueOnce({
       id: 'conv-1',
       visitorName: 'Maria Santos',
       visitorEmail: 'maria@example.com',
       visitorPhone: null,
       status: 'OPEN',
-      lastAlertSentAt: recentAlert,
+      lastAppAlertSentAt: recentAlert,
+      lastEmailAlertSentAt: recentAlert,
+      pendingEmailAlertMessageId: null,
     })
     mockPrisma.chatMessage.create.mockResolvedValueOnce({
       id: 'msg-2',
       conversationId: 'conv-1',
       senderType: 'VISITOR',
       senderName: 'Maria Santos',
-      body: 'Also asking about airport/port pickup',
+      body: 'Follow-up within 2 minutes',
       createdAt: new Date(),
     })
     mockPrisma.chatConversation.update.mockResolvedValueOnce({
@@ -240,26 +318,31 @@ describe('chat-actions', () => {
       lastMessageAt: new Date(),
       createdAt: new Date(),
     })
+    // Atomic claims return count: 0 when within cooldown
+    mockPrisma.chatConversation.updateMany.mockResolvedValue({ count: 0 })
 
     await sendVisitorChatMessageHandler({
       data: {
         visitorToken: validToken,
-        message: 'Also asking about airport/port pickup',
+        message: 'Follow-up within 2 minutes',
       },
     })
 
-    expect(mockCreateNotification).not.toHaveBeenCalled()
+    expect(mockPrisma.notification.create).not.toHaveBeenCalled()
     expect(mockSendChatInquiryAlertEmail).not.toHaveBeenCalled()
 
-    // Now simulate >30m idle -> should re-notify
+    // Simulate >30m idle -> atomic claims return count: 1
     const oldAlert = new Date(Date.now() - EMAIL_ALERT_IDLE_COOLDOWN_MS - 5000)
-    mockPrisma.chatConversation.findFirst.mockResolvedValueOnce({
+    mockPrisma.chatConversation.updateMany.mockResolvedValue({ count: 1 })
+    mockPrisma.chatConversation.findUnique.mockResolvedValueOnce({
       id: 'conv-1',
       visitorName: 'Maria Santos',
       visitorEmail: 'maria@example.com',
       visitorPhone: null,
       status: 'OPEN',
-      lastAlertSentAt: oldAlert,
+      lastAppAlertSentAt: oldAlert,
+      lastEmailAlertSentAt: oldAlert,
+      pendingEmailAlertMessageId: null,
     })
     mockPrisma.chatMessage.create.mockResolvedValueOnce({
       id: 'msg-3',
@@ -284,11 +367,14 @@ describe('chat-actions', () => {
       data: { visitorToken: validToken, message: 'Checking back in!' },
     })
 
-    expect(mockCreateNotification).toHaveBeenCalledTimes(1)
-    expect(mockSendChatInquiryAlertEmail).toHaveBeenCalledTimes(1)
+    expect(mockPrisma.notification.create).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(mockSendChatInquiryAlertEmail).toHaveBeenCalledTimes(1)
+    })
   })
 
-  it('handles admin presence heartbeat, inbox guest matching, thread load, offline reply email, and status updates', async () => {
+  it('verifies heartbeat availability=false, deterministic guest matching, and background guest reply email', async () => {
+    mockPrisma.user.update.mockResolvedValueOnce({ chatAvailable: false })
     mockPrisma.chatConversation.count.mockResolvedValueOnce(2)
     mockPrisma.chatConversation.aggregate.mockResolvedValueOnce({
       _sum: { unreadByStaff: 4 },
@@ -297,8 +383,14 @@ describe('chat-actions', () => {
     const hb = await heartbeatAdminPresenceHandler({
       data: { setAvailable: false },
     })
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'staff-1' },
+        data: expect.objectContaining({ chatAvailable: false }),
+      }),
+    )
     expect(hb).toEqual({
-      chatAvailable: true,
+      chatAvailable: false,
       unreadThreadsCount: 2,
       unreadMessagesCount: 4,
     })
@@ -309,7 +401,7 @@ describe('chat-actions', () => {
         id: 'conv-1',
         visitorName: 'Maria Santos',
         visitorEmail: 'maria@example.com',
-        visitorPhone: null,
+        visitorPhone: '0918',
         status: 'OPEN',
         unreadByStaff: 1,
         lastMessageAt: now,
@@ -319,23 +411,30 @@ describe('chat-actions', () => {
     ])
     mockPrisma.guest.findMany.mockResolvedValueOnce([
       {
-        id: 'guest-99',
+        id: 'guest-email-match',
         firstName: 'Maria',
         lastName: 'Santos',
         email: 'maria@example.com',
         phone: '0917',
       },
+      {
+        id: 'guest-phone-match',
+        firstName: 'Other',
+        lastName: 'Guest',
+        email: 'other@example.com',
+        phone: '0918',
+      },
     ])
 
     const inbox = await getAdminChatInboxHandler({ data: { status: 'OPEN' } })
-    expect(inbox.conversations[0].matchedGuestId).toBe('guest-99')
-    expect(inbox.conversations[0].matchedGuestName).toBe('Maria Santos')
+    expect(inbox.conversations[0].matchedGuestId).toBe('guest-email-match')
 
+    // Thread lookup uses the same deterministic email-first rule before acknowledging unread
     mockPrisma.chatConversation.findUnique.mockResolvedValueOnce({
       id: 'conv-1',
       visitorName: 'Maria Santos',
       visitorEmail: 'maria@example.com',
-      visitorPhone: null,
+      visitorPhone: '0918',
       status: 'OPEN',
       unreadByStaff: 1,
       lastMessageAt: now,
@@ -343,19 +442,21 @@ describe('chat-actions', () => {
       createdAt: now,
       messages: [],
     })
-    mockPrisma.chatConversation.update.mockResolvedValueOnce({})
-    mockPrisma.guest.findFirst.mockResolvedValueOnce({
-      id: 'guest-99',
-      firstName: 'Maria',
-      lastName: 'Santos',
-    })
+    mockPrisma.guest.findMany.mockResolvedValueOnce([
+      {
+        id: 'guest-email-match',
+        firstName: 'Maria',
+        lastName: 'Santos',
+      },
+    ])
 
     const thread = await getAdminChatThreadHandler({
       data: { conversationId: 'conv-1' },
     })
+    expect(thread.conversation.matchedGuestId).toBe('guest-email-match')
     expect(thread.conversation.unreadByStaff).toBe(0)
 
-    // Admin reply when visitor has been offline >2m triggers email reply to guest
+    // Admin reply queues guestEmailPending and dispatches email asynchronously
     mockPrisma.chatConversation.findUnique.mockResolvedValueOnce({
       id: 'conv-1',
       visitorName: 'Maria Santos',
@@ -378,12 +479,15 @@ describe('chat-actions', () => {
       data: { conversationId: 'conv-1', body: 'Yes, Room 101 is available!' },
     })
     expect(reply.senderType).toBe('STAFF')
-    expect(mockSendChatReplyToGuestEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'maria@example.com',
-        staffName: 'Jenny Host',
-      }),
-    )
+
+    await waitFor(() => {
+      expect(mockSendChatReplyToGuestEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'maria@example.com',
+          staffName: 'Jenny Host',
+        }),
+      )
+    })
 
     mockPrisma.chatConversation.update.mockResolvedValueOnce({})
     const statusRes = await updateAdminChatStatusHandler({

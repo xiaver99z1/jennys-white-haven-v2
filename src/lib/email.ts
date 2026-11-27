@@ -34,6 +34,18 @@ export const generateActivationToken = createServerOnlyFn(
   },
 )
 
+const SINGLE_MAILBOX_REGEX =
+  /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/
+
+export function isSingleMailboxEmail(value: string): boolean {
+  const trimmed = value.trim()
+  return (
+    trimmed.length > 0 &&
+    trimmed.length <= 254 &&
+    SINGLE_MAILBOX_REGEX.test(trimmed)
+  )
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -246,8 +258,12 @@ export const sendChatInquiryAlertEmail = createServerOnlyFn(
 
     const safeVisitorName = escapeHtml(visitorName)
     const safeMessage = escapeHtml(messageBody).replace(/\n/g, '<br />')
+    const validatedReplyTo =
+      visitorEmail && isSingleMailboxEmail(visitorEmail)
+        ? visitorEmail.trim()
+        : undefined
     const contactParts = [
-      visitorEmail ? `Email: ${visitorEmail}` : '',
+      validatedReplyTo ? `Email: ${validatedReplyTo}` : '',
       visitorPhone ? `Phone: ${visitorPhone}` : '',
     ].filter(Boolean)
     const safeContactSummary = escapeHtml(
@@ -258,7 +274,7 @@ export const sendChatInquiryAlertEmail = createServerOnlyFn(
     return transporter.sendMail({
       from,
       to: uniqueRecipients.join(', '),
-      replyTo: visitorEmail || undefined,
+      replyTo: validatedReplyTo,
       subject: `New Guest Chat Inquiry from ${visitorName} — Jenny's White Haven`,
       html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #292524; background-color: #fafaf9;">
@@ -313,7 +329,7 @@ export const sendChatReplyToGuestEmail = createServerOnlyFn(
     replyBody,
   }: SendChatReplyToGuestEmailOptions) => {
     const trimmedTo = to.trim()
-    if (!trimmedTo) return null
+    if (!trimmedTo || !isSingleMailboxEmail(trimmedTo)) return null
 
     const { transporter, from } = await createSmtpTransport()
     const siteUrl = getAppBaseUrl()
@@ -344,7 +360,7 @@ export const sendChatReplyToGuestEmail = createServerOnlyFn(
           </div>
           <div style="margin: 24px 0; text-align: center;">
             <a href="${safeSiteUrl}" style="display: inline-block; background-color: #1c1917; color: #faf8f4; text-decoration: none; font-size: 13px; font-weight: 600; padding: 12px 26px; border-radius: 999px;">
-              Continue Chat on Website
+              Visit Website
             </a>
           </div>
         </div>
@@ -357,7 +373,7 @@ export const sendChatReplyToGuestEmail = createServerOnlyFn(
         '',
         replyBody,
         '',
-        `Continue your conversation at: ${siteUrl}`,
+        `Visit our website: ${siteUrl}`,
       ].join('\n'),
     })
   },

@@ -773,6 +773,7 @@ export interface PublicChatStateResponse {
   staffOnline: boolean
   conversation: PublicChatConversation | null
   messages: ChatMessageItem[]
+  olderCursor?: string | null
 }
 
 export interface AdminChatConversationSummary {
@@ -800,4 +801,5 @@ export interface AdminChatInboxResponse {
 export interface AdminChatThreadDetail {
   conversation: AdminChatConversationSummary
   messages: ChatMessageItem[]
+  olderCursor?: string | null
 }

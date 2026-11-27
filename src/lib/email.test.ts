@@ -6,6 +6,7 @@ import {
   generateActivationToken,
   getAppBaseUrl,
   hashActivationToken,
+  isSingleMailboxEmail,
   sendChatInquiryAlertEmail,
   sendChatReplyToGuestEmail,
   sendPasswordResetEmail,
@@ -243,9 +244,22 @@ describe('email helpers (Nodemailer SMTP)', () => {
       }),
     )
 
+    expect(isSingleMailboxEmail('guest@example.com')).toBe(true)
+    expect(isSingleMailboxEmail('alice,bob@example.com')).toBe(false)
+    expect(isSingleMailboxEmail('Guest <guest@example.com>')).toBe(false)
+
     expect(
       await sendChatReplyToGuestEmail({
         to: '   ',
+        visitorName: 'Maria',
+        staffName: 'Jenny',
+        replyBody: 'Yes!',
+      }),
+    ).toBeNull()
+
+    expect(
+      await sendChatReplyToGuestEmail({
+        to: 'alice,bob@example.com',
         visitorName: 'Maria',
         staffName: 'Jenny',
         replyBody: 'Yes!',

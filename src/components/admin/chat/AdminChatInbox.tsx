@@ -38,10 +38,11 @@ const STAFF_QUICK_REPLIES = [
 function formatMessageTimestamp(value: Date | string): string {
   const dt = new Date(value)
   if (Number.isNaN(dt.getTime())) return ''
-  return `${formatShortDate(dt)} · ${dt.toLocaleTimeString([], {
+  return `${formatShortDate(dt)} · ${dt.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
-  })}`
+    timeZone: 'UTC',
+  })} UTC`
 }
 
 interface AdminChatInboxProps {
@@ -77,13 +78,14 @@ export function AdminChatInbox({
   })
 
   const [activeConversation, setActiveConversation] =
-    useState<AdminChatConversationSummary | null>(
-      () =>
-        initialData.conversations.find((c) => c.id === selectedId) ?? null,
-    )
+    useState<AdminChatConversationSummary | null>(null)
   const [messages, setMessages] = useState<ChatMessageItem[]>([])
-  const [loadingThread, setLoadingThread] = useState(false)
-  const [replyBody, setReplyBody] = useState('')
+  const [loadingThread, setLoadingThread] = useState<boolean>(
+    Boolean(selectedId),
+  )
+  const [draftsByThread, setDraftsByThread] = useState<Record<string, string>>(
+    {},
+  )
   const [sendingReply, setSendingReply] = useState(false)
   const [togglingAvailability, setTogglingAvailability] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
@@ -91,6 +93,21 @@ export function AdminChatInbox({
 
   const messagesListRef = useRef<HTMLDivElement>(null)
   const isMountedRef = useRef(true)
+  const selectedIdRef = useRef<string | null>(selectedId)
+  selectedIdRef.current = selectedId
+  const threadReqSeqRef = useRef(0)
+  const loadingThreadRef = useRef(false)
+
+  const currentDraft = selectedId ? (draftsByThread[selectedId] ?? '') : ''
+
+  function updateCurrentDraft(value: string) {
+    if (!selectedId) return
+    const targetId = selectedId
+    setDraftsByThread((prev) => ({
+      ...prev,
+      [targetId]: value,
+    }))
+  }
 
   const notifyBadgeRefresh = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -112,26 +129,58 @@ export function AdminChatInbox({
 
   const loadThread = useCallback(
     async (conversationId: string, silent = false) => {
-      if (!silent) setLoadingThread(true)
+      if (silent && loadingThreadRef.current) {
+        return
+      }
+      const seq = silent
+        ? threadReqSeqRef.current
+        : ++threadReqSeqRef.current
+
+      if (!silent) {
+        loadingThreadRef.current = true
+        setLoadingThread(true)
+      }
+
       try {
         const res = await getAdminChatThread({ data: { conversationId } })
-        if (!isMountedRef.current) return
+        if (
+          !isMountedRef.current ||
+          selectedIdRef.current !== conversationId ||
+          seq !== threadReqSeqRef.current
+        ) {
+          return
+        }
         setActiveConversation(res.conversation)
         setMessages(res.messages)
         setConversations((prev) =>
           prev.map((item) =>
             item.id === res.conversation.id
-              ? { ...item, unreadByStaff: 0, status: res.conversation.status }
+              ? {
+                  ...item,
+                  unreadByStaff: res.conversation.unreadByStaff,
+                  status: res.conversation.status,
+                }
               : item,
           ),
         )
         notifyBadgeRefresh()
       } catch (err) {
-        if (!silent && isMountedRef.current) {
+        if (
+          !silent &&
+          isMountedRef.current &&
+          selectedIdRef.current === conversationId &&
+          seq === threadReqSeqRef.current
+        ) {
           setError(getErrorMessage(err, 'Failed to load conversation.'))
         }
       } finally {
-        if (!silent && isMountedRef.current) {
+        if (
+          !silent &&
+          isMountedRef.current &&
+          selectedIdRef.current === conversationId &&
+          seq === threadReqSeqRef.current
+        ) {
+          loadingThreadRef.current = false
           setLoadingThread(false)
         }
       }
@@ -147,9 +196,12 @@ export function AdminChatInbox({
   }, [])
 
   useEffect(() => {
+    setError(null)
+    setActiveConversation(null)
+    setMessages([])
     if (!selectedId) {
-      setActiveConversation(null)
-      setMessages([])
+      loadingThreadRef.current = false
+      setLoadingThread(false)
       return
     }
     void loadThread(selectedId)
@@ -162,13 +214,13 @@ export function AdminChatInbox({
     const timer = setInterval(() => {
       if (document.visibilityState === 'hidden') return
       void loadInbox()
-      if (selectedId) {
-        void loadThread(selectedId, true)
+      if (selectedIdRef.current) {
+        void loadThread(selectedIdRef.current, true)
       }
     }, 3500)
 
     return () => clearInterval(timer)
-  }, [selectedId, loadInbox, loadThread])
+  }, [loadInbox, loadThread])
 
   useEffect(() => {
     const container = messagesListRef.current
@@ -218,57 +270,114 @@ export function AdminChatInbox({
 
   async function handleSendReply(e: FormEvent) {
     e.preventDefault()
-    if (!selectedId || !replyBody.trim() || sendingReply) return
+    if (
+      !selectedId ||
+      activeConversation?.id !== selectedId ||
+      loadingThread ||
+      !currentDraft.trim() ||
+      sendingReply
+    ) {
+      return
+    }
+    const targetConversationId = selectedId
+    const submittedDraft = currentDraft
+    const trimmedBody = currentDraft.trim()
+
     setSendingReply(true)
     setError(null)
     try {
       const sent = await sendAdminChatReply({
         data: {
-          conversationId: selectedId,
-          body: replyBody,
+          conversationId: targetConversationId,
+          body: trimmedBody,
         },
       })
-      setMessages((prev) =>
-        prev.some((m) => m.id === sent.id) ? prev : [...prev, sent],
-      )
-      setReplyBody('')
-      setActiveConversation((prev) =>
-        prev ? { ...prev, status: 'OPEN', lastMessagePreview: sent.body } : prev,
-      )
+      // Clear only the submitted draft for the originating conversation, preserving any newer text typed
+      setDraftsByThread((prev) => {
+        const existingDraft = prev[targetConversationId] ?? ''
+        if (
+          existingDraft !== submittedDraft &&
+          existingDraft.trim() !== trimmedBody
+        ) {
+          return prev
+        }
+        return {
+          ...prev,
+          [targetConversationId]: '',
+        }
+      })
+
+      if (selectedIdRef.current === targetConversationId) {
+        setMessages((prev) =>
+          prev.some((m) => m.id === sent.id) ? prev : [...prev, sent],
+        )
+        setActiveConversation((prev) =>
+          prev?.id === targetConversationId
+            ? { ...prev, status: 'OPEN', lastMessagePreview: sent.body }
+            : prev,
+        )
+      }
+
       await loadInbox()
       notifyBadgeRefresh()
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to send reply.'))
+      if (selectedIdRef.current === targetConversationId) {
+        setError(getErrorMessage(err, 'Failed to send reply.'))
+      }
     } finally {
       setSendingReply(false)
     }
   }
 
   async function handleStatusToggle(nextStatus: ChatThreadStatus) {
-    if (!selectedId || updatingStatus) return
+    if (
+      !selectedId ||
+      activeConversation?.id !== selectedId ||
+      loadingThread ||
+      updatingStatus
+    ) {
+      return
+    }
+    const targetConversationId = selectedId
     setUpdatingStatus(true)
     setError(null)
     try {
       await updateAdminChatStatus({
-        data: { conversationId: selectedId, status: nextStatus },
+        data: { conversationId: targetConversationId, status: nextStatus },
       })
       setActiveConversation((prev) =>
-        prev ? { ...prev, status: nextStatus, unreadByStaff: 0 } : prev,
+        prev?.id === targetConversationId
+          ? {
+              ...prev,
+              status: nextStatus,
+              ...(nextStatus === 'RESOLVED' ? { unreadByStaff: 0 } : {}),
+            }
+          : prev,
       )
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === selectedId
-            ? { ...c, status: nextStatus, unreadByStaff: 0 }
+          c.id === targetConversationId
+            ? {
+                ...c,
+                status: nextStatus,
+                ...(nextStatus === 'RESOLVED' ? { unreadByStaff: 0 } : {}),
+              }
             : c,
         ),
       )
       notifyBadgeRefresh()
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to update conversation status.'))
+      if (selectedIdRef.current === targetConversationId) {
+        setError(getErrorMessage(err, 'Failed to update conversation status.'))
+      }
     } finally {
       setUpdatingStatus(false)
     }
   }
+
+  const isThreadReady = Boolean(
+    selectedId && activeConversation?.id === selectedId && !loadingThread,
+  )
 
   return (
     <div className="space-y-5">
@@ -436,9 +545,14 @@ export function AdminChatInbox({
 
         {/* Right Pane: Active Conversation */}
         <div className="lg:col-span-8 bg-white rounded-2xl border border-stone-200 shadow-xs flex flex-col overflow-hidden">
-          {!activeConversation ? (
+          {!selectedId ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <EmptyState message="Select a guest inquiry on the left to read and reply." />
+            </div>
+          ) : loadingThread || activeConversation?.id !== selectedId ? (
+            <div className="flex-1 flex items-center justify-center gap-2 p-8 text-xs text-stone-500">
+              <Loader2 className="w-4 h-4 animate-spin text-amber-800" />
+              Loading conversation...
             </div>
           ) : (
             <>
@@ -485,7 +599,7 @@ export function AdminChatInbox({
                   {activeConversation.status === 'OPEN' ? (
                     <button
                       type="button"
-                      disabled={updatingStatus}
+                      disabled={!isThreadReady || updatingStatus}
                       onClick={() => void handleStatusToggle('RESOLVED')}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-100 text-xs font-semibold text-stone-700 transition cursor-pointer disabled:opacity-50"
                     >
@@ -495,7 +609,7 @@ export function AdminChatInbox({
                   ) : (
                     <button
                       type="button"
-                      disabled={updatingStatus}
+                      disabled={!isThreadReady || updatingStatus}
                       onClick={() => void handleStatusToggle('OPEN')}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-900 transition cursor-pointer disabled:opacity-50"
                     >
@@ -511,12 +625,7 @@ export function AdminChatInbox({
                 ref={messagesListRef}
                 className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 max-h-[24rem] bg-[#FAF8F4]/50"
               >
-                {loadingThread && messages.length === 0 ? (
-                  <div className="py-12 flex items-center justify-center gap-2 text-xs text-stone-500">
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-800" />
-                    Loading conversation...
-                  </div>
-                ) : messages.length === 0 ? (
+                {messages.length === 0 ? (
                   <div className="py-12 text-center text-xs text-stone-500 flex flex-col items-center gap-2">
                     <MessageSquare className="w-6 h-6 text-stone-300" />
                     No messages in this conversation yet.
@@ -559,8 +668,9 @@ export function AdminChatInbox({
                     <button
                       key={preset}
                       type="button"
-                      onClick={() => setReplyBody(preset)}
-                      className="shrink-0 px-2.5 py-1 rounded-full border border-stone-200 bg-stone-50 hover:bg-amber-50 hover:border-amber-200 text-[11px] text-stone-700 transition cursor-pointer"
+                      disabled={!isThreadReady}
+                      onClick={() => updateCurrentDraft(preset)}
+                      className="shrink-0 px-2.5 py-1 rounded-full border border-stone-200 bg-stone-50 hover:bg-amber-50 hover:border-amber-200 text-[11px] text-stone-700 transition cursor-pointer disabled:opacity-40"
                     >
                       {preset.length > 42
                         ? `${preset.slice(0, 42)}...`
@@ -580,22 +690,29 @@ export function AdminChatInbox({
                     id="admin-chat-reply"
                     rows={2}
                     maxLength={2000}
-                    value={replyBody}
-                    onChange={(e) => setReplyBody(e.target.value)}
+                    disabled={!isThreadReady}
+                    value={currentDraft}
+                    onChange={(e) => updateCurrentDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
-                        if (replyBody.trim() && !sendingReply) {
+                        if (
+                          isThreadReady &&
+                          currentDraft.trim() &&
+                          !sendingReply
+                        ) {
                           void handleSendReply(e)
                         }
                       }
                     }}
                     placeholder={`Reply to ${activeConversation.visitorName}...`}
-                    className="flex-1 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 resize-none"
+                    className="flex-1 px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 resize-none disabled:opacity-50"
                   />
                   <button
                     type="submit"
-                    disabled={!replyBody.trim() || sendingReply}
+                    disabled={
+                      !isThreadReady || !currentDraft.trim() || sendingReply
+                    }
                     className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-amber-900 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     {sendingReply ? (

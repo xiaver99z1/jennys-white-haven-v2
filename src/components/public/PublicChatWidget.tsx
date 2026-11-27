@@ -60,6 +60,9 @@ export function PublicChatWidget({
 
   const messagesListRef = useRef<HTMLDivElement>(null)
   const isMountedRef = useRef(true)
+  const visitorTokenRef = useRef<string>('')
+  const isOpenRef = useRef<boolean>(false)
+  isOpenRef.current = isOpen
 
   const readStoredToken = useCallback((): string => {
     if (typeof window === 'undefined') return ''
@@ -71,26 +74,37 @@ export function PublicChatWidget({
   }, [])
 
   const saveStoredToken = useCallback((token: string) => {
+    visitorTokenRef.current = token
     setVisitorToken(token)
     if (typeof window === 'undefined') return
     try {
       window.localStorage.setItem(VISITOR_CHAT_TOKEN_KEY, token)
     } catch {
-      // Ignore storage restrictions
+      // Retain token in memory even when storage writes are blocked
     }
   }, [])
 
   const syncChatState = useCallback(
-    async (options?: { markRead?: boolean; tokenOverride?: string }) => {
-      const activeToken = options?.tokenOverride ?? readStoredToken()
+    async (options?: {
+      markRead?: boolean
+      isWidgetOpen?: boolean
+      tokenOverride?: string
+    }) => {
+      const requestToken =
+        options?.tokenOverride ?? (visitorTokenRef.current || readStoredToken())
+      const widgetOpenFlag = options?.isWidgetOpen ?? isOpenRef.current
       try {
         const res = await getPublicChatState({
           data: {
-            visitorToken: activeToken || undefined,
+            visitorToken: requestToken || undefined,
             markRead: options?.markRead ?? false,
+            isWidgetOpen: widgetOpenFlag,
           },
         })
-        if (!isMountedRef.current) return
+        // Discard stale response if unmounted or if a newer inquiry rotated the active token
+        if (!isMountedRef.current || requestToken !== visitorTokenRef.current) {
+          return
+        }
         setStaffOnline(res.staffOnline)
         if (res.conversation) {
           setConversation(res.conversation)
@@ -106,13 +120,17 @@ export function PublicChatWidget({
   useEffect(() => {
     isMountedRef.current = true
     const stored = readStoredToken()
+    visitorTokenRef.current = stored
     if (stored) {
       setVisitorToken(stored)
     }
 
     if (import.meta.env.MODE !== 'test' || enableInitialSyncInTest) {
       setIsLoadingState(true)
-      void syncChatState({ tokenOverride: stored }).finally(() => {
+      void syncChatState({
+        tokenOverride: stored,
+        isWidgetOpen: false,
+      }).finally(() => {
         if (isMountedRef.current) setIsLoadingState(false)
       })
     }
@@ -134,7 +152,7 @@ export function PublicChatWidget({
     const intervalMs = isOpen ? 3500 : 25000
     const timer = setInterval(() => {
       if (document.visibilityState === 'hidden') return
-      void syncChatState({ markRead: isOpen })
+      void syncChatState({ markRead: isOpen, isWidgetOpen: isOpen })
     }, intervalMs)
 
     return () => clearInterval(timer)
@@ -150,10 +168,11 @@ export function PublicChatWidget({
 
   function handleToggleOpen() {
     const nextOpen = !isOpen
+    isOpenRef.current = nextOpen
     setIsOpen(nextOpen)
     setError(null)
     if (nextOpen) {
-      void syncChatState({ markRead: true })
+      void syncChatState({ markRead: true, isWidgetOpen: true })
     }
   }
 
@@ -161,14 +180,17 @@ export function PublicChatWidget({
     e.preventDefault()
     setError(null)
     setIsSending(true)
+    const submittedFirstMessage = firstMessage
     try {
+      const activeToken =
+        visitorTokenRef.current || visitorToken || readStoredToken()
       const res = await sendVisitorChatMessage({
         data: {
-          visitorToken: visitorToken || undefined,
+          visitorToken: activeToken || undefined,
           name,
           email: email || undefined,
           phone: phone || undefined,
-          message: firstMessage,
+          message: submittedFirstMessage,
           forceNewThread: startingNew,
           honeypot: honeypot || undefined,
         },
@@ -177,7 +199,9 @@ export function PublicChatWidget({
       setStaffOnline(res.staffOnline)
       setConversation(res.conversation)
       setMessages([res.message])
-      setFirstMessage('')
+      setFirstMessage((current) =>
+        current === submittedFirstMessage ? '' : current,
+      )
       setStartingNew(false)
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to start conversation.'))
@@ -190,12 +214,15 @@ export function PublicChatWidget({
     e.preventDefault()
     const trimmed = replyText.trim()
     if (!trimmed || isSending) return
+    const submittedDraft = replyText
     setError(null)
     setIsSending(true)
     try {
+      const activeToken =
+        visitorTokenRef.current || visitorToken || readStoredToken()
       const res = await sendVisitorChatMessage({
         data: {
-          visitorToken: visitorToken || readStoredToken() || undefined,
+          visitorToken: activeToken || undefined,
           message: trimmed,
         },
       })
@@ -207,7 +234,10 @@ export function PublicChatWidget({
           ? prev
           : [...prev, res.message],
       )
-      setReplyText('')
+      // Preserve any new text entered while the send request was pending
+      setReplyText((current) =>
+        current === submittedDraft || current.trim() === trimmed ? '' : current,
+      )
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to send message.'))
     } finally {
@@ -272,7 +302,10 @@ export function PublicChatWidget({
               )}
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  isOpenRef.current = false
+                  setIsOpen(false)
+                }}
                 aria-label="Minimize chat support"
                 className="p-1.5 rounded-full text-stone-300 hover:text-white hover:bg-stone-800 transition cursor-pointer"
               >

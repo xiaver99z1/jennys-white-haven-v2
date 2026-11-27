@@ -8,6 +8,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
 import { DEFAULT_ADMIN_ICON_LOGO } from '#/lib/constants/cms'
+import { hasPermission } from '#/lib/permissions'
 import { logUserLogout } from '#/server/auth-actions'
 import { heartbeatAdminPresence } from '#/server/chat-actions'
 import { getPublicBrandLogos } from '#/server/cms-actions'
@@ -189,7 +190,7 @@ function AdminLayout() {
 
   // Live chat staff online presence heartbeat & unread count sync
   useEffect(() => {
-    if (isAuthPage || !sessionData?.user) return
+    if (isAuthPage || !hasPermission(sessionData?.user, 'manage:chat')) return
     let active = true
 
     const syncPresence = () => {
