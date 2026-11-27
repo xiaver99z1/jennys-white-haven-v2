@@ -505,8 +505,10 @@ export const upsertCmsSectionHandler = createServerOnlyFn(
                   subtitle: rawSubtitle,
                   images: savedImages,
                 })
-              : savedMeta,
-        isPublished: saved.isPublished,
+              : data.key === 'branding'
+                ? resolveBrandingMetadata(savedMeta)
+                : savedMeta,
+        isPublished: data.key === 'branding' ? true : saved.isPublished,
         sortOrder: saved.sortOrder,
         updatedAt: saved.updatedAt,
         updatedByName: saved.updatedBy?.name ?? null,
@@ -546,6 +548,7 @@ export const resetCmsSectionHandler = createServerOnlyFn(
           : []),
         ...extractHeroSlideImageKeys(existingRow?.metadata),
         ...extractSpotImageKeys(existingRow?.metadata),
+        ...extractBrandingImageKeys(existingRow?.metadata),
       ]),
     )
 
