@@ -6,6 +6,9 @@ import {
   generateActivationToken,
   getAppBaseUrl,
   hashActivationToken,
+  isSingleMailboxEmail,
+  sendChatInquiryAlertEmail,
+  sendChatReplyToGuestEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from './email'
@@ -203,5 +206,80 @@ describe('email helpers (Nodemailer SMTP)', () => {
         rawToken: 'reset-tok',
       }),
     ).rejects.toThrow('Failed to send password reset email.')
+  })
+
+  it('sends chat inquiry alert email to unique recipients and chat reply email to guest', async () => {
+    process.env.SMTP_USER = 'resort@gmail.com'
+    process.env.SMTP_PASS = 'apppassword123456'
+    process.env.BETTER_AUTH_URL = 'https://jennyswhitehaven.com'
+
+    expect(
+      await sendChatInquiryAlertEmail({
+        recipients: ['  '],
+        visitorName: 'Maria',
+        messageBody: 'Hello',
+        conversationId: 'conv-1',
+      }),
+    ).toBeNull()
+
+    mockSendMail.mockResolvedValueOnce({ messageId: '<chat-alert-1>' })
+    await sendChatInquiryAlertEmail({
+      recipients: ['resort@gmail.com', 'owner@resort.com', 'resort@gmail.com'],
+      visitorName: 'Maria <Guest>',
+      visitorEmail: 'maria@example.com',
+      visitorPhone: '+63 917 123 4567',
+      messageBody: 'Is Deluxe Room available?\nThank you!',
+      conversationId: 'conv-1',
+    })
+
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'resort@gmail.com, owner@resort.com',
+        replyTo: 'maria@example.com',
+        subject: "New Guest Chat Inquiry from Maria <Guest> — Jenny's White Haven",
+        html: expect.stringContaining('Maria &lt;Guest&gt;'),
+        text: expect.stringContaining(
+          'https://jennyswhitehaven.com/admin/chat?thread=conv-1',
+        ),
+      }),
+    )
+
+    expect(isSingleMailboxEmail('guest@example.com')).toBe(true)
+    expect(isSingleMailboxEmail('alice,bob@example.com')).toBe(false)
+    expect(isSingleMailboxEmail('Guest <guest@example.com>')).toBe(false)
+
+    expect(
+      await sendChatReplyToGuestEmail({
+        to: '   ',
+        visitorName: 'Maria',
+        staffName: 'Jenny',
+        replyBody: 'Yes!',
+      }),
+    ).toBeNull()
+
+    expect(
+      await sendChatReplyToGuestEmail({
+        to: 'alice,bob@example.com',
+        visitorName: 'Maria',
+        staffName: 'Jenny',
+        replyBody: 'Yes!',
+      }),
+    ).toBeNull()
+
+    mockSendMail.mockResolvedValueOnce({ messageId: '<chat-reply-1>' })
+    await sendChatReplyToGuestEmail({
+      to: 'maria@example.com',
+      visitorName: 'Maria',
+      staffName: 'Jenny',
+      replyBody: 'Yes, those dates are open!',
+    })
+
+    expect(mockSendMail).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        to: 'maria@example.com',
+        subject: "Reply from Jenny's White Haven",
+        html: expect.stringContaining('Yes, those dates are open!'),
+      }),
+    )
   })
 })

@@ -4,6 +4,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronRight,
+  MessageSquare,
   Settings,
   Star,
 } from 'lucide-react'
@@ -14,6 +15,7 @@ interface AdminSidebarProps {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   handleLogout: () => void
+  unreadChatCount?: number
 }
 
 export function AdminSidebar({
@@ -21,6 +23,7 @@ export function AdminSidebar({
   sidebarOpen,
   setSidebarOpen,
   handleLogout,
+  unreadChatCount = 0,
 }: AdminSidebarProps) {
   const [reportsOpen, setReportsOpen] = useState(() =>
     typeof window !== 'undefined'
@@ -151,6 +154,12 @@ export function AdminSidebar({
                 </svg>
               }
             />
+            <NavItem
+              to="/admin/chat"
+              label="Chat Support"
+              badgeCount={unreadChatCount}
+              icon={<MessageSquare className="w-5 h-5" />}
+            />
 
             {/* Conditionally show Reports submenu based on RBAC permissions */}
             {hasPermission(currentUser, 'view:reports') && (
@@ -271,11 +280,13 @@ function NavItem({
   label,
   icon,
   exact = false,
+  badgeCount = 0,
 }: {
   to: string
   label: string
   icon: React.ReactNode
   exact?: boolean
+  badgeCount?: number
 }) {
   return (
     <Link
@@ -283,15 +294,22 @@ function NavItem({
       activeOptions={{ exact }}
       inactiveProps={{
         className:
-          'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-stone-100 hover:bg-stone-800 hover:text-white transition cursor-pointer',
+          'flex items-center justify-between gap-3 px-3 py-2.5 rounded-md text-sm text-stone-100 hover:bg-stone-800 hover:text-white transition cursor-pointer',
       }}
       activeProps={{
         className:
-          'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm bg-stone-800 text-white font-medium cursor-pointer',
+          'flex items-center justify-between gap-3 px-3 py-2.5 rounded-md text-sm bg-stone-800 text-white font-medium cursor-pointer',
       }}
     >
-      <span className="shrink-0">{icon}</span>
-      <span>{label}</span>
+      <span className="flex items-center gap-3 min-w-0">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">{label}</span>
+      </span>
+      {badgeCount > 0 && (
+        <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[10px] font-bold shrink-0">
+          {badgeCount}
+        </span>
+      )}
     </Link>
   )
 }

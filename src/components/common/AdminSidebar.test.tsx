@@ -40,6 +40,16 @@ describe('AdminSidebar', () => {
     expect(screen.getByText('Bookings')).toBeInTheDocument()
     expect(screen.getByText('Rooms')).toBeInTheDocument()
     expect(screen.getByText('Guests')).toBeInTheDocument()
+    expect(screen.getByText('Chat Support')).toBeInTheDocument()
+  })
+
+  it('displays unreadChatCount badge on Chat Support link when greater than zero', () => {
+    vi.mocked(hasPermission).mockReturnValue(false)
+
+    render(<AdminSidebar {...defaultProps} unreadChatCount={3} />)
+
+    expect(screen.getByText('Chat Support')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
   })
 
   it('renders Users navigation item when user has "view:users" permission', () => {

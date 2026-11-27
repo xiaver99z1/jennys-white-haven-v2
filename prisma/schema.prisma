@@ -33,12 +33,18 @@ model User {
   banReason              String?
   banExpires             DateTime?
 
+  // Live Chat Presence
+  // Rollout note: run `pnpm db:push` on existing databases before serving builds with `lastSeenAt`, `chatAvailable`, `ChatConversation`, and `ChatMessage`.
+  lastSeenAt             DateTime?
+  chatAvailable          Boolean   @default(true)
+
   sessions               Session[]
   accounts               Account[]
   activityLogs           ActivityLog[] // ← Added missing opposite relation field
   payments               Payment[]
   notifications          Notification[]
   siteSections           SiteSection[]
+  chatMessages           ChatMessage[]
   profileMediaId         String?
   profileMedia           Media?    @relation("UserProfileMedia", fields: [profileMediaId], references: [id], onDelete: SetNull)
   uploadedMedia          Media[]   @relation("UploadedMedia")
@@ -125,7 +131,7 @@ model Room {
   description   String?
   capacity       Int        @default(2)
   pricePerNight  Decimal    @db.Decimal(10, 2)
-  // Rollout note: apply schema changes (`pnpm db:push`) to existing databases before starting or serving requests with new builds (`pnpm build` only runs `prisma generate`).
+  // Rollout note: apply schema changes (`pnpm db:push`) to existing databases before starting or serving requests with new builds (`pnpm build` only runs `prisma generate`). This covers Room fee columns, User chat presence fields, ChatConversation, and ChatMessage.
   extraPersonFee Decimal    @default(500) @db.Decimal(10, 2)
   extraChildFee  Decimal    @default(300) @db.Decimal(10, 2)
   status         RoomStatus @default(AVAILABLE)
@@ -429,4 +435,66 @@ model Review {
   @@index([status, isFeatured, createdAt])
   @@index([status, rating])
   @@map("review")
+}
+
+// ======================
+// Live Chat Support & Inquiries
+// ======================
+
+enum ChatThreadStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ChatSenderType {
+  VISITOR
+  STAFF
+}
+
+// Rollout note: apply schema changes (`pnpm db:push`) on existing databases before serving requests with this build.
+model ChatConversation {
+  id                         String           @id @default(cuid())
+  visitorTokenHash           String           @unique
+  visitorName                String
+  visitorEmail               String?
+  visitorPhone               String?
+  status                     ChatThreadStatus @default(OPEN)
+  unreadByStaff              Int              @default(0)
+  unreadByVisitor            Int              @default(0)
+  lastMessageAt              DateTime         @default(now())
+  lastMessagePreview         String           @default("")
+  lastVisitorActiveAt        DateTime         @default(now())
+  lastAlertSentAt            DateTime?
+  lastAppAlertSentAt         DateTime?
+  lastEmailAlertSentAt       DateTime?
+  pendingEmailAlertMessageId String?
+  ipAddress                  String?
+
+  messages                   ChatMessage[]
+
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+
+  @@index([status, lastMessageAt])
+  @@index([unreadByStaff])
+  @@map("chat_conversation")
+}
+
+model ChatMessage {
+  id                String           @id @default(cuid())
+  conversationId    String
+  conversation      ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderType        ChatSenderType
+  senderName        String
+  senderUserId      String?
+  senderUser        User?            @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+  body              String           @db.Text
+  guestEmailPending Boolean          @default(false)
+  guestEmailSentAt  DateTime?
+  createdAt         DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
+  @@index([createdAt])
+  @@map("chat_message")
 }
