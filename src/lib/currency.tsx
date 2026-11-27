@@ -133,7 +133,7 @@ const CURRENCY_MAP = new Map<CurrencyCode, CurrencyOption>(
   SUPPORTED_CURRENCIES.map((item) => [item.code, item]),
 )
 
-const formatterCache = new Map<CurrencyCode, Intl.NumberFormat>()
+const formatterCache = new Map<string, Intl.NumberFormat>()
 
 export function isSupportedCurrency(value: unknown): value is CurrencyCode {
   return typeof value === 'string' && CURRENCY_MAP.has(value as CurrencyCode)
@@ -157,18 +157,23 @@ export function getDefaultRatesMap(): Record<CurrencyCode, number> {
   }
 }
 
-function getNumberFormatter(code: CurrencyCode): Intl.NumberFormat {
-  const cached = formatterCache.get(code)
-  if (cached) return cached
+function getNumberFormatter(
+  code: CurrencyCode,
+  decimalsOverride?: number,
+): Intl.NumberFormat {
   const meta = getCurrencyOption(code)
+  const decimals = decimalsOverride ?? meta.decimals
+  const cacheKey = `${code}:${decimals}`
+  const cached = formatterCache.get(cacheKey)
+  if (cached) return cached
   const formatter = new Intl.NumberFormat(meta.locale, {
     style: 'currency',
     currency: meta.code,
     currencyDisplay: 'symbol',
-    minimumFractionDigits: meta.decimals,
-    maximumFractionDigits: meta.decimals,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   })
-  formatterCache.set(code, formatter)
+  formatterCache.set(cacheKey, formatter)
   return formatter
 }
 
@@ -195,11 +200,30 @@ export function formatConvertedPhp(
   rates: Partial<Record<CurrencyCode, number>> = {},
 ): string {
   const converted = convertPhpAmount(phpAmount, currency, rates)
+  const meta = getCurrencyOption(currency)
+
+  // Preserve centavos in PHP when fractional amounts exist (e.g. ₱0.25 or ₱1,250.50),
+  // while keeping whole-peso rates clean (e.g. ₱3,500).
+  const hasFractionalCentavos =
+    currency === 'PHP' && Math.abs(converted - Math.trunc(converted)) > 1e-6
+  const effectiveDecimals = hasFractionalCentavos ? 2 : meta.decimals
+
+  // Prevent small non-zero balances (e.g. ₱0.25) from rounding down to 0
+  const minUnit = 10 ** -effectiveDecimals
+  const safeAmount =
+    converted > 0 && converted < minUnit
+      ? minUnit
+      : converted < 0 && converted > -minUnit
+        ? -minUnit
+        : converted
+
   if (currency === 'SGD') {
-    const formatted = getNumberFormatter('SGD').format(converted)
+    const formatted = getNumberFormatter('SGD', effectiveDecimals).format(
+      safeAmount,
+    )
     return formatted.startsWith('$') ? `S${formatted}` : formatted
   }
-  return getNumberFormatter(currency).format(converted)
+  return getNumberFormatter(currency, effectiveDecimals).format(safeAmount)
 }
 
 interface CachedRatesPayload {

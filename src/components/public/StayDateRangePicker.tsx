@@ -369,8 +369,11 @@ export function StayDateRangePicker({
   const checkOutDisplay = formatStayDisplayDate(checkOut)
   const hasBookedDates = occupiedNightRanges.length > 0
 
+  const calendarDialogId = `${idPrefix}-calendar-dialog`
+
   const calendarNode = (
     <div
+      id={calendarDialogId}
       ref={popoverRef}
       role="dialog"
       tabIndex={-1}
@@ -406,7 +409,6 @@ export function StayDateRangePicker({
             <button
               type="button"
               aria-pressed={activeField === 'checkIn'}
-              aria-label={`Switch to start date (${checkInDisplay || 'not selected'})`}
               onClick={() => setActiveField('checkIn')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                 activeField === 'checkIn'
@@ -414,7 +416,14 @@ export function StayDateRangePicker({
                   : 'hover:bg-stone-100 text-stone-800'
               }`}
             >
-              {checkInDisplay || checkInLabel}
+              {checkInDisplay ? (
+                <>
+                  <span className="sr-only">{checkInLabel}: </span>
+                  {checkInDisplay}
+                </>
+              ) : (
+                checkInLabel
+              )}
             </button>
             <span aria-hidden="true" className="text-stone-400">
               →
@@ -422,7 +431,6 @@ export function StayDateRangePicker({
             <button
               type="button"
               aria-pressed={activeField === 'checkOut'}
-              aria-label={`Switch to end date (${checkOutDisplay || 'not selected'})`}
               onClick={() => setActiveField('checkOut')}
               className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
                 activeField === 'checkOut'
@@ -430,7 +438,14 @@ export function StayDateRangePicker({
                   : 'hover:bg-stone-100 text-stone-800'
               }`}
             >
-              {checkOutDisplay || checkOutLabel}
+              {checkOutDisplay ? (
+                <>
+                  <span className="sr-only">{checkOutLabel}: </span>
+                  {checkOutDisplay}
+                </>
+              ) : (
+                checkOutLabel
+              )}
             </button>
           </div>
           {rangeNotice && (
@@ -587,6 +602,7 @@ export function StayDateRangePicker({
           type="button"
           aria-expanded={isOpen}
           aria-haspopup="dialog"
+          aria-controls={isOpen ? calendarDialogId : undefined}
           onClick={() => handleOpen('checkIn')}
           className={`${buttonBaseClass} ${
             isOpen && activeField === 'checkIn'
@@ -628,6 +644,7 @@ export function StayDateRangePicker({
           type="button"
           aria-expanded={isOpen}
           aria-haspopup="dialog"
+          aria-controls={isOpen ? calendarDialogId : undefined}
           onClick={() => handleOpen('checkOut')}
           className={`${buttonBaseClass} ${
             isOpen && activeField === 'checkOut'

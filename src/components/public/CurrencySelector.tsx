@@ -17,6 +17,64 @@ export function CurrencySelector({
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  function focusOption(index: number) {
+    const items = optionRefs.current.filter(
+      (item): item is HTMLButtonElement => item !== null,
+    )
+    if (items.length === 0) return
+    const bounded = ((index % items.length) + items.length) % items.length
+    items[bounded].focus()
+  }
+
+  function openAndFocusSelected(fallbackIndex: number) {
+    const selectedIdx = SUPPORTED_CURRENCIES.findIndex(
+      (opt) => opt.code === currency,
+    )
+    setOpen(true)
+    requestAnimationFrame(() => {
+      focusOption(selectedIdx >= 0 ? selectedIdx : fallbackIndex)
+    })
+  }
+
+  function handleTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      openAndFocusSelected(0)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      openAndFocusSelected(SUPPORTED_CURRENCIES.length - 1)
+    } else if (event.key === 'Escape' && open) {
+      event.preventDefault()
+      setOpen(false)
+    }
+  }
+
+  function handleListboxKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const items = optionRefs.current.filter(
+      (item): item is HTMLButtonElement => item !== null,
+    )
+    const activeIndex = items.findIndex((item) => item === document.activeElement)
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      focusOption(activeIndex === -1 ? 0 : activeIndex + 1)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      focusOption(activeIndex === -1 ? items.length - 1 : activeIndex - 1)
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      focusOption(0)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      focusOption(items.length - 1)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -31,8 +89,13 @@ export function CurrencySelector({
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        const hadFocusInside = containerRef.current?.contains(
+          document.activeElement,
+        )
         setOpen(false)
-        triggerRef.current?.focus()
+        if (hadFocusInside) {
+          triggerRef.current?.focus()
+        }
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
@@ -95,7 +158,9 @@ export function CurrencySelector({
         aria-label={`Select currency (current: ${currencyOption.code})`}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-controls={open ? 'public-currency-listbox' : undefined}
         onClick={() => setOpen((prev) => !prev)}
+        onKeyDown={handleTriggerKeyDown}
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-stone-200/90 bg-white/80 hover:bg-white hover:border-stone-300 text-xs font-semibold text-stone-700 hover:text-stone-950 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40"
       >
         <Globe className="w-3.5 h-3.5 text-amber-800 shrink-0" />
@@ -111,28 +176,38 @@ export function CurrencySelector({
       </button>
 
       {open && (
-        <div
-          role="listbox"
-          aria-label="Supported currencies"
-          className="absolute right-0 top-full mt-2.5 w-64 rounded-2xl bg-[#FAF8F4] border border-stone-200/85 shadow-xl py-2 z-50"
-        >
-          <div className="px-3.5 py-1.5 text-[10px] uppercase tracking-[0.2em] text-stone-400 font-semibold">
+        <div className="absolute right-0 top-full mt-2.5 w-64 rounded-2xl bg-[#FAF8F4] border border-stone-200/85 shadow-xl py-2 z-50">
+          <div
+            id="public-currency-heading"
+            className="px-3.5 py-1.5 text-[10px] uppercase tracking-[0.2em] text-stone-400 font-semibold"
+          >
             Display Rates In
           </div>
-          <div className="max-h-72 overflow-y-auto py-0.5">
-            {SUPPORTED_CURRENCIES.map((option) => {
+          <div
+            id="public-currency-listbox"
+            role="listbox"
+            aria-labelledby="public-currency-heading"
+            onKeyDown={handleListboxKeyDown}
+            className="max-h-72 overflow-y-auto py-0.5"
+          >
+            {SUPPORTED_CURRENCIES.map((option, index) => {
               const isSelected = option.code === currency
               return (
                 <button
                   key={option.code}
+                  ref={(el) => {
+                    optionRefs.current[index] = el
+                  }}
                   type="button"
                   role="option"
+                  tabIndex={isSelected ? 0 : -1}
                   aria-selected={isSelected}
                   onClick={() => {
                     setCurrency(option.code)
                     setOpen(false)
+                    triggerRef.current?.focus()
                   }}
-                  className={`w-full px-3.5 py-2 text-left flex items-center justify-between gap-2.5 transition cursor-pointer ${
+                  className={`w-full px-3.5 py-2 text-left flex items-center justify-between gap-2.5 transition cursor-pointer focus:outline-none focus:bg-[#F3EFE7] ${
                     isSelected
                       ? 'bg-amber-100/60 text-stone-950'
                       : 'hover:bg-[#F3EFE7] text-stone-700'

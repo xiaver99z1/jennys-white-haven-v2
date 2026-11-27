@@ -35,6 +35,10 @@ describe('currency converter & Intl formatting', () => {
 
   it('formats PHP and converted international currencies via Intl.NumberFormat', () => {
     expect(formatConvertedPhp(3500, 'PHP')).toBe('₱3,500')
+    expect(formatConvertedPhp(0.25, 'PHP')).toBe('₱0.25')
+    expect(formatConvertedPhp(1250.5, 'PHP')).toBe('₱1,250.50')
+    expect(formatConvertedPhp(0.25, 'USD', { USD: 0.0172 })).toBe('$0.01')
+    expect(formatConvertedPhp(0, 'PHP')).toBe('₱0')
     expect(formatConvertedPhp(3500, 'USD', { USD: 0.02 })).toBe('$70.00')
     expect(formatConvertedPhp(3500, 'EUR', { EUR: 0.016 })).toBe('€56.00')
     expect(formatConvertedPhp(3500, 'JPY', { JPY: 2.5 })).toMatch(/[¥￥]8,750/)

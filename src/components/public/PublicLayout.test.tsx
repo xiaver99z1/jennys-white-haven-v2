@@ -128,9 +128,12 @@ describe('PublicLayout', () => {
 
     expect(screen.getByTestId('sample-price')).toHaveTextContent('₱3,500')
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /Select currency \(current: PHP\)/i }),
-    )
+    const currencyTrigger = screen.getByRole('button', {
+      name: /Select currency \(current: PHP\)/i,
+    })
+    fireEvent.keyDown(currencyTrigger, { key: 'ArrowDown' })
+    const listbox = screen.getByRole('listbox', { name: /Display Rates In/i })
+    fireEvent.keyDown(listbox, { key: 'ArrowDown' })
     fireEvent.click(screen.getByRole('option', { name: /United States/i }))
 
     expect(screen.getByTestId('sample-price')).toHaveTextContent('$60.20')

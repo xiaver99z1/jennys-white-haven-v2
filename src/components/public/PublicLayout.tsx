@@ -50,8 +50,13 @@ export function PublicLayout({
   function handleMoreMouseLeave() {
     clearMoreCloseTimer()
     moreCloseTimerRef.current = setTimeout(() => {
-      setMoreOpen(false)
       moreCloseTimerRef.current = null
+      const hasFocusedMenuItem = moreItemRefs.current.some(
+        (item) => item !== null && item === document.activeElement,
+      )
+      if (!hasFocusedMenuItem) {
+        setMoreOpen(false)
+      }
     }, 140)
   }
 
@@ -73,6 +78,7 @@ export function PublicLayout({
   }
 
   function openMoreAndFocus(index: number) {
+    clearMoreCloseTimer()
     setMoreOpen(true)
     requestAnimationFrame(() => {
       focusMoreItem(index)
@@ -86,8 +92,17 @@ export function PublicLayout({
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
       openMoreAndFocus(3)
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      if (moreOpen) {
+        clearMoreCloseTimer()
+        setMoreOpen(false)
+      } else {
+        openMoreAndFocus(0)
+      }
     } else if (event.key === 'Escape' && moreOpen) {
       event.preventDefault()
+      clearMoreCloseTimer()
       setMoreOpen(false)
     }
   }
@@ -112,6 +127,7 @@ export function PublicLayout({
       focusMoreItem(items.length - 1)
     } else if (event.key === 'Escape') {
       event.preventDefault()
+      clearMoreCloseTimer()
       setMoreOpen(false)
       moreTriggerRef.current?.focus()
     }
@@ -125,13 +141,20 @@ export function PublicLayout({
         event.target instanceof Node &&
         !moreMenuRef.current.contains(event.target)
       ) {
+        clearMoreCloseTimer()
         setMoreOpen(false)
       }
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        const hadFocusInside = moreMenuRef.current?.contains(
+          document.activeElement,
+        )
+        clearMoreCloseTimer()
         setMoreOpen(false)
-        moreTriggerRef.current?.focus()
+        if (hadFocusInside) {
+          moreTriggerRef.current?.focus()
+        }
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
@@ -230,6 +253,7 @@ export function PublicLayout({
               className="relative"
               onMouseEnter={handleMoreMouseEnter}
               onMouseLeave={handleMoreMouseLeave}
+              onFocus={clearMoreCloseTimer}
               onBlur={(event) => {
                 if (
                   moreMenuRef.current &&
@@ -247,7 +271,7 @@ export function PublicLayout({
                 type="button"
                 aria-expanded={moreOpen}
                 aria-haspopup="menu"
-                aria-controls="more-nav-menu"
+                aria-controls={moreOpen ? 'more-nav-menu' : undefined}
                 onClick={() => {
                   clearMoreCloseTimer()
                   setMoreOpen((prev) => !prev)
