@@ -7,6 +7,7 @@ import { CurrencyContext, CurrencyProvider } from '#/lib/currency'
 import { AnalyticsTracker } from '#/components/public/AnalyticsTracker'
 import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
 import { CurrencySelector } from '#/components/public/CurrencySelector'
+import { PublicChatWidget } from '#/components/public/PublicChatWidget'
 import type { CmsSectionData } from '#/types'
 
 interface PublicLayoutProps {
@@ -587,6 +588,7 @@ export function PublicLayout({
         </div>
       </footer>
 
+      <PublicChatWidget />
       <CookieConsentCenter
         isPreferencesOpen={cookieModalOpen}
         onOpenPreferences={handleOpenCookiePreferences}

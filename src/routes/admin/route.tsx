@@ -9,6 +9,7 @@ import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
 import { DEFAULT_ADMIN_ICON_LOGO } from '#/lib/constants/cms'
 import { logUserLogout } from '#/server/auth-actions'
+import { heartbeatAdminPresence } from '#/server/chat-actions'
 import { getPublicBrandLogos } from '#/server/cms-actions'
 import { checkInitialSetupRequiredHandler } from '#/server/setup-actions'
 import { useEffect, useState, useRef } from 'react'
@@ -88,6 +89,7 @@ function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sessionData, setSessionData] = useState<any>(null)
   const [adminIconLogo, setAdminIconLogo] = useState(DEFAULT_ADMIN_ICON_LOGO)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
@@ -185,6 +187,34 @@ function AdminLayout() {
     })
   }, [isAuthPage])
 
+  // Live chat staff online presence heartbeat & unread count sync
+  useEffect(() => {
+    if (isAuthPage || !sessionData?.user) return
+    let active = true
+
+    const syncPresence = () => {
+      if (document.visibilityState === 'hidden') return
+      heartbeatAdminPresence({ data: {} })
+        .then((res) => {
+          if (active) {
+            setUnreadChatCount(res.unreadThreadsCount)
+          }
+        })
+        .catch(() => {
+          /* ignore transient network errors */
+        })
+    }
+
+    syncPresence()
+    const interval = setInterval(syncPresence, 25000)
+    window.addEventListener('admin-chat-refresh', syncPresence)
+    return () => {
+      active = false
+      clearInterval(interval)
+      window.removeEventListener('admin-chat-refresh', syncPresence)
+    }
+  }, [isAuthPage, sessionData?.user])
+
   if (isAuthPage) {
     return <Outlet />
   }
@@ -215,6 +245,7 @@ function AdminLayout() {
         setProfileMenuOpen={setProfileMenuOpen}
         profileMenuRef={profileMenuRef}
         handleLogout={handleLogout}
+        unreadChatCount={unreadChatCount}
       />
 
       {/* Main Container below navbar with strict height containment */}
@@ -225,6 +256,7 @@ function AdminLayout() {
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           handleLogout={handleLogout}
+          unreadChatCount={unreadChatCount}
         />
 
         {/* Isolated Scrollable Main Content Area */}

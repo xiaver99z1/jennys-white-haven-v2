@@ -20,6 +20,7 @@ import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as VerifyActivationRouteImport } from './routes/verify-activation'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
+import { Route as AdminChatRouteImport } from './routes/admin/chat'
 import { Route as AdminGuestsRouteImport } from './routes/admin/guests'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
@@ -93,6 +94,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const AdminBookingsRoute = AdminBookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminChatRoute = AdminChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const AdminGuestsRoute = AdminGuestsRouteImport.update({
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/reviews': typeof ReviewsRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
+  '/admin/chat': typeof AdminChatRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/reviews': typeof ReviewsRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
+  '/admin/chat': typeof AdminChatRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/reviews': typeof ReviewsRoute
   '/verify-activation': typeof VerifyActivationRoute
   '/admin/bookings': typeof AdminBookingsRoute
+  '/admin/chat': typeof AdminChatRoute
   '/admin/guests': typeof AdminGuestsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -300,6 +309,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/verify-activation'
     | '/admin/bookings'
+    | '/admin/chat'
     | '/admin/guests'
     | '/admin/login'
     | '/admin/notifications'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/verify-activation'
     | '/admin/bookings'
+    | '/admin/chat'
     | '/admin/guests'
     | '/admin/login'
     | '/admin/notifications'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/verify-activation'
     | '/admin/bookings'
+    | '/admin/chat'
     | '/admin/guests'
     | '/admin/login'
     | '/admin/notifications'
@@ -478,6 +490,13 @@ declare module '@tanstack/react-router' {
       path: '/bookings'
       fullPath: '/admin/bookings'
       preLoaderRoute: typeof AdminBookingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/chat': {
+      id: '/admin/chat'
+      path: '/chat'
+      fullPath: '/admin/chat'
+      preLoaderRoute: typeof AdminChatRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/guests': {
@@ -618,6 +637,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteRouteChildren {
   AdminBookingsRoute: typeof AdminBookingsRoute
+  AdminChatRoute: typeof AdminChatRoute
   AdminGuestsRoute: typeof AdminGuestsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
@@ -638,6 +658,7 @@ interface AdminRouteRouteChildren {
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminBookingsRoute: AdminBookingsRoute,
+  AdminChatRoute: AdminChatRoute,
   AdminGuestsRoute: AdminGuestsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,

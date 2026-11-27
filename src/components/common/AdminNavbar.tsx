@@ -19,6 +19,7 @@ interface AdminNavbarProps {
   setProfileMenuOpen: (open: boolean) => void
   profileMenuRef: React.RefObject<HTMLDivElement | null>
   handleLogout: () => void
+  unreadChatCount?: number
 }
 
 export function AdminNavbar({
@@ -30,6 +31,7 @@ export function AdminNavbar({
   setProfileMenuOpen,
   profileMenuRef,
   handleLogout,
+  unreadChatCount = 0,
 }: AdminNavbarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -294,7 +296,13 @@ export function AdminNavbar({
 
       {/* Right Side: Messages, Notifications & Profile Popover */}
       <div className="flex items-center gap-1.5 sm:gap-2 ml-4">
-        <button className="p-2 rounded-full hover:bg-white/40 text-stone-700 transition cursor-pointer">
+        <Link
+          to="/admin/chat"
+          aria-label="Chat Support"
+          title="Live Chat Support"
+          className="relative p-2 rounded-full hover:bg-white/40 text-stone-700 transition cursor-pointer"
+        >
+          <span className="sr-only">Chat Support</span>
           <svg
             className="w-5 h-5"
             fill="none"
@@ -308,7 +316,10 @@ export function AdminNavbar({
               d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
             />
           </svg>
-        </button>
+          {unreadChatCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+          )}
+        </Link>
 
         <div className="relative" ref={notificationsRef}>
           <button

@@ -74,6 +74,16 @@ describe('AdminNavbar', () => {
       screen.getByPlaceholderText('Search for anything...'),
     ).toBeInTheDocument()
     expect(screen.getByTitle('Toggle Sidebar')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Chat Support' })).toHaveAttribute(
+      'href',
+      '/admin/chat',
+    )
+  })
+
+  it('shows unread dot on Chat Support link when unreadChatCount > 0', () => {
+    render(<AdminNavbar {...defaultProps} unreadChatCount={2} />)
+    const chatLink = screen.getByRole('link', { name: 'Chat Support' })
+    expect(chatLink.querySelector('span.bg-red-500')).toBeInTheDocument()
   })
 
   it('triggers sidebar toggle callback when hamburger button is clicked', async () => {

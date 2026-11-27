@@ -744,3 +744,60 @@ export interface PublicReviewsSummary {
   }>
   reviews: PublicReviewItem[]
 }
+
+export type ChatThreadStatus = 'OPEN' | 'RESOLVED'
+
+export type ChatSenderType = 'VISITOR' | 'STAFF'
+
+export interface ChatMessageItem {
+  id: string
+  conversationId: string
+  senderType: ChatSenderType
+  senderName: string
+  body: string
+  createdAt: Date | string
+}
+
+export interface PublicChatConversation {
+  id: string
+  visitorName: string
+  visitorEmail: string | null
+  visitorPhone: string | null
+  status: ChatThreadStatus
+  unreadByVisitor: number
+  lastMessageAt: Date | string
+  createdAt: Date | string
+}
+
+export interface PublicChatStateResponse {
+  staffOnline: boolean
+  conversation: PublicChatConversation | null
+  messages: ChatMessageItem[]
+}
+
+export interface AdminChatConversationSummary {
+  id: string
+  visitorName: string
+  visitorEmail: string | null
+  visitorPhone: string | null
+  status: ChatThreadStatus
+  unreadByStaff: number
+  lastMessageAt: Date | string
+  lastMessagePreview: string
+  createdAt: Date | string
+  matchedGuestId: string | null
+  matchedGuestName: string | null
+}
+
+export interface AdminChatInboxResponse {
+  conversations: AdminChatConversationSummary[]
+  unreadThreadsCount: number
+  unreadMessagesCount: number
+  chatAvailable: boolean
+  onlineStaffCount: number
+}
+
+export interface AdminChatThreadDetail {
+  conversation: AdminChatConversationSummary
+  messages: ChatMessageItem[]
+}

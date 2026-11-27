@@ -33,12 +33,17 @@ model User {
   banReason              String?
   banExpires             DateTime?
 
+  // Live Chat Presence
+  lastSeenAt             DateTime?
+  chatAvailable          Boolean   @default(true)
+
   sessions               Session[]
   accounts               Account[]
   activityLogs           ActivityLog[] // ← Added missing opposite relation field
   payments               Payment[]
   notifications          Notification[]
   siteSections           SiteSection[]
+  chatMessages           ChatMessage[]
   profileMediaId         String?
   profileMedia           Media?    @relation("UserProfileMedia", fields: [profileMediaId], references: [id], onDelete: SetNull)
   uploadedMedia          Media[]   @relation("UploadedMedia")
@@ -429,4 +434,61 @@ model Review {
   @@index([status, isFeatured, createdAt])
   @@index([status, rating])
   @@map("review")
+}
+
+// ======================
+// Live Chat Support & Inquiries
+// ======================
+
+enum ChatThreadStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ChatSenderType {
+  VISITOR
+  STAFF
+}
+
+model ChatConversation {
+  id                  String           @id @default(cuid())
+  visitorTokenHash    String
+  visitorName         String
+  visitorEmail        String?
+  visitorPhone        String?
+  status              ChatThreadStatus @default(OPEN)
+  unreadByStaff       Int              @default(0)
+  unreadByVisitor     Int              @default(0)
+  lastMessageAt       DateTime         @default(now())
+  lastMessagePreview  String           @default("")
+  lastVisitorActiveAt DateTime         @default(now())
+  lastAlertSentAt     DateTime?
+  ipAddress           String?
+
+  messages            ChatMessage[]
+
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([visitorTokenHash, updatedAt])
+  @@index([status, lastMessageAt])
+  @@index([unreadByStaff])
+  @@map("chat_conversation")
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderType     ChatSenderType
+  senderName     String
+  senderUserId   String?
+  senderUser     User?            @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+  body           String           @db.Text
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
+  @@index([createdAt])
+  @@map("chat_message")
 }
