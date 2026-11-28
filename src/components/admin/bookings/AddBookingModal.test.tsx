@@ -193,8 +193,7 @@ describe('AddBookingModal', () => {
     })
   })
 
-  it('submits with empty rooms/guests and handles custom and fallback error messages', async () => {
-    vi.mocked(createBooking).mockResolvedValueOnce({ success: true } as any)
+  it('validates empty rooms/guests and handles custom and fallback error messages', async () => {
     const { unmount } = render(
       <AddBookingModal {...defaultProps} rooms={[]} guests={[]} />,
     )
@@ -204,8 +203,10 @@ describe('AddBookingModal', () => {
     )
 
     await waitFor(() => {
-      expect(createBooking).toHaveBeenCalled()
+      expect(screen.getByText('Please select a guest.')).toBeInTheDocument()
+      expect(screen.getByText('Please select a room.')).toBeInTheDocument()
     })
+    expect(createBooking).not.toHaveBeenCalled()
     unmount()
 
     vi.mocked(createBooking).mockRejectedValueOnce(

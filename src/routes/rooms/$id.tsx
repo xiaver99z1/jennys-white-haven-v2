@@ -7,10 +7,22 @@ import { createPublicBooking, getPublicRoomById } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterField'
+import {
+  FieldError,
+  getFieldValidationClass,
+} from '#/components/common/FormFieldError'
 import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
 import { calculateExtraGuestsFee } from '#/lib/constants/rooms'
 import { useCurrency } from '#/lib/currency'
 import { useI18n } from '#/lib/i18n'
+import {
+  hasFieldErrors,
+  validateEmailField,
+  validatePersonName,
+  validatePhoneField,
+  validateStayDatesRange,
+  validateTextField,
+} from '#/lib/validation'
 import {
   computeStayNights,
   formatPeso,
@@ -86,11 +98,72 @@ function PublicRoomDetailPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    dates?: string | null
+    firstName?: string | null
+    lastName?: string | null
+    phone?: string | null
+    email?: string | null
+    specialRequests?: string | null
+  }>({})
   const [confirmation, setConfirmation] = useState<{
     bookingReference: string
     totalAmount: number
     nights: number
   } | null>(null)
+
+  const validateBookingField = (
+    field: keyof typeof fieldErrors,
+    overrides?: {
+      checkIn?: string
+      checkOut?: string
+      firstName?: string
+      lastName?: string
+      phone?: string
+      email?: string
+      specialRequests?: string
+    },
+  ): string | null => {
+    switch (field) {
+      case 'dates':
+        return validateStayDatesRange(
+          overrides?.checkIn ?? checkIn,
+          overrides?.checkOut ?? checkOut,
+          t.roomDetail.selectBothDatesError,
+        )
+      case 'firstName':
+        return validatePersonName(overrides?.firstName ?? firstName, {
+          label: t.validation.firstNameLabel,
+          maxLength: 60,
+          messages: t.validation,
+        })
+      case 'lastName':
+        return validatePersonName(overrides?.lastName ?? lastName, {
+          label: t.validation.lastNameLabel,
+          maxLength: 60,
+          messages: t.validation,
+        })
+      case 'phone':
+        return validatePhoneField(overrides?.phone ?? phone, {
+          required: true,
+          messages: t.validation,
+        })
+      case 'email':
+        return validateEmailField(overrides?.email ?? email, {
+          required: false,
+          label: t.validation.emailLabel,
+          messages: t.validation,
+        })
+      case 'specialRequests':
+        return validateTextField(overrides?.specialRequests ?? specialRequests, {
+          label: t.validation.specialRequestsLabel,
+          maxLength: 500,
+          messages: t.validation,
+        })
+      default:
+        return null
+    }
+  }
 
   if (!room) {
     return (
@@ -130,10 +203,25 @@ function PublicRoomDetailPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!room) return
-    if (!checkIn || !checkOut) {
-      setError(t.roomDetail.selectBothDatesError)
+
+    const nextErrors = {
+      dates: validateBookingField('dates'),
+      firstName: validateBookingField('firstName'),
+      lastName: validateBookingField('lastName'),
+      phone: validateBookingField('phone'),
+      email: validateBookingField('email'),
+      specialRequests: validateBookingField('specialRequests'),
+    }
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      if (nextErrors.dates) {
+        setError(nextErrors.dates)
+      } else {
+        setError(null)
+      }
       return
     }
+
     setIsSubmitting(true)
     setError(null)
     try {
@@ -145,11 +233,11 @@ function PublicRoomDetailPage() {
           guestsCount,
           extraChildren,
           extraAdults,
-          firstName,
-          lastName,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
           phone,
-          email: email || undefined,
-          specialRequests: specialRequests || undefined,
+          email: email.trim() || undefined,
+          specialRequests: specialRequests.trim() || undefined,
         },
       })
       setConfirmation({
@@ -342,7 +430,7 @@ function PublicRoomDetailPage() {
                   </Link>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form noValidate onSubmit={handleSubmit} className="space-y-4">
                   {error && (
                     <div
                       role="alert"
@@ -352,17 +440,32 @@ function PublicRoomDetailPage() {
                     </div>
                   )}
 
-                  <StayDateRangePicker
-                    idPrefix="book"
-                    checkIn={checkIn}
-                    checkOut={checkOut}
-                    bookedRanges={room.bookedRanges}
-                    required
-                    onChange={({ checkIn: nextIn, checkOut: nextOut }) => {
-                      setCheckIn(nextIn)
-                      setCheckOut(nextOut)
-                    }}
-                  />
+                  <div>
+                    <StayDateRangePicker
+                      idPrefix="book"
+                      checkIn={checkIn}
+                      checkOut={checkOut}
+                      bookedRanges={room.bookedRanges}
+                      required
+                      onChange={({ checkIn: nextIn, checkOut: nextOut }) => {
+                        setCheckIn(nextIn)
+                        setCheckOut(nextOut)
+                        if (fieldErrors.dates) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            dates: validateBookingField('dates', {
+                              checkIn: nextIn,
+                              checkOut: nextOut,
+                            }),
+                          }))
+                        }
+                      }}
+                    />
+                    <FieldError
+                      id="book-dates-error"
+                      message={fieldErrors.dates}
+                    />
+                  </div>
 
                   <div>
                     <label
@@ -414,9 +517,41 @@ function PublicRoomDetailPage() {
                         id="book-first-name"
                         type="text"
                         required
+                        maxLength={60}
+                        aria-invalid={Boolean(fieldErrors.firstName)}
+                        aria-describedby={
+                          fieldErrors.firstName
+                            ? 'book-first-name-error'
+                            : undefined
+                        }
                         value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
+                        onChange={(e) => {
+                          const next = e.target.value
+                          setFirstName(next)
+                          const msg = validateBookingField('firstName', {
+                            firstName: next,
+                          })
+                          if (fieldErrors.firstName || /\p{N}/u.test(next)) {
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              firstName: msg,
+                            }))
+                          }
+                        }}
+                        onBlur={() =>
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            firstName: validateBookingField('firstName'),
+                          }))
+                        }
+                        className={getFieldValidationClass(
+                          'w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                          Boolean(fieldErrors.firstName),
+                        )}
+                      />
+                      <FieldError
+                        id="book-first-name-error"
+                        message={fieldErrors.firstName}
                       />
                     </div>
                     <div>
@@ -430,9 +565,41 @@ function PublicRoomDetailPage() {
                         id="book-last-name"
                         type="text"
                         required
+                        maxLength={60}
+                        aria-invalid={Boolean(fieldErrors.lastName)}
+                        aria-describedby={
+                          fieldErrors.lastName
+                            ? 'book-last-name-error'
+                            : undefined
+                        }
                         value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
+                        onChange={(e) => {
+                          const next = e.target.value
+                          setLastName(next)
+                          const msg = validateBookingField('lastName', {
+                            lastName: next,
+                          })
+                          if (fieldErrors.lastName || /\p{N}/u.test(next)) {
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              lastName: msg,
+                            }))
+                          }
+                        }}
+                        onBlur={() =>
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            lastName: validateBookingField('lastName'),
+                          }))
+                        }
+                        className={getFieldValidationClass(
+                          'w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                          Boolean(fieldErrors.lastName),
+                        )}
+                      />
+                      <FieldError
+                        id="book-last-name-error"
+                        message={fieldErrors.lastName}
                       />
                     </div>
                   </div>
@@ -448,8 +615,32 @@ function PublicRoomDetailPage() {
                       id="book-phone"
                       required
                       variant="public"
+                      invalid={Boolean(fieldErrors.phone)}
+                      ariaDescribedBy={
+                        fieldErrors.phone ? 'book-phone-error' : undefined
+                      }
                       value={phone}
-                      onChange={setPhone}
+                      onChange={(next) => {
+                        setPhone(next)
+                        if (fieldErrors.phone) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            phone: validateBookingField('phone', {
+                              phone: next,
+                            }),
+                          }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          phone: validateBookingField('phone'),
+                        }))
+                      }
+                    />
+                    <FieldError
+                      id="book-phone-error"
+                      message={fieldErrors.phone}
                     />
                   </div>
 
@@ -463,9 +654,38 @@ function PublicRoomDetailPage() {
                     <input
                       id="book-email"
                       type="email"
+                      maxLength={254}
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      aria-describedby={
+                        fieldErrors.email ? 'book-email-error' : undefined
+                      }
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setEmail(next)
+                        if (fieldErrors.email) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            email: validateBookingField('email', {
+                              email: next,
+                            }),
+                          }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          email: validateBookingField('email'),
+                        }))
+                      }
+                      className={getFieldValidationClass(
+                        'w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                        Boolean(fieldErrors.email),
+                      )}
+                    />
+                    <FieldError
+                      id="book-email-error"
+                      message={fieldErrors.email}
                     />
                   </div>
 
@@ -479,10 +699,43 @@ function PublicRoomDetailPage() {
                     <textarea
                       id="book-requests"
                       rows={2}
+                      maxLength={500}
+                      aria-invalid={Boolean(fieldErrors.specialRequests)}
+                      aria-describedby={
+                        fieldErrors.specialRequests
+                          ? 'book-requests-error'
+                          : undefined
+                      }
                       value={specialRequests}
-                      onChange={(e) => setSpecialRequests(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setSpecialRequests(next)
+                        if (fieldErrors.specialRequests) {
+                          setFieldErrors((prev) => ({
+                            ...prev,
+                            specialRequests: validateBookingField(
+                              'specialRequests',
+                              { specialRequests: next },
+                            ),
+                          }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          specialRequests:
+                            validateBookingField('specialRequests'),
+                        }))
+                      }
                       placeholder={t.roomDetail.specialRequestsPlaceholder}
-                      className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
+                      className={getFieldValidationClass(
+                        'w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                        Boolean(fieldErrors.specialRequests),
+                      )}
+                    />
+                    <FieldError
+                      id="book-requests-error"
+                      message={fieldErrors.specialRequests}
                     />
                   </div>
 

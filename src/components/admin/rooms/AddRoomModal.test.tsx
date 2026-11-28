@@ -364,4 +364,23 @@ describe('AddRoomModal', () => {
       ).toBeInTheDocument()
     })
   })
+
+  it('validates empty room number and invalid room display name on submit', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<AddRoomModal {...defaultProps} />)
+
+    await user.type(
+      screen.getByPlaceholderText(/e\.g\. deluxe ocean view suite/i),
+      '123',
+    )
+    await user.click(screen.getByRole('button', { name: /create room/i }))
+
+    expect(screen.getByText('Room number is required.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Room display name must include letters and cannot contain angle brackets.',
+      ),
+    ).toBeInTheDocument()
+    expect(createRoom).not.toHaveBeenCalled()
+  })
 })

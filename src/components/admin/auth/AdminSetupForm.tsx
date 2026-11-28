@@ -5,8 +5,8 @@ import {
   PasswordField,
   useCooldown,
 } from '#/components/admin/auth/AuthPageShell'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import {
-  EMAIL_REGEX,
   FULL_NAME_MAX_LENGTH,
   FULL_NAME_MIN_LENGTH,
   RESEND_COOLDOWN_SECONDS,
@@ -14,9 +14,17 @@ import {
   validateStrongPassword,
 } from '#/lib/constants/auth'
 import { getErrorMessage } from '#/lib/formatters'
+import {
+  validateEmailField,
+  validatePersonName,
+  validatePersonNameLive,
+} from '#/lib/validation'
 import { resendVerificationByEmail } from '#/server/auth-actions'
 import { createInitialSuperAdmin } from '#/server/setup-actions'
 import type { StatusMessage } from '#/types'
+
+const SETUP_INPUT_CLASS =
+  'w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600 transition disabled:bg-stone-100'
 
 export function AdminSetupForm() {
   const [name, setName] = useState('')
@@ -26,6 +34,10 @@ export function AdminSetupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string | null
+    email?: string | null
+  }>({})
   const [loading, setLoading] = useState(false)
 
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
@@ -40,18 +52,15 @@ export function AdminSetupForm() {
     const trimmedName = name.trim()
     const trimmedEmail = email.trim().toLowerCase()
 
-    if (
-      trimmedName.length < FULL_NAME_MIN_LENGTH ||
-      trimmedName.length > FULL_NAME_MAX_LENGTH
-    ) {
-      setError(
-        `Full name must be between ${FULL_NAME_MIN_LENGTH} and ${FULL_NAME_MAX_LENGTH} characters.`,
-      )
-      return
-    }
+    const nameErr = validatePersonName(trimmedName, {
+      label: 'Full name',
+      minLength: FULL_NAME_MIN_LENGTH,
+      maxLength: FULL_NAME_MAX_LENGTH,
+    })
+    const emailErr = validateEmailField(trimmedEmail, { required: true })
+    setFieldErrors({ name: nameErr, email: emailErr })
 
-    if (!EMAIL_REGEX.test(trimmedEmail)) {
-      setError('Please enter a valid email address.')
+    if (nameErr || emailErr) {
       return
     }
 
@@ -208,10 +217,37 @@ export function AdminSetupForm() {
             autoComplete="name"
             disabled={loading}
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600 transition disabled:bg-stone-100"
+            onChange={(e) => {
+              const next = e.target.value
+              setName(next)
+              setFieldErrors((prev) => ({
+                ...prev,
+                name: validatePersonNameLive(next, prev.name, {
+                  label: 'Full name',
+                  minLength: FULL_NAME_MIN_LENGTH,
+                  maxLength: FULL_NAME_MAX_LENGTH,
+                }),
+              }))
+            }}
+            onBlur={() =>
+              setFieldErrors((prev) => ({
+                ...prev,
+                name: validatePersonName(name, {
+                  label: 'Full name',
+                  minLength: FULL_NAME_MIN_LENGTH,
+                  maxLength: FULL_NAME_MAX_LENGTH,
+                }),
+              }))
+            }
+            aria-invalid={Boolean(fieldErrors.name)}
+            aria-describedby={fieldErrors.name ? 'setup-name-error' : undefined}
+            className={getFieldValidationClass(
+              SETUP_INPUT_CLASS,
+              Boolean(fieldErrors.name),
+            )}
             placeholder="e.g. Jenny Admin"
           />
+          <FieldError id="setup-name-error" message={fieldErrors.name} />
         </div>
 
         <div>
@@ -228,10 +264,33 @@ export function AdminSetupForm() {
             autoComplete="email"
             disabled={loading}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600 transition disabled:bg-stone-100"
+            onChange={(e) => {
+              const next = e.target.value
+              setEmail(next)
+              if (fieldErrors.email) {
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  email: validateEmailField(next, { required: true }),
+                }))
+              }
+            }}
+            onBlur={() =>
+              setFieldErrors((prev) => ({
+                ...prev,
+                email: validateEmailField(email, { required: true }),
+              }))
+            }
+            aria-invalid={Boolean(fieldErrors.email)}
+            aria-describedby={
+              fieldErrors.email ? 'setup-email-error' : undefined
+            }
+            className={getFieldValidationClass(
+              SETUP_INPUT_CLASS,
+              Boolean(fieldErrors.email),
+            )}
             placeholder="admin@jennyswhitehaven.com"
           />
+          <FieldError id="setup-email-error" message={fieldErrors.email} />
         </div>
 
         <PasswordField

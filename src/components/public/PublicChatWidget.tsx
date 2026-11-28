@@ -8,6 +8,10 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
+import {
+  FieldError,
+  getFieldValidationClass,
+} from '#/components/common/FormFieldError'
 import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
 import {
   CHAT_BACKGROUND_POLL_INTERVAL_MS,
@@ -16,6 +20,13 @@ import {
 } from '#/lib/constants/chat'
 import { formatChatTime, getErrorMessage } from '#/lib/formatters'
 import { useI18n } from '#/lib/i18n'
+import {
+  hasFieldErrors,
+  validateEmailField,
+  validatePersonName,
+  validatePhoneField,
+  validateTextField,
+} from '#/lib/validation'
 import {
   getPublicChatState,
   sendVisitorChatMessage,
@@ -52,6 +63,13 @@ export function PublicChatWidget({
   const [isSending, setIsSending] = useState(false)
   const [isLoadingState, setIsLoadingState] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string | null
+    email?: string | null
+    phone?: string | null
+    contact?: string | null
+    message?: string | null
+  }>({})
 
   const messagesListRef = useRef<HTMLDivElement>(null)
   const isMountedRef = useRef(true)
@@ -176,6 +194,35 @@ export function PublicChatWidget({
   async function handleStartConversation(e: FormEvent) {
     e.preventDefault()
     setError(null)
+
+    const hasEmail = Boolean(email.trim())
+    const hasPhone = Boolean(phone.trim())
+    const nextErrors = {
+      name: validatePersonName(name, {
+        label: t.validation.fullNameLabel,
+        maxLength: 80,
+        messages: t.validation,
+      }),
+      email: validateEmailField(email, {
+        required: false,
+        label: t.validation.emailLabel,
+        messages: t.validation,
+      }),
+      phone: hasPhone
+        ? validatePhoneField(phone, { required: false, messages: t.validation })
+        : null,
+      contact:
+        !hasEmail && !hasPhone ? t.validation.followUpContactRequired : null,
+      message: validateTextField(firstMessage, {
+        label: t.validation.messageLabel,
+        required: true,
+        maxLength: 1500,
+        messages: t.validation,
+      }),
+    }
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) return
+
     setIsSending(true)
     const submittedFirstMessage = firstMessage
     try {
@@ -184,10 +231,10 @@ export function PublicChatWidget({
       const res = await sendVisitorChatMessage({
         data: {
           visitorToken: activeToken || undefined,
-          name,
-          email: email || undefined,
+          name: name.trim(),
+          email: email.trim() || undefined,
           phone: phone || undefined,
-          message: submittedFirstMessage,
+          message: submittedFirstMessage.trim(),
           forceNewThread: startingNew,
           honeypot: honeypot || undefined,
         },
@@ -199,6 +246,7 @@ export function PublicChatWidget({
       setFirstMessage((current) =>
         current === submittedFirstMessage ? '' : current,
       )
+      setFieldErrors({})
       setStartingNew(false)
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to start conversation.'))
@@ -317,6 +365,7 @@ export function PublicChatWidget({
             </div>
           ) : !showConversationThread ? (
             <form
+              noValidate
               onSubmit={handleStartConversation}
               className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 text-xs"
             >
@@ -381,10 +430,42 @@ export function PublicChatWidget({
                   type="text"
                   required
                   maxLength={80}
+                  aria-invalid={Boolean(fieldErrors.name)}
+                  aria-describedby={
+                    fieldErrors.name ? 'chat-visitor-name-error' : undefined
+                  }
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setName(next)
+                    const msg = validatePersonName(next, {
+                      label: t.validation.fullNameLabel,
+                      maxLength: 80,
+                      messages: t.validation,
+                    })
+                    if (fieldErrors.name || /\p{N}/u.test(next)) {
+                      setFieldErrors((prev) => ({ ...prev, name: msg }))
+                    }
+                  }}
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      name: validatePersonName(name, {
+                        label: t.validation.fullNameLabel,
+                        maxLength: 80,
+                        messages: t.validation,
+                      }),
+                    }))
+                  }
                   placeholder="Maria Santos"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700"
+                  className={getFieldValidationClass(
+                    'w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                    Boolean(fieldErrors.name),
+                  )}
+                />
+                <FieldError
+                  id="chat-visitor-name-error"
+                  message={fieldErrors.name}
                 />
               </div>
 
@@ -399,10 +480,49 @@ export function PublicChatWidget({
                   <input
                     id="chat-visitor-email"
                     type="email"
+                    maxLength={254}
+                    aria-invalid={Boolean(fieldErrors.email || fieldErrors.contact)}
+                    aria-describedby={
+                      fieldErrors.email ? 'chat-visitor-email-error' : undefined
+                    }
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setEmail(next)
+                      if (fieldErrors.email || fieldErrors.contact) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          email: validateEmailField(next, {
+                            required: false,
+                            label: t.validation.emailLabel,
+                            messages: t.validation,
+                          }),
+                          contact:
+                            !next.trim() && !phone.trim()
+                              ? t.validation.followUpContactRequired
+                              : null,
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        email: validateEmailField(email, {
+                          required: false,
+                          label: t.validation.emailLabel,
+                          messages: t.validation,
+                        }),
+                      }))
+                    }
                     placeholder="guest@email.com"
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700"
+                    className={getFieldValidationClass(
+                      'w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                      Boolean(fieldErrors.email),
+                    )}
+                  />
+                  <FieldError
+                    id="chat-visitor-email-error"
+                    message={fieldErrors.email}
                   />
                 </div>
                 <div>
@@ -415,8 +535,44 @@ export function PublicChatWidget({
                   <PhoneNumberInput
                     id="chat-visitor-phone"
                     size="sm"
+                    invalid={Boolean(fieldErrors.phone)}
+                    ariaDescribedBy={
+                      fieldErrors.phone ? 'chat-visitor-phone-error' : undefined
+                    }
                     value={phone}
-                    onChange={setPhone}
+                    onChange={(next) => {
+                      setPhone(next)
+                      if (fieldErrors.phone || fieldErrors.contact) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          phone: next.trim()
+                            ? validatePhoneField(next, {
+                                required: false,
+                                messages: t.validation,
+                              })
+                            : null,
+                          contact:
+                            !next.trim() && !email.trim()
+                              ? t.validation.followUpContactRequired
+                              : null,
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        phone: phone.trim()
+                          ? validatePhoneField(phone, {
+                              required: false,
+                              messages: t.validation,
+                            })
+                          : null,
+                      }))
+                    }
+                  />
+                  <FieldError
+                    id="chat-visitor-phone-error"
+                    message={fieldErrors.phone ?? fieldErrors.contact}
                   />
                 </div>
                 <p className="text-[10px] text-stone-400">
@@ -436,10 +592,46 @@ export function PublicChatWidget({
                   required
                   rows={3}
                   maxLength={1500}
+                  aria-invalid={Boolean(fieldErrors.message)}
+                  aria-describedby={
+                    fieldErrors.message ? 'chat-visitor-message-error' : undefined
+                  }
                   value={firstMessage}
-                  onChange={(e) => setFirstMessage(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setFirstMessage(next)
+                    if (fieldErrors.message) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        message: validateTextField(next, {
+                          label: t.validation.messageLabel,
+                          required: true,
+                          maxLength: 1500,
+                          messages: t.validation,
+                        }),
+                      }))
+                    }
+                  }}
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      message: validateTextField(firstMessage, {
+                        label: t.validation.messageLabel,
+                        required: true,
+                        maxLength: 1500,
+                        messages: t.validation,
+                      }),
+                    }))
+                  }
                   placeholder={t.chat.messagePlaceholder}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 resize-none"
+                  className={getFieldValidationClass(
+                    'w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 resize-none',
+                    Boolean(fieldErrors.message),
+                  )}
+                />
+                <FieldError
+                  id="chat-visitor-message-error"
+                  message={fieldErrors.message}
                 />
               </div>
 

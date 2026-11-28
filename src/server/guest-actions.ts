@@ -4,6 +4,14 @@ import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { normalizePhoneForStorage } from '#/lib/phone'
 import { requirePermission } from '#/lib/require-permission'
+import {
+  validateEmailField,
+  validateGovernmentIdFields,
+  validateNationalityField,
+  validatePersonName,
+  validatePhoneField,
+  validateTextField,
+} from '#/lib/validation'
 
 // --- 1. GET GUESTS LIST ---
 export async function getGuestsListHandler() {
@@ -49,6 +57,31 @@ export async function createGuestHandler({
   }
 }) {
   const admin = await requirePermission('create:guests')
+
+  const firstNameErr = validatePersonName(data.firstName, {
+    label: 'First name',
+  })
+  const lastNameErr = validatePersonName(data.lastName, { label: 'Last name' })
+  const emailErr = validateEmailField(data.email, { required: false })
+  const nationalityErr = validateNationalityField(data.nationality)
+  const idErrs = validateGovernmentIdFields(data.idType, data.idNumber)
+  const notesErr = validateTextField(data.specialNotes, {
+    label: 'Special notes',
+    required: false,
+    maxLength: 1000,
+  })
+  const firstValidationError =
+    firstNameErr ||
+    lastNameErr ||
+    emailErr ||
+    nationalityErr ||
+    idErrs.idType ||
+    idErrs.idNumber ||
+    notesErr
+  if (firstValidationError) {
+    throw new Error(firstValidationError)
+  }
+
   const normalizedEmail = data.email?.trim() || null
 
   if (normalizedEmail) {
@@ -63,6 +96,12 @@ export async function createGuestHandler({
 
   const normalizedPhone =
     normalizePhoneForStorage(data.phone) || data.phone.trim()
+  if (!normalizedPhone) {
+    throw new Error(
+      validatePhoneField(data.phone, { required: true }) ||
+        'Phone number is required.',
+    )
+  }
 
   const guest = await prisma.guest.create({
     data: {
@@ -142,6 +181,41 @@ export async function updateGuestHandler({
     where: { id: data.id },
   })
   if (!existingGuest) throw new Error('Guest not found.')
+
+  const guestErr =
+    (data.firstName !== undefined
+      ? validatePersonName(data.firstName, { label: 'First name' })
+      : null) ||
+    (data.lastName !== undefined
+      ? validatePersonName(data.lastName, { label: 'Last name' })
+      : null) ||
+    (data.email !== undefined
+      ? validateEmailField(data.email, { required: false })
+      : null) ||
+    (data.nationality !== undefined
+      ? validateNationalityField(data.nationality)
+      : null) ||
+    (data.specialNotes !== undefined
+      ? validateTextField(data.specialNotes, {
+          label: 'Special notes',
+          required: false,
+          maxLength: 1000,
+        })
+      : null)
+  if (guestErr) {
+    throw new Error(guestErr)
+  }
+
+  const nextIdType =
+    data.idType !== undefined ? data.idType : existingGuest.idType
+  const nextIdNumber =
+    data.idNumber !== undefined ? data.idNumber : existingGuest.idNumber
+  if (data.idType !== undefined || data.idNumber !== undefined) {
+    const idErrs = validateGovernmentIdFields(nextIdType, nextIdNumber)
+    if (idErrs.idType || idErrs.idNumber) {
+      throw new Error((idErrs.idType || idErrs.idNumber) as string)
+    }
+  }
 
   const normalizedEmail =
     data.email !== undefined ? data.email.trim() || null : existingGuest.email

@@ -5,7 +5,18 @@ import { GUEST_ID_TYPES, DEFAULT_NATIONALITY } from '#/lib/constants/rooms'
 import { normalizePhoneForStorage } from '#/lib/phone'
 import type { GuestIdType, GuestItem } from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
+import {
+  hasFieldErrors,
+  validateEmailField,
+  validateGovernmentIdFields,
+  validateNationalityField,
+  validatePersonName,
+  validatePersonNameLive,
+  validatePhoneField,
+  validateTextField,
+} from '#/lib/validation'
 
 export type { GuestItem }
 
@@ -17,6 +28,23 @@ interface EditGuestModalProps {
   onDeleteStart: (guestId: string) => void
   guest: GuestItem | null
 }
+
+type EditGuestFieldErrors = Partial<
+  Record<
+    | 'firstName'
+    | 'lastName'
+    | 'phone'
+    | 'email'
+    | 'nationality'
+    | 'idType'
+    | 'idNumber'
+    | 'specialNotes',
+    string | null
+  >
+>
+
+const EDIT_GUEST_INPUT_CLASS =
+  'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800'
 
 const getInitialFormData = (guest: EditGuestModalProps['guest']) => ({
   firstName: guest?.firstName ?? '',
@@ -40,6 +68,7 @@ export function EditGuestModal({
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<EditGuestFieldErrors>({})
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -49,6 +78,7 @@ export function EditGuestModal({
     if (guest) {
       setFormData(getInitialFormData(guest))
       setError(null)
+      setFieldErrors({})
       setShowSaveConfirm(false)
       setShowDeleteConfirm(false)
     }
@@ -73,9 +103,32 @@ export function EditGuestModal({
 
   if (!isOpen || !guest) return null
 
+  const validateAllFields = (): EditGuestFieldErrors => {
+    const idErrs = validateGovernmentIdFields(formData.idType, formData.idNumber)
+    return {
+      firstName: validatePersonName(formData.firstName, { label: 'First name' }),
+      lastName: validatePersonName(formData.lastName, { label: 'Last name' }),
+      phone: validatePhoneField(formData.phone, { required: true }),
+      email: validateEmailField(formData.email, { required: false }),
+      nationality: validateNationalityField(formData.nationality),
+      idType: idErrs.idType,
+      idNumber: idErrs.idNumber,
+      specialNotes: validateTextField(formData.specialNotes, {
+        label: 'Special notes',
+        required: false,
+        maxLength: 1000,
+      }),
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!hasChanges) return
+    const nextErrors = validateAllFields()
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      return
+    }
     setShowSaveConfirm(true)
   }
 
@@ -159,6 +212,7 @@ export function EditGuestModal({
           {/* Form */}
           <form
             onSubmit={handleSubmit}
+            noValidate
             className="flex flex-col flex-1 overflow-hidden"
           >
             <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
@@ -170,32 +224,80 @@ export function EditGuestModal({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-first-name"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     First Name
                   </label>
                   <input
+                    id="edit-guest-first-name"
                     type="text"
                     required
                     value={formData.firstName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, firstName: e.target.value })
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setFormData({ ...formData, firstName: next })
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        firstName: validatePersonNameLive(next, prev.firstName, {
+                          label: 'First name',
+                        }),
+                      }))
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        firstName: validatePersonName(formData.firstName, {
+                          label: 'First name',
+                        }),
+                      }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    aria-invalid={Boolean(fieldErrors.firstName)}
+                    className={getFieldValidationClass(
+                      EDIT_GUEST_INPUT_CLASS,
+                      Boolean(fieldErrors.firstName),
+                    )}
                   />
+                  <FieldError message={fieldErrors.firstName} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-last-name"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Last Name
                   </label>
                   <input
+                    id="edit-guest-last-name"
                     type="text"
                     required
                     value={formData.lastName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lastName: e.target.value })
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setFormData({ ...formData, lastName: next })
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        lastName: validatePersonNameLive(next, prev.lastName, {
+                          label: 'Last name',
+                        }),
+                      }))
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        lastName: validatePersonName(formData.lastName, {
+                          label: 'Last name',
+                        }),
+                      }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    aria-invalid={Boolean(fieldErrors.lastName)}
+                    className={getFieldValidationClass(
+                      EDIT_GUEST_INPUT_CLASS,
+                      Boolean(fieldErrors.lastName),
+                    )}
                   />
+                  <FieldError message={fieldErrors.lastName} />
                 </div>
               </div>
 
@@ -212,52 +314,137 @@ export function EditGuestModal({
                     required
                     size="sm"
                     variant="admin"
+                    invalid={Boolean(fieldErrors.phone)}
                     value={formData.phone}
-                    onChange={(phone) => setFormData({ ...formData, phone })}
+                    onChange={(phone) => {
+                      setFormData({ ...formData, phone })
+                      if (fieldErrors.phone) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          phone: validatePhoneField(phone, { required: true }),
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        phone: validatePhoneField(formData.phone, {
+                          required: true,
+                        }),
+                      }))
+                    }
                   />
+                  <FieldError message={fieldErrors.phone} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-email"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Email Address (Optional)
                   </label>
                   <input
+                    id="edit-guest-email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setFormData({ ...formData, email: next })
+                      if (fieldErrors.email) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          email: validateEmailField(next, { required: false }),
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        email: validateEmailField(formData.email, {
+                          required: false,
+                        }),
+                      }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    className={getFieldValidationClass(
+                      EDIT_GUEST_INPUT_CLASS,
+                      Boolean(fieldErrors.email),
+                    )}
                   />
+                  <FieldError message={fieldErrors.email} />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-nationality"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Nationality
                   </label>
                   <input
+                    id="edit-guest-nationality"
                     type="text"
                     value={formData.nationality}
-                    onChange={(e) =>
-                      setFormData({ ...formData, nationality: e.target.value })
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setFormData({ ...formData, nationality: next })
+                      if (fieldErrors.nationality || /\p{N}/u.test(next)) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          nationality: validateNationalityField(next),
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        nationality: validateNationalityField(
+                          formData.nationality,
+                        ),
+                      }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    aria-invalid={Boolean(fieldErrors.nationality)}
+                    className={getFieldValidationClass(
+                      EDIT_GUEST_INPUT_CLASS,
+                      Boolean(fieldErrors.nationality),
+                    )}
                   />
+                  <FieldError message={fieldErrors.nationality} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-id-type"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     ID Type
                   </label>
                   <select
+                    id="edit-guest-id-type"
                     value={formData.idType}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const nextType = e.target.value as GuestIdType | ''
                       setFormData({
                         ...formData,
-                        idType: e.target.value as GuestIdType | '',
+                        idType: nextType,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
+                      if (fieldErrors.idType || fieldErrors.idNumber) {
+                        const idErrs = validateGovernmentIdFields(
+                          nextType,
+                          formData.idNumber,
+                        )
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          idType: idErrs.idType,
+                          idNumber: idErrs.idNumber,
+                        }))
+                      }
+                    }}
+                    className={getFieldValidationClass(
+                      `${EDIT_GUEST_INPUT_CLASS} bg-white`,
+                      Boolean(fieldErrors.idType),
+                    )}
                   >
                     <option value="">None</option>
                     {GUEST_ID_TYPES.map((type) => (
@@ -266,34 +453,88 @@ export function EditGuestModal({
                       </option>
                     ))}
                   </select>
+                  <FieldError message={fieldErrors.idType} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-id-number"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     ID Number
                   </label>
                   <input
+                    id="edit-guest-id-number"
                     type="text"
                     value={formData.idNumber}
-                    onChange={(e) =>
-                      setFormData({ ...formData, idNumber: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setFormData({ ...formData, idNumber: next })
+                      if (fieldErrors.idNumber || fieldErrors.idType) {
+                        const idErrs = validateGovernmentIdFields(
+                          formData.idType,
+                          next,
+                        )
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          idType: idErrs.idType,
+                          idNumber: idErrs.idNumber,
+                        }))
+                      }
+                    }}
+                    onBlur={() => {
+                      const idErrs = validateGovernmentIdFields(
+                        formData.idType,
+                        formData.idNumber,
+                      )
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        idType: idErrs.idType,
+                        idNumber: idErrs.idNumber,
+                      }))
+                    }}
+                    aria-invalid={Boolean(fieldErrors.idNumber)}
+                    className={getFieldValidationClass(
+                      EDIT_GUEST_INPUT_CLASS,
+                      Boolean(fieldErrors.idNumber),
+                    )}
                   />
+                  <FieldError message={fieldErrors.idNumber} />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
+                <label
+                  htmlFor="edit-guest-notes"
+                  className="block font-semibold text-stone-700 mb-1"
+                >
                   Special Notes / VIP Preferences
                 </label>
                 <textarea
+                  id="edit-guest-notes"
                   rows={3}
+                  maxLength={1000}
                   value={formData.specialNotes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, specialNotes: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 resize-none"
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setFormData({ ...formData, specialNotes: next })
+                    if (fieldErrors.specialNotes) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        specialNotes: validateTextField(next, {
+                          label: 'Special notes',
+                          required: false,
+                          maxLength: 1000,
+                        }),
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.specialNotes)}
+                  className={getFieldValidationClass(
+                    `${EDIT_GUEST_INPUT_CLASS} resize-none`,
+                    Boolean(fieldErrors.specialNotes),
+                  )}
                 />
+                <FieldError message={fieldErrors.specialNotes} />
               </div>
             </div>
 

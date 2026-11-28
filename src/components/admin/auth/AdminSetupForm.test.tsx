@@ -260,6 +260,18 @@ describe('AdminSetupForm', () => {
     expect(mockReplace).toHaveBeenCalledWith('/admin/login')
   })
 
+  it('shows immediate inline error when numbers are entered in Full Name', () => {
+    render(<AdminSetupForm />)
+
+    fireEvent.change(screen.getByLabelText(/full name/i), {
+      target: { value: 'Jenny1' },
+    })
+
+    expect(
+      screen.getByText('Full name cannot contain numbers.'),
+    ).toBeInTheDocument()
+  })
+
   it('displays server error message and fallback error message on setup failure', async () => {
     vi.mocked(createInitialSuperAdmin).mockRejectedValueOnce(
       new Error('Initial setup has already been completed.'),

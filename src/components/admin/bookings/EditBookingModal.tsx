@@ -25,7 +25,29 @@ import type {
   PaymentStatus,
 } from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import { computeStayNights, formatDateInput } from '#/lib/formatters'
+import {
+  hasFieldErrors,
+  validateIntegerField,
+  validateMoneyField,
+  validateStayDatesRange,
+  validateTextField,
+} from '#/lib/validation'
+
+type EditBookingFieldErrors = Partial<
+  Record<
+    | 'dates'
+    | 'guestsCount'
+    | 'totalAmount'
+    | 'amountPaid'
+    | 'specialRequests',
+    string | null
+  >
+>
+
+const EDIT_BOOKING_INPUT_CLASS =
+  'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800'
 
 export type { BookingItem }
 
@@ -108,6 +130,7 @@ export function EditBookingModal({
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<EditBookingFieldErrors>({})
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -242,6 +265,7 @@ export function EditBookingModal({
     if (booking) {
       setFormData(getInitialFormData(booking))
       setError(null)
+      setFieldErrors({})
       setShowSaveConfirm(false)
       setShowDeleteConfirm(false)
     }
@@ -271,11 +295,42 @@ export function EditBookingModal({
 
   if (!isOpen || !booking) return null
 
+  const maxGuestsAllowed = selectedRoom?.capacity ?? 30
+
+  const validateAllFields = (): EditBookingFieldErrors => ({
+    dates: validateStayDatesRange(formData.checkIn, formData.checkOut),
+    guestsCount: validateIntegerField(Number(formData.guestsCount), {
+      label: 'Guests count',
+      min: 1,
+      max: maxGuestsAllowed,
+    }),
+    totalAmount: validateMoneyField(Number(formData.totalAmount), {
+      label: 'Total amount',
+      min: 0,
+      allowZero: true,
+    }),
+    amountPaid: validateMoneyField(Number(formData.amountPaid), {
+      label: 'Amount paid',
+      min: 0,
+      allowZero: true,
+    }),
+    specialRequests: validateTextField(formData.specialRequests, {
+      label: 'Special requests',
+      required: false,
+      maxLength: 500,
+    }),
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!hasChanges) return
-    if (!formData.checkIn || !formData.checkOut) {
-      setError('Please select both check-in and check-out dates.')
+    setError(null)
+    const nextErrors = validateAllFields()
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      if (nextErrors.dates) {
+        setError(nextErrors.dates)
+      }
       return
     }
     setShowSaveConfirm(true)
@@ -377,6 +432,7 @@ export function EditBookingModal({
           {/* Form */}
           <form
             onSubmit={handleSubmit}
+            noValidate
             className="flex flex-col flex-1 overflow-hidden"
           >
             <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
@@ -433,17 +489,30 @@ export function EditBookingModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                <StayDateRangePicker
-                  idPrefix="edit-booking"
-                  checkInLabel="Check-In Date"
-                  checkOutLabel="Check-Out Date"
-                  checkIn={formData.checkIn}
-                  checkOut={formData.checkOut}
-                  bookedRanges={roomBookedRanges}
-                  allowPastDates
-                  onChange={handleDatesChange}
-                  className="sm:col-span-2"
-                />
+                <div className="sm:col-span-2">
+                  <StayDateRangePicker
+                    idPrefix="edit-booking"
+                    checkInLabel="Check-In Date"
+                    checkOutLabel="Check-Out Date"
+                    checkIn={formData.checkIn}
+                    checkOut={formData.checkOut}
+                    bookedRanges={roomBookedRanges}
+                    allowPastDates
+                    onChange={(dates) => {
+                      handleDatesChange(dates)
+                      if (fieldErrors.dates) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          dates: validateStayDatesRange(
+                            dates.checkIn,
+                            dates.checkOut,
+                          ),
+                        }))
+                      }
+                    }}
+                  />
+                  <FieldError message={fieldErrors.dates} />
+                </div>
                 <div>
                   <label
                     htmlFor="edit-booking-guests-count"
@@ -455,17 +524,33 @@ export function EditBookingModal({
                     id="edit-booking-guests-count"
                     type="number"
                     min={1}
-                    max={30}
+                    max={maxGuestsAllowed}
                     required
                     value={formData.guestsCount}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
                       setFormData({
                         ...formData,
-                        guestsCount: Number(e.target.value),
+                        guestsCount: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.guestsCount) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          guestsCount: validateIntegerField(next, {
+                            label: 'Guests count',
+                            min: 1,
+                            max: maxGuestsAllowed,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.guestsCount)}
+                    className={getFieldValidationClass(
+                      EDIT_BOOKING_INPUT_CLASS,
+                      Boolean(fieldErrors.guestsCount),
+                    )}
                   />
+                  <FieldError message={fieldErrors.guestsCount} />
                 </div>
               </div>
 
@@ -583,14 +668,30 @@ export function EditBookingModal({
                     step="0.01"
                     required
                     value={formData.totalAmount}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
                       setFormData({
                         ...formData,
-                        totalAmount: Number(e.target.value),
+                        totalAmount: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.totalAmount) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          totalAmount: validateMoneyField(next, {
+                            label: 'Total amount',
+                            min: 0,
+                            allowZero: true,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.totalAmount)}
+                    className={getFieldValidationClass(
+                      EDIT_BOOKING_INPUT_CLASS,
+                      Boolean(fieldErrors.totalAmount),
+                    )}
                   />
+                  <FieldError message={fieldErrors.totalAmount} />
                 </div>
 
                 <div>
@@ -607,14 +708,30 @@ export function EditBookingModal({
                     step="0.01"
                     required
                     value={formData.amountPaid}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
                       setFormData({
                         ...formData,
-                        amountPaid: Number(e.target.value),
+                        amountPaid: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.amountPaid) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          amountPaid: validateMoneyField(next, {
+                            label: 'Amount paid',
+                            min: 0,
+                            allowZero: true,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.amountPaid)}
+                    className={getFieldValidationClass(
+                      EDIT_BOOKING_INPUT_CLASS,
+                      Boolean(fieldErrors.amountPaid),
+                    )}
                   />
+                  <FieldError message={fieldErrors.amountPaid} />
                 </div>
               </div>
 
@@ -628,15 +745,32 @@ export function EditBookingModal({
                 <textarea
                   id="edit-booking-requests"
                   rows={2}
+                  maxLength={500}
                   value={formData.specialRequests}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const next = e.target.value
                     setFormData({
                       ...formData,
-                      specialRequests: e.target.value,
+                      specialRequests: next,
                     })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 resize-none"
+                    if (fieldErrors.specialRequests) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        specialRequests: validateTextField(next, {
+                          label: 'Special requests',
+                          required: false,
+                          maxLength: 500,
+                        }),
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.specialRequests)}
+                  className={getFieldValidationClass(
+                    `${EDIT_BOOKING_INPUT_CLASS} resize-none`,
+                    Boolean(fieldErrors.specialRequests),
+                  )}
                 />
+                <FieldError message={fieldErrors.specialRequests} />
               </div>
             </div>
 

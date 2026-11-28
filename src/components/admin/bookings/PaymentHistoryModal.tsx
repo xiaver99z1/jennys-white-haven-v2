@@ -15,6 +15,7 @@ import {
 } from '#/lib/formatters'
 import { StatusBadge } from '#/components/common/StatusBadge'
 import { EmptyState } from '#/components/common/EmptyState'
+import { validateMoneyField, validateTextField } from '#/lib/validation'
 import { getBookingPayments, recordPayment } from '#/server/payment-actions'
 
 interface PaymentHistoryModalProps {
@@ -125,6 +126,24 @@ export function PaymentHistoryModal({
       setError('Please enter a valid payment amount greater than 0.')
       return
     }
+    const amountErr = validateMoneyField(parsedAmount, {
+      label: 'Payment amount',
+      allowZero: false,
+    })
+    const refErr = validateTextField(referenceNo, {
+      label: 'Reference number',
+      required: false,
+      maxLength: 80,
+    })
+    const notesErr = validateTextField(notes, {
+      label: 'Payment notes',
+      required: false,
+      maxLength: 500,
+    })
+    if (amountErr || refErr || notesErr) {
+      setError(amountErr || refErr || notesErr)
+      return
+    }
 
     setIsSubmitting(true)
     setError(null)
@@ -136,8 +155,8 @@ export function PaymentHistoryModal({
           bookingId: booking.id,
           amount: parsedAmount,
           method,
-          referenceNo: referenceNo || undefined,
-          notes: notes || undefined,
+          referenceNo: referenceNo.trim() || undefined,
+          notes: notes.trim() || undefined,
         },
       })
       setPayments((prev) => [

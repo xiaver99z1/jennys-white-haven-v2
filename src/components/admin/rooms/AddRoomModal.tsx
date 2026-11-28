@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { createRoom } from '#/server/room-actions'
 import { X, Bed, Upload, Maximize2, Sparkles, Check } from 'lucide-react'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import {
   DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
@@ -13,12 +14,36 @@ import {
   compressImageForUpload,
   IMAGE_UPLOAD_PRESETS,
 } from '#/lib/image-compress'
+import {
+  hasFieldErrors,
+  validateIntegerField,
+  validateMoneyField,
+  validateRoomDisplayNameField,
+  validateRoomNumberField,
+  validateTextField,
+} from '#/lib/validation'
 
 interface AddRoomModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
 }
+
+type RoomFieldErrors = Partial<
+  Record<
+    | 'roomNumber'
+    | 'name'
+    | 'capacity'
+    | 'pricePerNight'
+    | 'extraPersonFee'
+    | 'extraChildFee'
+    | 'description',
+    string | null
+  >
+>
+
+const ROOM_INPUT_CLASS =
+  'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800'
 
 export function AddRoomModal({
   isOpen,
@@ -29,6 +54,7 @@ export function AddRoomModal({
   const [pendingUploads, setPendingUploads] = useState(0)
   const draftEpochRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<RoomFieldErrors>({})
   const [selectedImagePreview, setSelectedImagePreview] = useState<
     string | null
   >(null)
@@ -100,18 +126,53 @@ export function AddRoomModal({
     }))
   }
 
+  const validateAllFields = (): RoomFieldErrors => ({
+    roomNumber: validateRoomNumberField(formData.roomNumber),
+    name: validateRoomDisplayNameField(formData.name),
+    capacity: validateIntegerField(Number(formData.capacity), {
+      label: 'Capacity',
+      min: 1,
+      max: 30,
+    }),
+    pricePerNight: validateMoneyField(Number(formData.pricePerNight), {
+      label: 'Price per night',
+      min: 0,
+      allowZero: true,
+    }),
+    extraPersonFee: validateMoneyField(Number(formData.extraPersonFee), {
+      label: 'Extra adult fee',
+      min: 0,
+      allowZero: true,
+    }),
+    extraChildFee: validateMoneyField(Number(formData.extraChildFee), {
+      label: 'Extra child fee',
+      min: 0,
+      allowZero: true,
+    }),
+    description: validateTextField(formData.description, {
+      label: 'Description',
+      required: false,
+      maxLength: 1000,
+    }),
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError(null)
+    const nextErrors = validateAllFields()
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      return
+    }
+    setLoading(true)
 
     try {
       await createRoom({
         data: {
-          roomNumber: formData.roomNumber,
-          name: formData.name,
+          roomNumber: formData.roomNumber.trim(),
+          name: formData.name.trim(),
           type: formData.type,
-          description: formData.description || undefined,
+          description: formData.description.trim() || undefined,
           capacity: Number(formData.capacity),
           pricePerNight: Number(formData.pricePerNight),
           extraPersonFee: Number(formData.extraPersonFee),
@@ -123,6 +184,7 @@ export function AddRoomModal({
 
       draftEpochRef.current += 1
       setPendingUploads(0)
+      setFieldErrors({})
       setFormData({
         roomNumber: '',
         name: '',
@@ -188,6 +250,7 @@ export function AddRoomModal({
           {/* Form */}
           <form
             onSubmit={handleSubmit}
+            noValidate
             className="flex flex-col flex-1 overflow-hidden"
           >
             {/* Scrollable Body */}
@@ -254,26 +317,52 @@ export function AddRoomModal({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="add-room-number"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Room Number / Identifier
                   </label>
                   <input
+                    id="add-room-number"
                     type="text"
                     required
                     data-testid="room-number-input"
                     placeholder="e.g. 101"
                     value={formData.roomNumber}
-                    onChange={(e) =>
-                      setFormData({ ...formData, roomNumber: e.target.value })
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setFormData({ ...formData, roomNumber: next })
+                      if (fieldErrors.roomNumber) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          roomNumber: validateRoomNumberField(next),
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        roomNumber: validateRoomNumberField(formData.roomNumber),
+                      }))
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    aria-invalid={Boolean(fieldErrors.roomNumber)}
+                    className={getFieldValidationClass(
+                      ROOM_INPUT_CLASS,
+                      Boolean(fieldErrors.roomNumber),
+                    )}
                   />
+                  <FieldError message={fieldErrors.roomNumber} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="add-room-type"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Room Type
                   </label>
                   <select
+                    id="add-room-type"
                     value={formData.type}
                     onChange={(e) => {
                       const nextType = e.target.value as RoomType
@@ -289,7 +378,7 @@ export function AddRoomModal({
                               : prev.pricePerNight,
                       }))
                     }}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
+                    className={`${ROOM_INPUT_CLASS} bg-white`}
                   >
                     {ROOM_TYPES.map((type) => (
                       <option key={type} value={type}>
@@ -301,114 +390,237 @@ export function AddRoomModal({
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
+                <label
+                  htmlFor="add-room-name"
+                  className="block font-semibold text-stone-700 mb-1"
+                >
                   Room Display Name
                 </label>
                 <input
+                  id="add-room-name"
                   type="text"
                   required
                   data-testid="room-name-input"
                   placeholder="e.g. Deluxe Ocean View Suite"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setFormData({ ...formData, name: next })
+                    if (fieldErrors.name) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        name: validateRoomDisplayNameField(next),
+                      }))
+                    }
+                  }}
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      name: validateRoomDisplayNameField(formData.name),
+                    }))
                   }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  aria-invalid={Boolean(fieldErrors.name)}
+                  className={getFieldValidationClass(
+                    ROOM_INPUT_CLASS,
+                    Boolean(fieldErrors.name),
+                  )}
                 />
+                <FieldError message={fieldErrors.name} />
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="add-room-capacity"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Capacity (Guests)
                   </label>
                   <input
+                    id="add-room-capacity"
                     type="number"
                     min={1}
                     max={30}
                     required
                     value={formData.capacity}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
                       setFormData({
                         ...formData,
-                        capacity: Number(e.target.value),
+                        capacity: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.capacity) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          capacity: validateIntegerField(next, {
+                            label: 'Capacity',
+                            min: 1,
+                            max: 30,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.capacity)}
+                    className={getFieldValidationClass(
+                      ROOM_INPUT_CLASS,
+                      Boolean(fieldErrors.capacity),
+                    )}
                   />
+                  <FieldError message={fieldErrors.capacity} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="add-room-price"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Price / Night (₱)
                   </label>
                   <input
+                    id="add-room-price"
                     type="number"
                     min={0}
                     step="50"
                     placeholder="0"
                     value={formData.pricePerNight === 0 ? '' : formData.pricePerNight}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value) || 0
                       setFormData({
                         ...formData,
-                        pricePerNight: Number(e.target.value) || 0,
+                        pricePerNight: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.pricePerNight) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          pricePerNight: validateMoneyField(next, {
+                            label: 'Price per night',
+                            min: 0,
+                            allowZero: true,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.pricePerNight)}
+                    className={getFieldValidationClass(
+                      ROOM_INPUT_CLASS,
+                      Boolean(fieldErrors.pricePerNight),
+                    )}
                   />
+                  <FieldError message={fieldErrors.pricePerNight} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="add-room-extra-adult"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Extra Adult (₱/n)
                   </label>
                   <input
+                    id="add-room-extra-adult"
                     type="number"
                     min={0}
                     step="50"
                     placeholder="0"
                     value={formData.extraPersonFee === 0 ? '' : formData.extraPersonFee}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value) || 0
                       setFormData({
                         ...formData,
-                        extraPersonFee: Number(e.target.value) || 0,
+                        extraPersonFee: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.extraPersonFee) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          extraPersonFee: validateMoneyField(next, {
+                            label: 'Extra adult fee',
+                            min: 0,
+                            allowZero: true,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.extraPersonFee)}
+                    className={getFieldValidationClass(
+                      ROOM_INPUT_CLASS,
+                      Boolean(fieldErrors.extraPersonFee),
+                    )}
                   />
+                  <FieldError message={fieldErrors.extraPersonFee} />
                 </div>
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="add-room-extra-child"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Extra Child (₱/n)
                   </label>
                   <input
+                    id="add-room-extra-child"
                     type="number"
                     min={0}
                     step="50"
                     placeholder="0"
                     value={formData.extraChildFee === 0 ? '' : formData.extraChildFee}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = Number(e.target.value) || 0
                       setFormData({
                         ...formData,
-                        extraChildFee: Number(e.target.value) || 0,
+                        extraChildFee: next,
                       })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                      if (fieldErrors.extraChildFee) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          extraChildFee: validateMoneyField(next, {
+                            label: 'Extra child fee',
+                            min: 0,
+                            allowZero: true,
+                          }),
+                        }))
+                      }
+                    }}
+                    aria-invalid={Boolean(fieldErrors.extraChildFee)}
+                    className={getFieldValidationClass(
+                      ROOM_INPUT_CLASS,
+                      Boolean(fieldErrors.extraChildFee),
+                    )}
                   />
+                  <FieldError message={fieldErrors.extraChildFee} />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
+                <label
+                  htmlFor="add-room-description"
+                  className="block font-semibold text-stone-700 mb-1"
+                >
                   Description (Optional)
                 </label>
                 <textarea
+                  id="add-room-description"
                   rows={2}
+                  maxLength={1000}
                   placeholder="Brief description of the room..."
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 resize-none"
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setFormData({ ...formData, description: next })
+                    if (fieldErrors.description) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        description: validateTextField(next, {
+                          label: 'Description',
+                          required: false,
+                          maxLength: 1000,
+                        }),
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.description)}
+                  className={getFieldValidationClass(
+                    `${ROOM_INPUT_CLASS} resize-none`,
+                    Boolean(fieldErrors.description),
+                  )}
                 />
+                <FieldError message={fieldErrors.description} />
               </div>
 
               {/* Clean Amenities Summary Card with Trigger Button */}

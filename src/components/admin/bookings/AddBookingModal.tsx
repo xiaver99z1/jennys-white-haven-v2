@@ -3,6 +3,7 @@ import { createBooking } from '#/server/booking-actions'
 import { X, CalendarPlus } from 'lucide-react'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterField'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import {
   BOOKING_STATUSES,
   DEFAULT_EXTRA_CHILD_FEE,
@@ -25,6 +26,13 @@ import type {
   PaymentStatus,
 } from '#/types'
 import { computeStayNights, formatLocalDate, formatPeso } from '#/lib/formatters'
+import {
+  hasFieldErrors,
+  validateIntegerField,
+  validateMoneyField,
+  validateStayDatesRange,
+  validateTextField,
+} from '#/lib/validation'
 
 export type { BookingGuestOption, BookingRoomOption }
 export { formatLocalDate }
@@ -64,6 +72,14 @@ export function AddBookingModal({
   const defaultDates = getDefaultDates()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    guestId?: string | null
+    roomId?: string | null
+    dates?: string | null
+    guestsCount?: string | null
+    amountPaid?: string | null
+    specialRequests?: string | null
+  }>({})
 
   const [formData, setFormData] = useState({
     roomId: rooms[0]?.id ?? '',
@@ -148,10 +164,38 @@ export function AddBookingModal({
 
   if (!isOpen) return null
 
+  const maxGuestsAllowed = selectedRoom?.capacity ?? 30
+
+  const validateAllFields = () => ({
+    guestId: !formData.guestId ? 'Please select a guest.' : null,
+    roomId: !formData.roomId ? 'Please select a room.' : null,
+    dates: validateStayDatesRange(formData.checkIn, formData.checkOut),
+    guestsCount: validateIntegerField(Number(formData.guestsCount), {
+      label: 'Guests count',
+      min: 1,
+      max: maxGuestsAllowed,
+    }),
+    amountPaid: validateMoneyField(Number(formData.amountPaid), {
+      label: 'Amount paid',
+      min: 0,
+      allowZero: true,
+    }),
+    specialRequests: validateTextField(formData.specialRequests, {
+      label: 'Special requests',
+      required: false,
+      maxLength: 500,
+    }),
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError(null)
+    const nextErrors = validateAllFields()
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      return
+    }
+    setLoading(true)
 
     try {
       const extraNote = formatExtraGuestsNote(
@@ -233,6 +277,7 @@ export function AddBookingModal({
         {/* Form */}
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="flex flex-col flex-1 overflow-hidden"
         >
           <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
@@ -254,10 +299,21 @@ export function AddBookingModal({
                   id="add-booking-guest"
                   required
                   value={formData.guestId}
-                  onChange={(e) =>
-                    setFormData({ ...formData, guestId: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setFormData({ ...formData, guestId: next })
+                    if (fieldErrors.guestId) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        guestId: !next ? 'Please select a guest.' : null,
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.guestId)}
+                  className={getFieldValidationClass(
+                    'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white',
+                    Boolean(fieldErrors.guestId),
+                  )}
                 >
                   <option value="" disabled>
                     Select a guest
@@ -268,6 +324,7 @@ export function AddBookingModal({
                     </option>
                   ))}
                 </select>
+                <FieldError message={fieldErrors.guestId} />
               </div>
 
               <div>
@@ -281,10 +338,21 @@ export function AddBookingModal({
                   id="add-booking-room"
                   required
                   value={formData.roomId}
-                  onChange={(e) =>
-                    setFormData({ ...formData, roomId: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white"
+                  onChange={(e) => {
+                    const next = e.target.value
+                    setFormData({ ...formData, roomId: next })
+                    if (fieldErrors.roomId) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        roomId: !next ? 'Please select a room.' : null,
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.roomId)}
+                  className={getFieldValidationClass(
+                    'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 bg-white',
+                    Boolean(fieldErrors.roomId),
+                  )}
                 >
                   <option value="" disabled>
                     Select a room
@@ -296,24 +364,33 @@ export function AddBookingModal({
                     </option>
                   ))}
                 </select>
+                <FieldError message={fieldErrors.roomId} />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-              <StayDateRangePicker
-                idPrefix="add-booking"
-                checkInLabel="Check-In Date"
-                checkOutLabel="Check-Out Date"
-                checkIn={formData.checkIn}
-                checkOut={formData.checkOut}
-                bookedRanges={roomBookedRanges}
-                allowPastDates
-                required
-                onChange={({ checkIn, checkOut }) =>
-                  setFormData((prev) => ({ ...prev, checkIn, checkOut }))
-                }
-                className="sm:col-span-2"
-              />
+              <div className="sm:col-span-2">
+                <StayDateRangePicker
+                  idPrefix="add-booking"
+                  checkInLabel="Check-In Date"
+                  checkOutLabel="Check-Out Date"
+                  checkIn={formData.checkIn}
+                  checkOut={formData.checkOut}
+                  bookedRanges={roomBookedRanges}
+                  allowPastDates
+                  required
+                  onChange={({ checkIn, checkOut }) => {
+                    setFormData((prev) => ({ ...prev, checkIn, checkOut }))
+                    if (fieldErrors.dates) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        dates: validateStayDatesRange(checkIn, checkOut),
+                      }))
+                    }
+                  }}
+                />
+                <FieldError message={fieldErrors.dates} />
+              </div>
               <div>
                 <label
                   htmlFor="add-booking-guests-count"
@@ -325,17 +402,33 @@ export function AddBookingModal({
                   id="add-booking-guests-count"
                   type="number"
                   min={1}
-                  max={30}
+                  max={maxGuestsAllowed}
                   required
                   value={formData.guestsCount}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const next = Number(e.target.value)
                     setFormData({
                       ...formData,
-                      guestsCount: Number(e.target.value),
+                      guestsCount: next,
                     })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    if (fieldErrors.guestsCount) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        guestsCount: validateIntegerField(next, {
+                          label: 'Guests count',
+                          min: 1,
+                          max: maxGuestsAllowed,
+                        }),
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.guestsCount)}
+                  className={getFieldValidationClass(
+                    'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800',
+                    Boolean(fieldErrors.guestsCount),
+                  )}
                 />
+                <FieldError message={fieldErrors.guestsCount} />
               </div>
             </div>
 
@@ -477,14 +570,30 @@ export function AddBookingModal({
                   min={0}
                   step="0.01"
                   value={formData.amountPaid}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const next = Number(e.target.value)
                     setFormData({
                       ...formData,
-                      amountPaid: Number(e.target.value),
+                      amountPaid: next,
                     })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    if (fieldErrors.amountPaid) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        amountPaid: validateMoneyField(next, {
+                          label: 'Amount paid',
+                          min: 0,
+                          allowZero: true,
+                        }),
+                      }))
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldErrors.amountPaid)}
+                  className={getFieldValidationClass(
+                    'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800',
+                    Boolean(fieldErrors.amountPaid),
+                  )}
                 />
+                <FieldError message={fieldErrors.amountPaid} />
               </div>
             </div>
 
@@ -498,13 +607,30 @@ export function AddBookingModal({
               <textarea
                 id="add-booking-requests"
                 rows={2}
+                maxLength={500}
                 placeholder="Early check-in, extra pillows, airport pickup..."
                 value={formData.specialRequests}
-                onChange={(e) =>
-                  setFormData({ ...formData, specialRequests: e.target.value })
-                }
-                className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 resize-none"
+                onChange={(e) => {
+                  const next = e.target.value
+                  setFormData({ ...formData, specialRequests: next })
+                  if (fieldErrors.specialRequests) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      specialRequests: validateTextField(next, {
+                        label: 'Special requests',
+                        required: false,
+                        maxLength: 500,
+                      }),
+                    }))
+                  }
+                }}
+                aria-invalid={Boolean(fieldErrors.specialRequests)}
+                className={getFieldValidationClass(
+                  'w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800 resize-none',
+                  Boolean(fieldErrors.specialRequests),
+                )}
               />
+              <FieldError message={fieldErrors.specialRequests} />
             </div>
           </div>
 
