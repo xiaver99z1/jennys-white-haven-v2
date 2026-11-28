@@ -1,9 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
-import { hasPermission } from '#/lib/permissions'
 import { logActivity } from '#/lib/logger'
 import type { RoomStatus } from '@prisma/client'
 import { authSession } from '#/lib/auth-helpers'
+import { formatPeso } from '#/lib/formatters'
+import { requirePermission } from '#/lib/require-permission'
 import {
   DEFAULT_EXTRA_CHILD_FEE,
   DEFAULT_EXTRA_PERSON_FEE,
@@ -15,17 +16,7 @@ import {
   purgeReplacedR2Objects,
 } from '#/server/upload'
 
-// Helper for server-side authorization with strict permission typing
-export async function requirePermission(
-  permission: Parameters<typeof hasPermission>[1],
-) {
-  const session = await authSession()
-
-  if (!hasPermission(session.user, permission)) {
-    throw new Error('Unauthorized: Insufficient permissions.')
-  }
-  return session.user
-}
+export { requirePermission }
 
 // Utility to parse/extract a display name from an image URL or Base64 string
 export function getImageNames(images?: string[]): string[] {
@@ -165,7 +156,7 @@ export async function createRoomHandler({
     `Created Room ${room.roomNumber} (${room.name})`,
     `Type: ${room.type}`,
     `Capacity: ${room.capacity} guests`,
-    `Price: ₱${room.pricePerNight.toLocaleString()}/night`,
+    `Price: ${formatPeso(Number(room.pricePerNight))}/night`,
     `Description: ${room.description || 'None'}`,
     `Amenities (${room.amenities.length}): ${room.amenities.join(', ') || 'None'}`,
     `Uploaded Images (${imageNames.length}): ${imageNames.join(', ') || 'None'}`,

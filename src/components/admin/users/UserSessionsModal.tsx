@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getUserSessions, revokeSession } from '#/server/session-actions'
+import { formatLocalDateOnly, formatLocalDateTime } from '#/lib/formatters'
 import { parseUserAgent } from '#/lib/parse-user-agent'
 import { Laptop, History } from 'lucide-react'
 
@@ -145,14 +146,10 @@ export function UserSessionsModal({
                           {session.ipAddress || '127.0.0.1'}
                         </td>
                         <td className="px-5 py-3 text-stone-600">
-                          {new Date(session.createdAt).toLocaleDateString()}{' '}
-                          {new Date(session.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatLocalDateTime(session.createdAt)}
                         </td>
                         <td className="px-5 py-3 text-stone-600">
-                          {new Date(session.expiresAt).toLocaleDateString()}
+                          {formatLocalDateOnly(session.expiresAt)}
                         </td>
                         <td className="px-5 py-3 text-right">
                           <button
@@ -201,18 +198,10 @@ export function UserSessionsModal({
                         {session.ipAddress || '127.0.0.1'}
                       </td>
                       <td className="px-5 py-3">
-                        {new Date(session.createdAt).toLocaleDateString()}{' '}
-                        {new Date(session.createdAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatLocalDateTime(session.createdAt)}
                       </td>
                       <td className="px-5 py-3">
-                        {new Date(session.expiresAt).toLocaleDateString()}{' '}
-                        {new Date(session.expiresAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatLocalDateTime(session.expiresAt)}
                       </td>
                       <td className="px-5 py-3 text-right">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-600">

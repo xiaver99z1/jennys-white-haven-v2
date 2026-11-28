@@ -9,9 +9,9 @@ import {
   DEFAULT_EXTRA_PERSON_FEE,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
+  buildOccupiedBookedRanges,
   calculateExtraGuestsFee,
   formatExtraGuestsNote,
-  isWholeHouseRoom,
   parseExtraGuestsFromSpecialRequests,
 } from '#/lib/constants/rooms'
 import type {
@@ -25,7 +25,7 @@ import type {
   PaymentStatus,
 } from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
-import { formatDateInput } from '#/lib/formatters'
+import { computeStayNights, formatDateInput } from '#/lib/formatters'
 
 export type { BookingItem }
 
@@ -45,12 +45,8 @@ interface EditBookingModalProps {
 }
 
 const getPositiveNights = (checkIn: string, checkOut: string) => {
-  const start = new Date(checkIn)
-  const end = new Date(checkOut)
-  const diff = Math.round(
-    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-  )
-  return diff > 0 ? diff : 1
+  const nights = computeStayNights(checkIn, checkOut)
+  return nights > 0 ? nights : 1
 }
 
 const getInitialFormData = (booking: EditBookingModalProps['booking']) => {
@@ -230,38 +226,17 @@ export function EditBookingModal({
     })
   }
 
-  const roomBookedRanges = useMemo<BookedDateRange[]>(() => {
-    const selectedIsWholeHouse = isWholeHouseRoom(selectedRoom)
-    const fromBookings = existingBookings
-      .filter(
-        (b) =>
-          b.id !== booking?.id &&
-          !b.deletedAt &&
-          ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status) &&
-          (selectedIsWholeHouse ||
-            b.roomId === formData.roomId ||
-            isWholeHouseRoom(b.room)),
-      )
-      .map((b) => ({
-        checkIn: formatDateInput(b.checkIn),
-        checkOut: formatDateInput(b.checkOut),
-      }))
-    const fromBlocked = blockedDates
-      .filter(
-        (bd) =>
-          selectedIsWholeHouse ||
-          !bd.roomId ||
-          bd.roomId === formData.roomId ||
-          isWholeHouseRoom(bd.room),
-      )
-      .map((bd) => ({
-        checkIn: formatDateInput(bd.startDate),
-        checkOut: formatDateInput(bd.endDate),
-      }))
-    return [...fromBookings, ...fromBlocked].filter(
-      (r) => Boolean(r.checkIn) && Boolean(r.checkOut),
-    )
-  }, [existingBookings, blockedDates, booking?.id, formData.roomId, selectedRoom])
+  const roomBookedRanges = useMemo<BookedDateRange[]>(
+    () =>
+      buildOccupiedBookedRanges({
+        existingBookings,
+        blockedDates,
+        roomId: formData.roomId,
+        targetRoom: selectedRoom,
+        excludeBookingId: booking?.id,
+      }),
+    [existingBookings, blockedDates, booking?.id, formData.roomId, selectedRoom],
+  )
 
   useEffect(() => {
     if (booking) {

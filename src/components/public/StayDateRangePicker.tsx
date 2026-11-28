@@ -4,7 +4,10 @@ import { DayPicker } from 'react-day-picker'
 import type { DateRange, Matcher } from 'react-day-picker'
 import { addDays, format, startOfToday } from 'date-fns'
 import { ArrowLeft, ArrowRight, Calendar, X } from 'lucide-react'
+import { computeStayNights, parseLocalIsoDate } from '#/lib/formatters'
 import type { BookedDateRange } from '#/types'
+
+export { computeStayNights, parseLocalIsoDate }
 
 export interface StayDateRangePickerProps {
   checkIn: string
@@ -20,20 +23,6 @@ export interface StayDateRangePickerProps {
   className?: string
 }
 
-export function parseLocalIsoDate(iso?: string): Date | undefined {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return undefined
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(y, m - 1, d)
-  if (
-    dt.getFullYear() !== y ||
-    dt.getMonth() !== m - 1 ||
-    dt.getDate() !== d
-  ) {
-    return undefined
-  }
-  return dt
-}
-
 export function toLocalIsoDate(date?: Date): string {
   if (!date || Number.isNaN(date.getTime())) return ''
   const y = date.getFullYear()
@@ -46,15 +35,6 @@ export function formatStayDisplayDate(iso?: string): string {
   const dt = parseLocalIsoDate(iso)
   if (!dt) return ''
   return format(dt, 'MMM d, yyyy')
-}
-
-export function computeStayNights(checkIn?: string, checkOut?: string): number {
-  const from = parseLocalIsoDate(checkIn)
-  const to = parseLocalIsoDate(checkOut)
-  if (!from || !to) return 0
-  const diffMs = to.getTime() - from.getTime()
-  if (diffMs <= 0) return 0
-  return Math.round(diffMs / 86_400_000)
 }
 
 function toOccupiedNightMatchers(

@@ -31,7 +31,7 @@ vi.mock('#/lib/auth-helpers', () => ({
   authSession: mockAuthSession,
 }))
 
-vi.mock('#/server/room-actions', () => ({
+vi.mock('#/lib/require-permission', () => ({
   requirePermission: mockRequirePermission,
 }))
 

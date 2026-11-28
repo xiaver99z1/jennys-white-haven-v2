@@ -10,6 +10,7 @@ import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterF
 import { calculateExtraGuestsFee } from '#/lib/constants/rooms'
 import { useCurrency } from '#/lib/currency'
 import {
+  computeStayNights,
   formatPeso,
   getErrorMessage,
   isValidCalendarDate,
@@ -57,15 +58,6 @@ export const Route = createFileRoute('/rooms/$id')({
   }),
   component: PublicRoomDetailPage,
 })
-
-function computeNightCount(checkIn: string, checkOut: string): number {
-  if (!isValidCalendarDate(checkIn) || !isValidCalendarDate(checkOut)) return 0
-  const start = new Date(`${checkIn}T14:00:00+08:00`)
-  const end = new Date(`${checkOut}T12:00:00+08:00`)
-  const diff = end.getTime() - start.getTime()
-  if (diff <= 0) return 0
-  return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)))
-}
 
 function PublicRoomDetailPage() {
   const { room, sections } = Route.useLoaderData()
@@ -119,7 +111,7 @@ function PublicRoomDetailPage() {
     )
   }
 
-  const nights = computeNightCount(checkIn, checkOut)
+  const nights = computeStayNights(checkIn, checkOut)
   const extraCounts = { extraChildren, extraAdults }
   const extraAdultFeeRate = room.extraPersonFee
   const extraChildFeeRate = room.extraChildFee

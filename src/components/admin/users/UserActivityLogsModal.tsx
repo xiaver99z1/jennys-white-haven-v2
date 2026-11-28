@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getUserActivityLogs } from '#/server/activity-actions'
+import { formatLocalDateTime } from '#/lib/formatters'
 import { parseUserAgent } from '#/lib/parse-user-agent'
 import {
   FileText,
@@ -75,51 +76,57 @@ export function UserActivityLogsModal({
     setCurrentPage(1)
   }, [searchQuery, selectedAction, startDate, endDate])
 
-  const availableActions = [
-    'ALL',
-    ...Array.from(new Set(logs.map((l) => l.action))),
-  ]
+  const availableActions = useMemo(
+    () => ['ALL', ...Array.from(new Set(logs.map((l) => l.action)))],
+    [logs],
+  )
+
+  const enrichedLogs = useMemo(
+    () =>
+      logs.map((log) => {
+        const parsedDevice = parseUserAgent(log.userAgent)
+        const formattedTimestamp = formatLocalDateTime(log.createdAt)
+        return {
+          ...log,
+          parsedDevice,
+          parsedDeviceLower: parsedDevice.toLowerCase(),
+          formattedTimestamp,
+          formattedTimestampLower: formattedTimestamp.toLowerCase(),
+          descriptionLower: log.description.toLowerCase(),
+          actionLower: log.action.toLowerCase(),
+          timestampMs: new Date(log.createdAt).getTime(),
+        }
+      }),
+    [logs],
+  )
 
   // Filter logs based on search query, action, parsed device/browser, formatted timestamp, and datetime range
-  const filteredLogs = logs.filter((log) => {
-    // 1. Action Filter
-    const matchesAction =
-      selectedAction === 'ALL' || log.action === selectedAction
-
-    // 2. Parsed Device/Browser & Formatted Timestamp Search
-    const parsedDevice = parseUserAgent(log.userAgent).toLowerCase()
-    const formattedDate = new Date(log.createdAt).toLocaleDateString()
-    const formattedTime = new Date(log.createdAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    const fullFormattedTimestamp =
-      `${formattedDate} ${formattedTime}`.toLowerCase()
-
+  const filteredLogs = useMemo(() => {
     const query = searchQuery.toLowerCase()
-    const matchesSearch =
-      log.description.toLowerCase().includes(query) ||
-      log.action.toLowerCase().includes(query) ||
-      (log.ipAddress && log.ipAddress.includes(query)) ||
-      parsedDevice.includes(query) ||
-      fullFormattedTimestamp.includes(query)
+    const startMs = startDate ? new Date(startDate).getTime() : null
+    const endMs = endDate ? new Date(endDate).getTime() : null
 
-    // 3. Exact Date & Time Range Filter
-    const logDate = new Date(log.createdAt)
-    let matchesDateRange = true
+    return enrichedLogs.filter((log) => {
+      const matchesAction =
+        selectedAction === 'ALL' || log.action === selectedAction
+      if (!matchesAction) return false
 
-    if (startDate) {
-      const start = new Date(startDate)
-      if (logDate < start) matchesDateRange = false
-    }
+      if (query) {
+        const matchesSearch =
+          log.descriptionLower.includes(query) ||
+          log.actionLower.includes(query) ||
+          Boolean(log.ipAddress && log.ipAddress.includes(query)) ||
+          log.parsedDeviceLower.includes(query) ||
+          log.formattedTimestampLower.includes(query)
+        if (!matchesSearch) return false
+      }
 
-    if (endDate) {
-      const end = new Date(endDate)
-      if (logDate > end) matchesDateRange = false
-    }
+      if (startMs !== null && log.timestampMs < startMs) return false
+      if (endMs !== null && log.timestampMs > endMs) return false
 
-    return matchesAction && matchesSearch && matchesDateRange
-  })
+      return true
+    })
+  }, [enrichedLogs, selectedAction, searchQuery, startDate, endDate])
 
   // Pagination Logic (10 items per page)
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1
@@ -259,40 +266,33 @@ export function UserActivityLogsModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100 bg-white">
-                  {paginatedLogs.map((log) => {
-                    const parsedDevice = parseUserAgent(log.userAgent)
-                    return (
-                      <tr
-                        key={log.id}
-                        className="hover:bg-stone-50/50 transition"
+                  {paginatedLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="hover:bg-stone-50/50 transition"
+                    >
+                      <td className="px-5 py-3 font-semibold text-stone-900">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] bg-amber-50 text-amber-800 border border-amber-200">
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-stone-700 font-medium">
+                        {log.description}
+                      </td>
+                      <td className="px-5 py-3 text-stone-500">
+                        {log.ipAddress || '127.0.0.1'}
+                      </td>
+                      <td
+                        className="px-5 py-3 text-stone-500"
+                        title={log.userAgent || ''}
                       >
-                        <td className="px-5 py-3 font-semibold text-stone-900">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] bg-amber-50 text-amber-800 border border-amber-200">
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-stone-700 font-medium">
-                          {log.description}
-                        </td>
-                        <td className="px-5 py-3 text-stone-500">
-                          {log.ipAddress || '127.0.0.1'}
-                        </td>
-                        <td
-                          className="px-5 py-3 text-stone-500"
-                          title={log.userAgent || ''}
-                        >
-                          {parsedDevice}
-                        </td>
-                        <td className="px-5 py-3 text-right text-stone-500">
-                          {new Date(log.createdAt).toLocaleDateString()}{' '}
-                          {new Date(log.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                        {log.parsedDevice}
+                      </td>
+                      <td className="px-5 py-3 text-right text-stone-500">
+                        {log.formattedTimestamp}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

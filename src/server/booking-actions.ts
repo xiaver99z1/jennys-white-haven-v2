@@ -2,7 +2,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
-import { requirePermission } from '#/server/room-actions'
+import { formatPeso } from '#/lib/formatters'
+import { requirePermission } from '#/lib/require-permission'
 import { createNotification } from '#/server/notification-actions'
 import {
   DEFAULT_EXTRA_CHILD_FEE,
@@ -431,7 +432,7 @@ export async function createBookingHandler({
   await logActivity({
     userId: admin.id,
     action: 'BOOKING_CREATED',
-    description: `Created booking ${booking.bookingReference} for ${guest.firstName} ${guest.lastName} in Room ${room.roomNumber} (${nights} night(s), ₱${totalAmount.toLocaleString()})`,
+    description: `Created booking ${booking.bookingReference} for ${guest.firstName} ${guest.lastName} in Room ${room.roomNumber} (${nights} night(s), ${formatPeso(totalAmount)})`,
     ipAddress: session.session.ipAddress ?? null,
     userAgent: session.session.userAgent ?? null,
   })

@@ -13,6 +13,7 @@
 - `/admin/login` and `/admin/setup` must never show the sidebar.
 - After login, initial setup, or logout always use `window.location.replace()` (not `navigate`).
 - Protect all `/admin/*` routes (except `/admin/login`, and `/admin/setup` only when 0 users exist).
+- Enforce server-side RBAC permissions via `requirePermission(permission)` from `#/lib/require-permission` (never cross-import permission guards from unrelated `src/server/*-actions.ts` files).
 - Never store hardcoded admin passwords or seeders in code; first-time Super Admin provisioning happens exclusively through `/admin/setup`.
 - Client pages: large imagery, restrained text, subtle booking CTA, generous whitespace.
 - Admin pages: clear sidebar, metric cards, simple charts, low visual noise.
@@ -20,10 +21,18 @@
 ## Reuse & code organization
 
 - **Types:** Import and define shared domain, entity, and router types in `#/types` (`src/types/index.ts`). Do not duplicate interfaces across components.
-- **Formatters:** Use `#/lib/formatters` (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `getBookingStatusMeta`, `getPaymentStatusMeta`, `getRoomStatusMeta`, `getRoleBadgeClass`, `getErrorMessage`). Do not inline currency or date formatting in UI components.
-- **Constants & Labels:** Put auth/security constants and password validators in `#/lib/constants/auth.ts`, reusable UI strings and badge metadata in `#/lib/constants/labels.ts` (`ADMIN_LABELS`, `*_STATUS_META`), and domain option lists in `#/lib/constants/rooms.ts`.
-- **Common Components:** Reuse `#/components/common/` (`StatusBadge`, `EmptyState`, `StatCard`, `Panel`, `ConfirmModal`, `PasswordChallengeModal`, `AdminDataTable`) and `#/components/admin/auth/AuthPageShell` (`AuthPageShell`, `PasswordField`) instead of duplicating badge, card, modal, auth shell, or empty-state markup.
-- **Verification:** Before finishing changes, pass `pnpm exec tsc --noEmit`, `pnpm lint` (0 errors/warnings), and `pnpm coverage` (100% coverage on `src/components/**` and `src/server/**`).
+- **Formatters & Currency:**
+  - Use `#/lib/formatters` (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `parseLocalIsoDate`, `computeStayNights`, `formatShortDate`, `formatLocalDateOnly`, `formatLocalDateTime`, `formatChatTime`, `formatUtcTimestamp`, `formatCalendarDayHeader`, `formatFullName`, `getBookingStatusMeta`, `getPaymentStatusMeta`, `getRoomStatusMeta`, `getReviewStatusMeta`, `getChatStatusMeta`, `getRoleBadgeClass`, `getErrorMessage`). Do not inline `.toLocaleString()`, `.toLocaleDateString()`, or `.toLocaleTimeString()` in UI components or server handlers.
+  - On **public guest pages**, format room rates, extra-person fees, and booking totals with `useCurrency().formatPrice(phpAmount)` from `#/lib/currency` (while noting PHP as the billing currency when converted). On **admin pages, logs, and database writes**, always use `formatPeso` and raw PHP amounts.
+- **Constants & Labels:** Put domain constants in `#/lib/constants/`:
+  - `auth.ts` — auth/security constants and password validators
+  - `chat.ts` — live-chat timing, pagination, rate-limit, and quick-reply presets
+  - `cms.ts` — CMS section defaults, brand logos, hero config, and tourist spot serializers
+  - `currencies.ts` — supported currencies, fallback rates, and storage keys
+  - `labels.ts` — `ADMIN_LABELS`, `REVIEW_RATING_LABELS`, and `*_STATUS_META` badge maps
+  - `rooms.ts` — room/booking/amenity/blocked-date presets, extra-guest fee helpers, and `buildOccupiedBookedRanges`
+- **Common Components:** Reuse `#/components/common/` (`StatusBadge`, `EmptyState`, `StatCard`, `Panel`, `ConfirmModal`, `PasswordChallengeModal`, `PasswordInput`, `ExtraGuestsCounterField`, `AdminDataTable`) and `#/components/admin/auth/AuthPageShell` (`AuthPageShell`, `PasswordField`) instead of duplicating badge, password eye-toggle, stepper, card, modal, auth shell, or empty-state markup.
+- **Verification:** Before finishing changes, pass `pnpm exec tsc --noEmit`, `pnpm lint` (0 errors/warnings), unit tests (`pnpm vitest run`), and `pnpm build`.
 
 ## Media & File Storage (Cloudflare R2)
 
@@ -36,6 +45,6 @@
    - `User -> Media` (profile image)
    - `Room -> RoomMedia -> Media`
    - `Booking -> BookingMedia -> Media`
-   - `Business -> BusinessMedia -> Media` (CMS / site media)
+   - `SiteSection -> BusinessMedia -> Media` (CMS / site media)
 7. **Database transactions:** Always use database transactions (`prisma.$transaction`) when creating or updating media relationships.
 8. **Safe deletion & cleanup:** Delete R2 files when media records are permanently deleted, but **never delete the actual R2 file before confirming the database operation**. Mark/queue deletions and use a cleanup process or background job to handle failed R2 deletions.

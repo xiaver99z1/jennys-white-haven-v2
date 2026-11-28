@@ -4,9 +4,11 @@ import type {
   BlockedDateItem,
   BookingItem,
   BookingRoomOption,
+  StatusMeta,
 } from '#/types'
 import { isWholeHouseRoom } from '#/lib/constants/rooms'
 import {
+  formatCalendarDayHeader,
   formatDate,
   formatFullName,
   formatLocalDate,
@@ -20,6 +22,21 @@ interface BookingCalendarProps {
   blockedDates?: BlockedDateItem[]
   onSelectBooking: (booking: BookingItem) => void
   onManageBlockedDates?: () => void
+}
+
+interface NormalizedBookingCell {
+  booking: BookingItem
+  checkInIso: string
+  checkOutIso: string
+  guestName: string
+  statusMeta: StatusMeta
+}
+
+interface NormalizedBlockedCell {
+  block: BlockedDateItem
+  startIso: string
+  endIso: string
+  blocksAll: boolean
 }
 
 const DAYS_TO_SHOW = 14
@@ -48,26 +65,51 @@ export function BookingCalendar({
     () =>
       Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
         const d = addDays(startDate, i)
+        const { dayLabel, dateLabel } = formatCalendarDayHeader(d)
         return {
           iso: formatLocalDate(d),
-          dayLabel: d.toLocaleDateString('en-US', { weekday: 'short' }),
-          dateLabel: d.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-          }),
+          dayLabel,
+          dateLabel,
         }
       }),
     [startDate],
   )
 
-  const todayIso = formatLocalDate(getTodayStart())
+  const todayIso = useMemo(() => formatLocalDate(getTodayStart()), [])
 
-  const activeBookings = useMemo(
+  const bookingsByRoomId = useMemo(() => {
+    const map = new Map<string, NormalizedBookingCell[]>()
+    for (const booking of bookings) {
+      if (booking.deletedAt || booking.status === 'CANCELLED') continue
+      const entry: NormalizedBookingCell = {
+        booking,
+        checkInIso: formatDate(booking.checkIn),
+        checkOutIso: formatDate(booking.checkOut),
+        guestName: formatFullName(
+          booking.guest.firstName,
+          booking.guest.lastName,
+        ),
+        statusMeta: getBookingStatusMeta(booking.status),
+      }
+      const existing = map.get(booking.roomId)
+      if (existing) {
+        existing.push(entry)
+      } else {
+        map.set(booking.roomId, [entry])
+      }
+    }
+    return map
+  }, [bookings])
+
+  const normalizedBlocks = useMemo<NormalizedBlockedCell[]>(
     () =>
-      bookings.filter(
-        (b) => !b.deletedAt && b.status !== 'CANCELLED',
-      ),
-    [bookings],
+      blockedDates.map((bd) => ({
+        block: bd,
+        startIso: formatDate(bd.startDate),
+        endIso: formatDate(bd.endDate),
+        blocksAll: !bd.roomId || isWholeHouseRoom(bd.room),
+      })),
+    [blockedDates],
   )
 
   if (rooms.length === 0) {
@@ -143,9 +185,8 @@ export function BookingCalendar({
           </thead>
           <tbody className="divide-y divide-stone-100">
             {rooms.map((room) => {
-              const roomBookings = activeBookings.filter(
-                (b) => b.roomId === room.id,
-              )
+              const roomBookings = bookingsByRoomId.get(room.id) ?? []
+              const roomIsWholeHouse = isWholeHouseRoom(room)
 
               return (
                 <tr key={room.id} className="hover:bg-stone-50/40">
@@ -158,22 +199,22 @@ export function BookingCalendar({
                     </div>
                   </td>
                   {days.map((day) => {
-                    const match = roomBookings.find((b) => {
-                      const checkIn = formatDate(b.checkIn)
-                      const checkOut = formatDate(b.checkOut)
-                      return day.iso >= checkIn && day.iso < checkOut
-                    })
+                    const match = roomBookings.find(
+                      (entry) =>
+                        day.iso >= entry.checkInIso &&
+                        day.iso < entry.checkOutIso,
+                    )
 
-                    const roomIsWholeHouse = isWholeHouseRoom(room)
-                    const matchingBlock = blockedDates.find((bd) => {
-                      const start = formatDate(bd.startDate)
-                      const end = formatDate(bd.endDate)
-                      const overlapsDay = day.iso >= start && day.iso < end
-                      if (!overlapsDay) return false
-                      if (!bd.roomId || isWholeHouseRoom(bd.room)) return true
-                      if (roomIsWholeHouse) return true
-                      return bd.roomId === room.id
-                    })
+                    const matchingBlock = match
+                      ? undefined
+                      : normalizedBlocks.find(
+                          (entry) =>
+                            day.iso >= entry.startIso &&
+                            day.iso < entry.endIso &&
+                            (entry.blocksAll ||
+                              roomIsWholeHouse ||
+                              entry.block.roomId === room.id),
+                        )
 
                     if (!match && !matchingBlock) {
                       return (
@@ -197,23 +238,19 @@ export function BookingCalendar({
                           <button
                             type="button"
                             onClick={() => onManageBlockedDates?.()}
-                            title={`Blocked: ${matchingBlock.reason}`}
+                            title={`Blocked: ${matchingBlock.block.reason}`}
                             className="w-full text-left px-1.5 py-1 rounded-md border border-rose-300 bg-rose-100/90 text-rose-900 text-[10px] font-semibold truncate transition hover:bg-rose-200 cursor-pointer flex items-center gap-1"
                           >
                             <Ban className="w-2.5 h-2.5 shrink-0" />
                             <span className="truncate">
-                              {matchingBlock.reason}
+                              {matchingBlock.block.reason}
                             </span>
                           </button>
                         </td>
                       )
                     }
 
-                    const meta = getBookingStatusMeta(match!.status)
-                    const guest = formatFullName(
-                      match!.guest.firstName,
-                      match!.guest.lastName,
-                    )
+                    const activeMatch = match!
 
                     return (
                       <td
@@ -224,11 +261,11 @@ export function BookingCalendar({
                       >
                         <button
                           type="button"
-                          onClick={() => onSelectBooking(match!)}
-                          title={`${guest} (${match!.bookingReference}) — ${meta.label}`}
-                          className={`w-full text-left px-1.5 py-1 rounded-md border text-[10px] font-semibold truncate transition hover:opacity-85 cursor-pointer ${meta.className}`}
+                          onClick={() => onSelectBooking(activeMatch.booking)}
+                          title={`${activeMatch.guestName} (${activeMatch.booking.bookingReference}) — ${activeMatch.statusMeta.label}`}
+                          className={`w-full text-left px-1.5 py-1 rounded-md border text-[10px] font-semibold truncate transition hover:opacity-85 cursor-pointer ${activeMatch.statusMeta.className}`}
                         >
-                          {guest}
+                          {activeMatch.guestName}
                         </button>
                       </td>
                     )

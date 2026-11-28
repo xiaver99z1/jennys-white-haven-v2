@@ -2,7 +2,7 @@ import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { authSession } from '#/lib/auth-helpers'
 import { logActivity } from '#/lib/logger'
-import { requirePermission } from '#/server/room-actions'
+import { requirePermission } from '#/lib/require-permission'
 import {
   DEFAULT_CMS_SECTIONS,
   getSpotImages,

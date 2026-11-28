@@ -3,7 +3,7 @@ import { prisma } from '#/lib/prisma'
 import { authSession } from '#/lib/auth-helpers'
 import { logActivity } from '#/lib/logger'
 import { createNotification } from '#/server/notification-actions'
-import { requirePermission } from '#/server/room-actions'
+import { requirePermission } from '#/lib/require-permission'
 import type {
   AdminReviewItem,
   PublicReviewItem,

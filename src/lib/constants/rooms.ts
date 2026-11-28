@@ -2,8 +2,12 @@
 // 1. DOMAIN TYPES (centralized in #/types)
 // ==========================================
 
+import { formatDateInput, formatPeso } from '#/lib/formatters'
 import type {
   AmenityCategory,
+  BlockedDateItem,
+  BookedDateRange,
+  BookingItem,
   BookingStatus,
   GuestIdType,
   PaymentMethod,
@@ -30,6 +34,20 @@ export const ROOM_TYPES: readonly RoomType[] = [
   'Standard',
   'Deluxe',
   'Whole House',
+] as const
+
+export const ACTIVE_BOOKING_STATUSES: ReadonlySet<string> = new Set([
+  'PENDING',
+  'CONFIRMED',
+  'CHECKED_IN',
+])
+
+export const BLOCKED_DATE_REASON_PRESETS = [
+  'New Year — Family Use',
+  'Holiday / Family Stay',
+  'Personal / Owner Use',
+  'Property Maintenance',
+  'Private Event',
 ] as const
 
 export const DEFAULT_WHOLE_HOUSE_PRICE = 15000
@@ -92,17 +110,17 @@ export function formatExtraGuestsNote(
   const parts: string[] = []
   if (adults > 0) {
     parts.push(
-      `${adults} Adult${adults > 1 ? 's' : ''} (₱${adultRate.toLocaleString()}/night)`,
+      `${adults} Adult${adults > 1 ? 's' : ''} (${formatPeso(adultRate)}/night)`,
     )
   }
   if (children > 0) {
     parts.push(
-      `${children} Child${children > 1 ? 'ren' : ''} (₱${childRate.toLocaleString()}/night)`,
+      `${children} Child${children > 1 ? 'ren' : ''} (${formatPeso(childRate)}/night)`,
     )
   }
   if (parts.length === 0) return ''
   const feeTotal = calculateExtraGuestsFee(counts, rates, nights)
-  return `[Additional Persons: ${parts.join(', ')} · +₱${feeTotal.toLocaleString()}]`
+  return `[Additional Persons: ${parts.join(', ')} · +${formatPeso(feeTotal)}]`
 }
 
 const EXTRA_GUESTS_NOTE_REGEX = /\[Additional Persons:\s*([^\]]+)\]/gi
@@ -158,6 +176,56 @@ export function isWholeHouseRoom(
   room?: { type?: string | null } | null,
 ): boolean {
   return room?.type?.trim().toLowerCase() === 'whole house'
+}
+
+export function buildOccupiedBookedRanges({
+  existingBookings = [],
+  blockedDates = [],
+  roomId,
+  targetRoom,
+  blocksAllRooms = false,
+  excludeBookingId,
+}: {
+  existingBookings?: readonly BookingItem[]
+  blockedDates?: readonly BlockedDateItem[]
+  roomId?: string | null
+  targetRoom?: { type?: string | null } | null
+  blocksAllRooms?: boolean
+  excludeBookingId?: string | null
+}): BookedDateRange[] {
+  const effectiveBlocksAll = blocksAllRooms || isWholeHouseRoom(targetRoom)
+
+  const fromBookings = existingBookings
+    .filter(
+      (b) =>
+        (!excludeBookingId || b.id !== excludeBookingId) &&
+        !b.deletedAt &&
+        ACTIVE_BOOKING_STATUSES.has(b.status) &&
+        (effectiveBlocksAll ||
+          b.roomId === roomId ||
+          isWholeHouseRoom(b.room)),
+    )
+    .map((b) => ({
+      checkIn: formatDateInput(b.checkIn),
+      checkOut: formatDateInput(b.checkOut),
+    }))
+
+  const fromBlocked = blockedDates
+    .filter(
+      (bd) =>
+        effectiveBlocksAll ||
+        !bd.roomId ||
+        bd.roomId === roomId ||
+        isWholeHouseRoom(bd.room),
+    )
+    .map((bd) => ({
+      checkIn: formatDateInput(bd.startDate),
+      checkOut: formatDateInput(bd.endDate),
+    }))
+
+  return [...fromBookings, ...fromBlocked].filter(
+    (r) => Boolean(r.checkIn) && Boolean(r.checkOut),
+  )
 }
 
 export const ROOM_STATUSES: readonly {

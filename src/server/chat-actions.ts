@@ -1,6 +1,16 @@
 import { createServerFn } from '@tanstack/react-start'
-import { authSession } from '#/lib/auth-helpers'
 import { extractRequestClientMeta } from '#/lib/constants/auth'
+import {
+  ADMIN_MESSAGE_PAGE_SIZE,
+  CHAT_ALERT_RECIPIENT_ROLES,
+  EMAIL_ALERT_IDLE_COOLDOWN_MS,
+  MAX_NEW_THREADS_PER_IP_PER_MINUTE,
+  MAX_VISITOR_MESSAGES_PER_MINUTE,
+  PUBLIC_MESSAGE_PAGE_SIZE,
+  STAFF_ONLINE_WINDOW_MS,
+  VISITOR_OFFLINE_EMAIL_THRESHOLD_MS,
+  VISITOR_TOKEN_REGEX,
+} from '#/lib/constants/chat'
 import {
   generateActivationToken,
   hashActivationToken,
@@ -9,8 +19,8 @@ import {
   sendChatReplyToGuestEmail,
 } from '#/lib/email'
 import { formatFullName } from '#/lib/formatters'
-import { hasPermission } from '#/lib/permissions'
 import { prisma } from '#/lib/prisma'
+import { requirePermission } from '#/lib/require-permission'
 import type {
   AdminChatConversationSummary,
   AdminChatInboxResponse,
@@ -20,22 +30,16 @@ import type {
   PublicChatStateResponse,
 } from '#/types'
 
-export const STAFF_ONLINE_WINDOW_MS = 2 * 60 * 1000
-export const EMAIL_ALERT_IDLE_COOLDOWN_MS = 30 * 60 * 1000
-export const VISITOR_OFFLINE_EMAIL_THRESHOLD_MS = 2 * 60 * 1000
-export const PUBLIC_MESSAGE_PAGE_SIZE = 150
-export const ADMIN_MESSAGE_PAGE_SIZE = 250
-const VISITOR_TOKEN_REGEX = /^[a-f0-9]{64}$/
-const MAX_VISITOR_MESSAGES_PER_MINUTE = 12
-const MAX_NEW_THREADS_PER_IP_PER_MINUTE = 5
-const ALERT_RECIPIENT_ROLES = new Set(['super_admin', 'owner', 'manager'])
+export {
+  ADMIN_MESSAGE_PAGE_SIZE,
+  EMAIL_ALERT_IDLE_COOLDOWN_MS,
+  PUBLIC_MESSAGE_PAGE_SIZE,
+  STAFF_ONLINE_WINDOW_MS,
+  VISITOR_OFFLINE_EMAIL_THRESHOLD_MS,
+}
 
 export async function requireChatPermission() {
-  const session = await authSession()
-  if (!hasPermission(session.user, 'manage:chat')) {
-    throw new Error('Unauthorized: Insufficient permissions.')
-  }
-  return session.user
+  return requirePermission('manage:chat')
 }
 
 function isValidVisitorToken(value: unknown): value is string {
@@ -108,7 +112,7 @@ async function resolveInquiryAlertRecipients(): Promise<string[]> {
 
   for (const staff of staffUsers) {
     const normalizedRole = (staff.role ?? '').toLowerCase()
-    if (ALERT_RECIPIENT_ROLES.has(normalizedRole)) {
+    if (CHAT_ALERT_RECIPIENT_ROLES.has(normalizedRole)) {
       addEmail(staff.email)
     }
   }

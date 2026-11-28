@@ -3,7 +3,7 @@ import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
 import { hasPermission } from '#/lib/permissions'
-import { requirePermission } from '#/server/room-actions'
+import { requirePermission } from '#/lib/require-permission'
 import { createNotification } from '#/server/notification-actions'
 
 // Camotes Island, Cebu runs on Philippine Standard Time (UTC+8, no DST).

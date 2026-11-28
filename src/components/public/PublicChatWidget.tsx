@@ -8,27 +8,20 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { getErrorMessage } from '#/lib/formatters'
+import {
+  CHAT_BACKGROUND_POLL_INTERVAL_MS,
+  CHAT_OPEN_POLL_INTERVAL_MS,
+  VISITOR_CHAT_TOKEN_KEY,
+  VISITOR_QUICK_TOPICS,
+} from '#/lib/constants/chat'
+import { formatChatTime, getErrorMessage } from '#/lib/formatters'
 import {
   getPublicChatState,
   sendVisitorChatMessage,
 } from '#/server/chat-actions'
 import type { ChatMessageItem, PublicChatConversation } from '#/types'
 
-export const VISITOR_CHAT_TOKEN_KEY = 'jwh_chat_visitor_token'
-
-const QUICK_TOPICS = [
-  'Is our preferred date available?',
-  'Whole House rate & capacity',
-  'Port pickup from Consuelo / Poro',
-  'Check-in & check-out times',
-] as const
-
-function formatChatTime(value: Date | string): string {
-  const dt = new Date(value)
-  if (Number.isNaN(dt.getTime())) return ''
-  return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
+export { VISITOR_CHAT_TOKEN_KEY }
 
 interface PublicChatWidgetProps {
   enableInitialSyncInTest?: boolean
@@ -149,7 +142,9 @@ export function PublicChatWidget({
     )
     if (!isOpen && !hasActiveThread) return
 
-    const intervalMs = isOpen ? 3500 : 25000
+    const intervalMs = isOpen
+      ? CHAT_OPEN_POLL_INTERVAL_MS
+      : CHAT_BACKGROUND_POLL_INTERVAL_MS
     const timer = setInterval(() => {
       if (document.visibilityState === 'hidden') return
       void syncChatState({ markRead: isOpen, isWidgetOpen: isOpen })
@@ -346,7 +341,7 @@ export function PublicChatWidget({
                   Quick Questions
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {QUICK_TOPICS.map((topic) => (
+                  {VISITOR_QUICK_TOPICS.map((topic) => (
                     <button
                       key={topic}
                       type="button"
