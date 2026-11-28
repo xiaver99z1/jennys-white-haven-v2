@@ -2,7 +2,7 @@
 
 Full-stack staycation reservation platform, CMS, and operations dashboard for **Jenny's White Haven** on Camotes Island, Cebu.
 
-- **Public Visitor Experience** — Aman-inspired coastal calm with hero carousel & availability search, Standard / Deluxe / Whole House accommodations, adult & child extra-person pricing, global `Intl.NumberFormat` currency display converter (PHP billing source of truth), Camotes Island tourist spots guide, photo gallery, verified post-stay guest reviews, contact & Google Map directions, privacy-first cookie preferences & page-view analytics, and real-time guest live chat support.
+- **Public Visitor Experience** — Aman-inspired coastal calm with hero carousel & availability search, Standard / Deluxe / Whole House accommodations, adult & child extra-person pricing, multi-language guest UI (`English`, `한국어`, `日本語`), global `Intl.NumberFormat` currency display converter (PHP billing source of truth), country calling-code mobile input, Camotes Island tourist spots guide, photo gallery, verified post-stay guest reviews, contact & Google Map directions, privacy-first cookie preferences & page-view analytics, and real-time guest live chat support.
 - **Admin Operations Dashboard** — Clean Shopify-style back office with KPI overview, bookings table & 14-day room calendar, house/room blocked-date management, rooms & R2 media management, guest profiles, 2-pane live chat support inbox (with in-app & SMTP email alerts), guest review moderation, collapsible website CMS editor, financial/occupancy/analytics reports, notifications, and RBAC staff & session audit management.
 
 ## Tech Stack

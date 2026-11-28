@@ -393,25 +393,50 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
             public resort website.
           </p>
         </div>
-        <a
-          href={
-            current.key === 'explore'
-              ? '/explore'
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+            aria-expanded={isSidebarOpen}
+            aria-controls="cms-sections-sidebar"
+            title={
+              isSidebarOpen ? 'Hide sections menu' : 'Show sections menu'
+            }
+            className="hidden lg:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50 transition cursor-pointer"
+          >
+            {isSidebarOpen ? (
+              <>
+                <PanelLeftClose className="w-3.5 h-3.5" />
+                <span>Hide Menu</span>
+              </>
+            ) : (
+              <>
+                <PanelLeftOpen className="w-3.5 h-3.5" />
+                <span>Show Menu</span>
+              </>
+            )}
+          </button>
+
+          <a
+            href={
+              current.key === 'explore'
+                ? '/explore'
+                : current.key === 'gallery'
+                  ? '/gallery'
+                  : '/'
+            }
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50 transition"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            {current.key === 'explore'
+              ? 'Preview Explore Page'
               : current.key === 'gallery'
-                ? '/gallery'
-                : '/'
-          }
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50 transition self-start sm:self-auto"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          {current.key === 'explore'
-            ? 'Preview Explore Page'
-            : current.key === 'gallery'
-              ? 'Preview Gallery Page'
-              : 'Preview Public Site'}
-        </a>
+                ? 'Preview Gallery Page'
+                : 'Preview Public Site'}
+          </a>
+        </div>
       </div>
 
       {/* Section Tabs + Editor */}
@@ -427,15 +452,6 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
             <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
               Public Site Sections
             </span>
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(false)}
-              aria-label="Hide sections menu"
-              title="Hide sections menu"
-              className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition cursor-pointer"
-            >
-              <PanelLeftClose className="w-4 h-4" />
-            </button>
           </div>
           {sections.map((section) => {
             const sectionMeta = CMS_SECTION_META[section.key]
@@ -508,43 +524,19 @@ export function CmsSettings({ initialSections }: CmsSettingsProps) {
             className="min-w-0 space-y-6 disabled:opacity-80"
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-stone-100">
-              <div className="flex items-start gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen((prev) => !prev)}
-                  aria-expanded={isSidebarOpen}
-                  aria-controls="cms-sections-sidebar"
-                  title={
-                    isSidebarOpen ? 'Hide sections menu' : 'Show sections menu'
-                  }
-                  className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 mt-0.5 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 transition cursor-pointer shrink-0"
-                >
-                  {isSidebarOpen ? (
-                    <>
-                      <PanelLeftClose className="w-3.5 h-3.5" />
-                      <span>Hide Menu</span>
-                    </>
-                  ) : (
-                    <>
-                      <PanelLeftOpen className="w-3.5 h-3.5" />
-                      <span>Show Menu</span>
-                    </>
-                  )}
-                </button>
-                <div>
-                  <h2 className="text-lg font-bold text-stone-900">
-                    {meta.label}
-                  </h2>
-                  <p className="text-xs text-stone-500">{meta.description}</p>
-                  {current.updatedAt && (
-                    <p className="text-[11px] text-stone-400 mt-1">
-                      Last updated {formatShortDate(current.updatedAt)}
-                      {current.updatedByName
-                        ? ` by ${current.updatedByName}`
-                        : ''}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <h2 className="text-lg font-bold text-stone-900">
+                  {meta.label}
+                </h2>
+                <p className="text-xs text-stone-500">{meta.description}</p>
+                {current.updatedAt && (
+                  <p className="text-[11px] text-stone-400 mt-1">
+                    Last updated {formatShortDate(current.updatedAt)}
+                    {current.updatedByName
+                      ? ` by ${current.updatedByName}`
+                      : ''}
+                  </p>
+                )}
               </div>
 
               {current.key !== 'branding' && (

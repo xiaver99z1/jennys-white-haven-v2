@@ -18,6 +18,7 @@ import {
   parseHeroConfig,
 } from '#/lib/constants/cms'
 import { hasVisibleRichText } from '#/lib/hero-rich-text'
+import { useI18n } from '#/lib/i18n'
 import { HeroRichTextContent } from '#/components/public/HeroRichTextContent'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import type { CmsSectionData, HeroElementPosition } from '#/types'
@@ -61,6 +62,7 @@ export function HeroCarouselSection({
   hero,
   onSearch,
 }: HeroCarouselSectionProps) {
+  const { t } = useI18n()
   const config = useMemo(
     () =>
       parseHeroConfig(hero.metadata.heroConfigJson, {
@@ -279,7 +281,7 @@ export function HeroCarouselSection({
                   className="flex items-center gap-1 text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] text-stone-500 font-semibold mb-1 sm:mb-1.5"
                 >
                   <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  Guests
+                  {t.common.guests}
                 </label>
                 <select
                   id="hero-guests"
@@ -289,7 +291,7 @@ export function HeroCarouselSection({
                 >
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>
-                      {n} {n === 1 ? 'Guest' : 'Guests'}
+                      {t.common.guestCount(n)}
                     </option>
                   ))}
                 </select>
@@ -299,7 +301,7 @@ export function HeroCarouselSection({
                 type="submit"
                 className="w-full py-2.5 px-3 sm:py-3 sm:px-5 rounded-xl bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-[10px] sm:text-xs uppercase tracking-[0.14em] sm:tracking-[0.18em] font-semibold transition cursor-pointer whitespace-nowrap"
               >
-                Check Availability
+                {t.home.checkAvailability}
               </button>
             </form>
           </div>

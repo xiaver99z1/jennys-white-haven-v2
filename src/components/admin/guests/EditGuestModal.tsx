@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { updateGuest, deleteGuest } from '#/server/guest-actions'
 import { X, UserCheck, Trash2 } from 'lucide-react'
 import { GUEST_ID_TYPES, DEFAULT_NATIONALITY } from '#/lib/constants/rooms'
+import { normalizePhoneForStorage } from '#/lib/phone'
 import type { GuestIdType, GuestItem } from '#/types'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
 
 export type { GuestItem }
 
@@ -20,7 +22,7 @@ const getInitialFormData = (guest: EditGuestModalProps['guest']) => ({
   firstName: guest?.firstName ?? '',
   lastName: guest?.lastName ?? '',
   email: guest?.email ?? '',
-  phone: guest?.phone ?? '',
+  phone: normalizePhoneForStorage(guest?.phone),
   idType: (guest?.idType ?? '') as GuestIdType | '',
   idNumber: guest?.idNumber ?? '',
   nationality: guest?.nationality ?? DEFAULT_NATIONALITY,
@@ -199,17 +201,19 @@ export function EditGuestModal({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
+                  <label
+                    htmlFor="edit-guest-phone"
+                    className="block font-semibold text-stone-700 mb-1"
+                  >
                     Phone Number
                   </label>
-                  <input
-                    type="tel"
+                  <PhoneNumberInput
+                    id="edit-guest-phone"
                     required
+                    size="sm"
+                    variant="admin"
                     value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                    onChange={(phone) => setFormData({ ...formData, phone })}
                   />
                 </div>
                 <div>

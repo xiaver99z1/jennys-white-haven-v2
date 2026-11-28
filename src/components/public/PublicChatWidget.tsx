@@ -8,13 +8,14 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
+import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
 import {
   CHAT_BACKGROUND_POLL_INTERVAL_MS,
   CHAT_OPEN_POLL_INTERVAL_MS,
   VISITOR_CHAT_TOKEN_KEY,
-  VISITOR_QUICK_TOPICS,
 } from '#/lib/constants/chat'
 import { formatChatTime, getErrorMessage } from '#/lib/formatters'
+import { useI18n } from '#/lib/i18n'
 import {
   getPublicChatState,
   sendVisitorChatMessage,
@@ -30,6 +31,7 @@ interface PublicChatWidgetProps {
 export function PublicChatWidget({
   enableInitialSyncInTest = false,
 }: PublicChatWidgetProps) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const [staffOnline, setStaffOnline] = useState(false)
   const [visitorToken, setVisitorToken] = useState<string>('')
@@ -268,9 +270,7 @@ export function PublicChatWidget({
                   }`}
                 />
                 <span>
-                  {staffOnline
-                    ? "We're Online · Replies in a few minutes"
-                    : 'Currently Away · Leave a message anytime'}
+                  {staffOnline ? t.chat.onlineStatus : t.chat.awayStatus}
                 </span>
               </div>
             </div>
@@ -292,7 +292,7 @@ export function PublicChatWidget({
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-[10px] uppercase tracking-wider font-semibold text-stone-200 transition cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
-                  New
+                  {t.chat.newBtn}
                 </button>
               )}
               <button
@@ -313,7 +313,7 @@ export function PublicChatWidget({
           {isLoadingState && !conversation ? (
             <div className="p-8 flex items-center justify-center text-xs text-stone-500 gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-amber-800" />
-              Connecting to resort desk...
+              {t.chat.connecting}
             </div>
           ) : !showConversationThread ? (
             <form
@@ -321,9 +321,7 @@ export function PublicChatWidget({
               className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 text-xs"
             >
               <p className="text-stone-600 leading-relaxed">
-                {staffOnline
-                  ? 'Ask our island desk about room availability, rates, or Camotes ferry transfers.'
-                  : 'Our team is currently away from the desk. Leave your question and contact details below—we will notify our team immediately and reply by chat and email.'}
+                {staffOnline ? t.chat.onlineIntro : t.chat.awayIntro}
               </p>
 
               {error && (
@@ -338,10 +336,10 @@ export function PublicChatWidget({
               {/* Quick Topic Starters */}
               <div className="space-y-1.5">
                 <span className="block text-[10px] uppercase tracking-[0.18em] text-stone-400 font-semibold">
-                  Quick Questions
+                  {t.chat.quickQuestions}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {VISITOR_QUICK_TOPICS.map((topic) => (
+                  {t.chat.quickTopics.map((topic) => (
                     <button
                       key={topic}
                       type="button"
@@ -376,7 +374,7 @@ export function PublicChatWidget({
                   htmlFor="chat-visitor-name"
                   className="block text-[10px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                 >
-                  Your Name *
+                  {t.chat.yourName}
                 </label>
                 <input
                   id="chat-visitor-name"
@@ -390,44 +388,39 @@ export function PublicChatWidget({
                 />
               </div>
 
-              <div className="space-y-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label
-                      htmlFor="chat-visitor-email"
-                      className="block text-[10px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
-                    >
-                      Email
-                    </label>
-                    <input
-                      id="chat-visitor-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="guest@email.com"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="chat-visitor-phone"
-                      className="block text-[10px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
-                    >
-                      Phone / Viber
-                    </label>
-                    <input
-                      id="chat-visitor-phone"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+63 9XX XXX XXXX"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700"
-                    />
-                  </div>
+              <div className="space-y-2.5">
+                <div>
+                  <label
+                    htmlFor="chat-visitor-email"
+                    className="block text-[10px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
+                  >
+                    {t.chat.email}
+                  </label>
+                  <input
+                    id="chat-visitor-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="guest@email.com"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="chat-visitor-phone"
+                    className="block text-[10px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
+                  >
+                    {t.chat.phoneViber}
+                  </label>
+                  <PhoneNumberInput
+                    id="chat-visitor-phone"
+                    size="sm"
+                    value={phone}
+                    onChange={setPhone}
+                  />
                 </div>
                 <p className="text-[10px] text-stone-400">
-                  Provide email or phone so we can follow up if you leave this
-                  page.
+                  {t.chat.followUpHint}
                 </p>
               </div>
 
@@ -436,7 +429,7 @@ export function PublicChatWidget({
                   htmlFor="chat-visitor-message"
                   className="block text-[10px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                 >
-                  Message *
+                  {t.chat.message}
                 </label>
                 <textarea
                   id="chat-visitor-message"
@@ -445,7 +438,7 @@ export function PublicChatWidget({
                   maxLength={1500}
                   value={firstMessage}
                   onChange={(e) => setFirstMessage(e.target.value)}
-                  placeholder="Hello! We are planning a 2-night stay..."
+                  placeholder={t.chat.messagePlaceholder}
                   className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 resize-none"
                 />
               </div>
@@ -457,7 +450,7 @@ export function PublicChatWidget({
                     onClick={() => setStartingNew(false)}
                     className="px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-600 hover:bg-stone-100 transition cursor-pointer"
                   >
-                    Back
+                    {t.chat.back}
                   </button>
                 )}
                 <button
@@ -471,10 +464,10 @@ export function PublicChatWidget({
                     <Send className="w-3.5 h-3.5" />
                   )}
                   {isSending
-                    ? 'Sending...'
+                    ? t.chat.sending
                     : staffOnline
-                      ? 'Start Live Chat'
-                      : 'Send Inquiry'}
+                      ? t.chat.startLiveChat
+                      : t.chat.sendInquiry}
                 </button>
               </div>
             </form>
@@ -487,9 +480,7 @@ export function PublicChatWidget({
               >
                 {!staffOnline && (
                   <div className="rounded-2xl bg-amber-50/80 border border-amber-200/80 px-3.5 py-2.5 text-[11px] text-amber-950 leading-relaxed">
-                    Our team has been notified via app &amp; email. Feel free to
-                    add details—your chat stays saved here, and we&apos;ll also
-                    email our reply if you step away.
+                    {t.chat.offlineSavedBanner}
                   </div>
                 )}
 
@@ -504,7 +495,7 @@ export function PublicChatWidget({
                     >
                       <span className="text-[10px] text-stone-400 mb-1 px-1">
                         {isVisitor
-                          ? 'You'
+                          ? t.chat.you
                           : `${msg.senderName} · White Haven`}{' '}
                         · {formatChatTime(msg.createdAt)}
                       </span>
@@ -523,8 +514,7 @@ export function PublicChatWidget({
 
                 {conversation?.status === 'RESOLVED' && (
                   <div className="rounded-xl bg-stone-100 border border-stone-200 px-3 py-2 text-center text-[11px] text-stone-600">
-                    This inquiry was marked resolved. Send a message below to
-                    reopen it anytime.
+                    {t.chat.resolvedNotice}
                   </div>
                 )}
               </div>
@@ -560,7 +550,7 @@ export function PublicChatWidget({
                       }
                     }
                   }}
-                  placeholder="Write a message..."
+                  placeholder={t.chat.writeMessagePlaceholder}
                   className="flex-1 max-h-24 px-3 py-2 rounded-xl bg-[#FAF8F4] border border-stone-200 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 resize-none"
                 />
                 <button
@@ -605,7 +595,7 @@ export function PublicChatWidget({
           )}
         </span>
         <span className="hidden sm:inline text-xs uppercase tracking-[0.16em] font-semibold">
-          {isOpen ? 'Close' : 'Chat with us'}
+          {isOpen ? t.chat.close : t.chat.chatWithUs}
         </span>
         {unreadCount > 0 && (
           <span className="ml-0.5 px-1.5 py-0.5 min-w-5 rounded-full bg-amber-500 text-stone-950 text-[10px] font-bold text-center">

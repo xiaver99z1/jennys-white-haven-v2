@@ -8,6 +8,7 @@ import {
   saveCookieConsent,
 } from '#/lib/cookie-consent'
 import type { EditableCookieCategories } from '#/lib/cookie-consent'
+import { useI18n } from '#/lib/i18n'
 
 interface CookieConsentCenterProps {
   isPreferencesOpen: boolean
@@ -53,6 +54,7 @@ export function CookieConsentCenter({
   onOpenPreferences,
   onClosePreferences,
 }: CookieConsentCenterProps) {
+  const { locale, t } = useI18n()
   const [hasMounted, setHasMounted] = useState(false)
   const [hasSavedConsent, setHasSavedConsent] = useState(true)
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(false)
@@ -184,15 +186,21 @@ export function CookieConsentCenter({
         >
           <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 sm:py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="space-y-1.5 max-w-4xl">
-              <p className="text-xs text-stone-700 leading-relaxed">
-                We use cookies and local browser storage to keep your
-                reservation session secure, remember your stay preferences, and
-                understand how guests explore Jenny&apos;s White Haven. By
-                clicking <strong>Agree</strong> or configuring{' '}
-                <strong>Cookie Preferences</strong>, you acknowledge our privacy
-                practices in accordance with the Philippine Data Privacy Act of
-                2012 (RA 10173).
-              </p>
+              {locale === 'en' ? (
+                <p className="text-xs text-stone-700 leading-relaxed">
+                  We use cookies and local browser storage to keep your
+                  reservation session secure, remember your stay preferences,
+                  and understand how guests explore Jenny&apos;s White Haven. By
+                  clicking <strong>Agree</strong> or configuring{' '}
+                  <strong>Cookie Preferences</strong>, you acknowledge our
+                  privacy practices in accordance with the Philippine Data
+                  Privacy Act of 2012 (RA 10173).
+                </p>
+              ) : (
+                <p className="text-xs text-stone-700 leading-relaxed">
+                  {t.cookies.bannerBody}
+                </p>
+              )}
               {saveError && (
                 <p role="alert" className="text-xs font-medium text-rose-700">
                   {saveError}
@@ -210,14 +218,14 @@ export function CookieConsentCenter({
                 }}
                 className="px-4 py-2.5 rounded-none sm:rounded-lg border border-stone-800 bg-transparent hover:bg-stone-200/60 text-stone-900 text-[11px] uppercase tracking-[0.18em] font-semibold transition cursor-pointer"
               >
-                Cookie Preferences
+                {t.cookies.cookiePreferences}
               </button>
               <button
                 type="button"
                 onClick={() => applyAndSave(ACCEPT_ALL_COOKIE_CATEGORIES)}
                 className="px-6 py-2.5 rounded-none sm:rounded-lg bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-[11px] uppercase tracking-[0.18em] font-semibold transition cursor-pointer"
               >
-                Agree
+                {t.cookies.agree}
               </button>
             </div>
           </div>
@@ -273,7 +281,7 @@ export function CookieConsentCenter({
                   id="privacy-preferences-title"
                   className="font-serif text-xl sm:text-2xl text-stone-900 font-semibold"
                 >
-                  Privacy Preferences Center
+                  {t.cookies.privacyCenterTitle}
                 </h2>
                 <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
                   When you visit our website, we may store or retrieve
@@ -342,7 +350,7 @@ export function CookieConsentCenter({
                 )}
 
                 <h3 className="font-serif text-base sm:text-lg text-stone-900 font-semibold">
-                  Manage Consent Preferences
+                  {t.cookies.manageConsentPreferences}
                 </h3>
 
                 <div className="border border-stone-200 rounded-xl overflow-hidden bg-white divide-y divide-stone-200">
@@ -371,7 +379,7 @@ export function CookieConsentCenter({
 
                           {catKey === 'necessary' ? (
                             <span className="text-xs font-semibold text-amber-900 whitespace-nowrap">
-                              Always Active
+                              {t.cookies.alwaysActive}
                             </span>
                           ) : (
                             <button
@@ -413,14 +421,14 @@ export function CookieConsentCenter({
                   onClick={() => applyAndSave(NECESSARY_ONLY_COOKIE_CATEGORIES)}
                   className="px-3.5 py-2 rounded-lg border border-stone-300 hover:bg-stone-100 text-stone-700 text-[11px] uppercase tracking-[0.15em] font-semibold transition cursor-pointer"
                 >
-                  Essential Only
+                  {t.cookies.essentialOnly}
                 </button>
                 <button
                   type="button"
                   onClick={() => applyAndSave(ACCEPT_ALL_COOKIE_CATEGORIES)}
                   className="px-3.5 py-2 rounded-lg border border-stone-300 hover:bg-stone-100 text-stone-700 text-[11px] uppercase tracking-[0.15em] font-semibold transition cursor-pointer"
                 >
-                  Allow All
+                  {t.cookies.allowAll}
                 </button>
               </div>
 
@@ -429,7 +437,7 @@ export function CookieConsentCenter({
                 onClick={() => applyAndSave(draft)}
                 className="px-6 py-2.5 rounded-lg bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-[11px] uppercase tracking-[0.18em] font-semibold transition cursor-pointer"
               >
-                Confirm My Choices
+                {t.cookies.confirmChoices}
               </button>
             </div>
           </div>

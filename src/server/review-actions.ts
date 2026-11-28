@@ -2,6 +2,7 @@ import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { authSession } from '#/lib/auth-helpers'
 import { logActivity } from '#/lib/logger'
+import { phonesMatch } from '#/lib/phone'
 import { createNotification } from '#/server/notification-actions'
 import { requirePermission } from '#/lib/require-permission'
 import type {
@@ -194,7 +195,7 @@ export const submitPublicReviewHandler = createServerOnlyFn(
       )
     }
 
-    const matchesPhone = booking.guest.phone.trim().toLowerCase() === contact
+    const matchesPhone = phonesMatch(booking.guest.phone, contact)
     const matchesEmail =
       (booking.guest.email?.trim().toLowerCase() ?? '') === contact
 

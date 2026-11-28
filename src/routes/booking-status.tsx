@@ -7,12 +7,11 @@ import { lookupPublicBooking } from '#/server/public-actions'
 import { submitPublicReview } from '#/server/review-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StatusBadge } from '#/components/common/StatusBadge'
-import { REVIEW_RATING_LABELS } from '#/lib/constants/labels'
 import { useCurrency } from '#/lib/currency'
+import { useI18n } from '#/lib/i18n'
 import {
   formatDate,
   formatPeso,
-  formatShortDate,
   getBookingStatusMeta,
   getErrorMessage,
   getPaymentStatusMeta,
@@ -33,6 +32,7 @@ export const Route = createFileRoute('/booking-status')({
 function BookingStatusPage() {
   const { sections } = Route.useLoaderData()
   const { currency, isConverted, formatPrice } = useCurrency()
+  const { t, formatStayDate } = useI18n()
   const contactSection = sections.find((s) => s.key === 'contact')
   const brandingSection = sections.find((s) => s.key === 'branding')
 
@@ -147,14 +147,13 @@ function BookingStatusPage() {
       <section className="max-w-2xl mx-auto px-6 py-16 sm:py-24 space-y-10">
         <div className="text-center space-y-3">
           <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
-            Guest Lookup
+            {t.bookingLookup.eyebrow}
           </p>
           <h1 className="text-3xl sm:text-4xl font-serif text-stone-900">
-            Check Booking Status
+            {t.bookingLookup.title}
           </h1>
           <p className="text-sm text-stone-600">
-            Enter your booking reference and the phone number or email used
-            when reserving.
+            {t.bookingLookup.subtitle}
           </p>
         </div>
 
@@ -176,7 +175,7 @@ function BookingStatusPage() {
               htmlFor="lookup-reference"
               className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5"
             >
-              Booking Reference
+              {t.bookingLookup.bookingReference}
             </label>
             <input
               id="lookup-reference"
@@ -194,7 +193,7 @@ function BookingStatusPage() {
               htmlFor="lookup-contact"
               className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5"
             >
-              Phone Number or Email
+              {t.bookingLookup.phoneOrEmail}
             </label>
             <input
               id="lookup-contact"
@@ -202,7 +201,7 @@ function BookingStatusPage() {
               required
               value={contact}
               onChange={(e) => setContact(e.target.value)}
-              placeholder="+63 9XX XXX XXXX or guest@email.com"
+              placeholder={t.bookingLookup.phoneOrEmailPlaceholder}
               className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900"
             />
           </div>
@@ -217,14 +216,15 @@ function BookingStatusPage() {
             ) : (
               <Search className="w-4 h-4" />
             )}
-            {isSearching ? 'Searching...' : 'Find Reservation'}
+            {isSearching
+              ? t.bookingLookup.searching
+              : t.bookingLookup.findReservation}
           </button>
         </form>
 
         {notFound && (
           <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center text-sm text-stone-600">
-            No matching reservation was found. Please verify your booking
-            reference and contact details.
+            {t.bookingLookup.notFoundMessage}
           </div>
         )}
 
@@ -234,7 +234,7 @@ function BookingStatusPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-stone-100">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.18em] text-stone-500">
-                    Reference
+                    {t.bookingLookup.reference}
                   </p>
                   <p className="text-xl font-mono font-bold text-stone-900">
                     {result.bookingReference}
@@ -242,11 +242,11 @@ function BookingStatusPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge
-                    label={bookingMeta.label}
+                    label={t.common.bookingStatuses[result.status]}
                     className={bookingMeta.className}
                   />
                   <StatusBadge
-                    label={paymentMeta.label}
+                    label={t.common.paymentStatuses[result.paymentStatus]}
                     className={paymentMeta.className}
                   />
                 </div>
@@ -254,56 +254,68 @@ function BookingStatusPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-xs text-stone-500">Guest</p>
+                  <p className="text-xs text-stone-500">
+                    {t.bookingLookup.guest}
+                  </p>
                   <p className="font-semibold text-stone-900">
                     {result.guestName}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-stone-500">Room</p>
+                  <p className="text-xs text-stone-500">
+                    {t.bookingLookup.room}
+                  </p>
                   <p className="font-semibold text-stone-900">
-                    {result.roomName} (Room {result.roomNumber})
+                    {result.roomName} ({t.common.roomNumber(result.roomNumber)})
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-stone-500">Check-in</p>
+                  <p className="text-xs text-stone-500">
+                    {t.bookingLookup.checkIn}
+                  </p>
                   <p className="font-semibold text-stone-900">
-                    {formatShortDate(result.checkIn)}
+                    {formatStayDate(result.checkIn)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-stone-500">Check-out</p>
+                  <p className="text-xs text-stone-500">
+                    {t.bookingLookup.checkOut}
+                  </p>
                   <p className="font-semibold text-stone-900">
-                    {formatShortDate(result.checkOut)} ({result.nights}{' '}
-                    {result.nights === 1 ? 'night' : 'nights'})
+                    {formatStayDate(result.checkOut)} (
+                    {t.common.nightCount(result.nights)})
                   </p>
                 </div>
               </div>
 
               <div className="rounded-2xl bg-stone-50 border border-stone-200/70 p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-stone-600">
-                  <span>Total Amount</span>
+                  <span>{t.bookingLookup.totalAmount}</span>
                   <span>{formatPrice(result.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between text-stone-600">
-                  <span>Amount Paid</span>
+                  <span>{t.bookingLookup.amountPaid}</span>
                   <span>{formatPrice(result.amountPaid)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-stone-900 pt-2 border-t border-stone-200/70">
-                  <span>Remaining Balance</span>
+                  <span>{t.bookingLookup.remainingBalance}</span>
                   <span>{formatPrice(balance)}</span>
                 </div>
                 {isConverted && (
                   <p className="text-[11px] text-stone-500 pt-1">
-                    Approx. in {currency} · Official billing total:{' '}
-                    {formatPeso(result.totalAmount)} PHP.
+                    {t.bookingLookup.officialBillingNote(
+                      currency,
+                      formatPeso(result.totalAmount),
+                    )}
                   </p>
                 )}
               </div>
 
               {balance > 0 && contactSection?.metadata.paymentInfo && (
                 <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-4 text-xs text-amber-950 leading-relaxed">
-                  <p className="font-semibold mb-1">Payment Instructions</p>
+                  <p className="font-semibold mb-1">
+                    {t.bookingLookup.paymentInstructions}
+                  </p>
                   <p>{contactSection.metadata.paymentInfo}</p>
                 </div>
               )}
@@ -317,8 +329,8 @@ function BookingStatusPage() {
                     <CheckCircle2 className="w-5 h-5 text-emerald-700" />
                     <h2 className="text-xl font-serif text-stone-900">
                       {reviewJustSubmitted
-                        ? 'Thank you for reviewing your stay!'
-                        : 'Your Stay Review'}
+                        ? t.bookingLookup.thankYouReview
+                        : t.bookingLookup.yourStayReview}
                     </h2>
                   </div>
                   <span
@@ -331,17 +343,16 @@ function BookingStatusPage() {
                     }`}
                   >
                     {result.existingReview.status === 'APPROVED'
-                      ? 'Published'
+                      ? t.bookingLookup.published
                       : result.existingReview.status === 'HIDDEN'
-                        ? 'Archived'
-                        : 'Pending Approval'}
+                        ? t.bookingLookup.archived
+                        : t.bookingLookup.pendingApproval}
                   </span>
                 </div>
 
                 {reviewJustSubmitted && (
                   <p className="text-xs text-stone-600 leading-relaxed">
-                    Your verified review has been received and will appear on our
-                    Guest Reviews page once approved by our team.
+                    {t.bookingLookup.reviewReceivedNote}
                   </p>
                 )}
 
@@ -382,16 +393,18 @@ function BookingStatusPage() {
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-700" />
                     <p className="text-[11px] uppercase tracking-[0.22em] text-amber-800 font-semibold">
-                      Verified Guest Review
+                      {t.bookingLookup.verifiedGuestReview}
                     </p>
                   </div>
                   <h2 className="text-2xl font-serif text-stone-900">
-                    How Was Your Stay at Jenny&apos;s White Haven?
+                    {t.bookingLookup.howWasYourStay}
                   </h2>
                   <p className="text-xs text-stone-600 leading-relaxed">
-                    Reviewing as <strong>{result.guestName}</strong> for{' '}
-                    <strong>{result.roomName}</strong> (
-                    {result.bookingReference}).
+                    {t.bookingLookup.reviewingAs(
+                      result.guestName,
+                      result.roomName,
+                      result.bookingReference,
+                    )}
                   </p>
                 </div>
 
@@ -406,7 +419,7 @@ function BookingStatusPage() {
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] uppercase tracking-[0.18em] text-stone-600 font-semibold">
-                    Your Rating *
+                    {t.bookingLookup.yourRating}
                   </label>
                   <div className="flex items-center gap-1.5">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -429,7 +442,7 @@ function BookingStatusPage() {
                       </button>
                     ))}
                     <span className="text-xs text-stone-600 ml-2">
-                      {REVIEW_RATING_LABELS[activeRatingDisplay]}
+                      {t.common.reviewRatings[activeRatingDisplay]}
                     </span>
                   </div>
                 </div>
@@ -440,7 +453,7 @@ function BookingStatusPage() {
                       htmlFor="booking-review-location"
                       className="block text-[11px] uppercase tracking-[0.18em] text-stone-600 font-semibold mb-1.5"
                     >
-                      From (Optional)
+                      {t.bookingLookup.fromOptional}
                     </label>
                     <input
                       id="booking-review-location"
@@ -448,7 +461,7 @@ function BookingStatusPage() {
                       maxLength={80}
                       value={guestLocation}
                       onChange={(e) => setGuestLocation(e.target.value)}
-                      placeholder="e.g., Cebu City"
+                      placeholder={t.bookingLookup.fromPlaceholder}
                       className="w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900"
                     />
                   </div>
@@ -457,7 +470,7 @@ function BookingStatusPage() {
                       htmlFor="booking-review-title"
                       className="block text-[11px] uppercase tracking-[0.18em] text-stone-600 font-semibold mb-1.5"
                     >
-                      Headline (Optional)
+                      {t.bookingLookup.headlineOptional}
                     </label>
                     <input
                       id="booking-review-title"
@@ -465,7 +478,7 @@ function BookingStatusPage() {
                       maxLength={120}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Peaceful mornings by Santiago Bay"
+                      placeholder={t.bookingLookup.headlinePlaceholder}
                       className="w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900"
                     />
                   </div>
@@ -476,7 +489,7 @@ function BookingStatusPage() {
                     htmlFor="booking-review-comment"
                     className="block text-[11px] uppercase tracking-[0.18em] text-stone-600 font-semibold mb-1.5"
                   >
-                    Your Experience *
+                    {t.bookingLookup.yourReview}
                   </label>
                   <textarea
                     id="booking-review-comment"
@@ -486,7 +499,7 @@ function BookingStatusPage() {
                     rows={4}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Share what you enjoyed most about your room, the atmosphere, and our island hospitality..."
+                    placeholder={t.bookingLookup.yourReviewPlaceholder}
                     className="w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900 resize-y"
                   />
                 </div>
@@ -497,18 +510,14 @@ function BookingStatusPage() {
                   className="w-full py-3 px-5 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-900 transition cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingReview
-                    ? 'Submitting Review...'
-                    : 'Submit Verified Review'}
+                    ? t.bookingLookup.submittingReview
+                    : t.bookingLookup.submitVerifiedReview}
                 </button>
               </form>
             ) : (
               <div className="rounded-2xl bg-[#F3EFE7] border border-stone-200/80 p-4 text-xs text-stone-600 flex items-center gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-amber-800 shrink-0" />
-                <span>
-                  Once your stay is completed (<strong>Checked Out</strong>) and
-                  fully paid (<strong>Paid</strong>), you can return to this
-                  page to submit a verified review for your stay.
-                </span>
+                <span>{t.bookingLookup.postStayEligibilityNote}</span>
               </div>
             )}
           </div>

@@ -19,6 +19,7 @@ import {
   sendChatReplyToGuestEmail,
 } from '#/lib/email'
 import { formatFullName } from '#/lib/formatters'
+import { normalizePhoneForStorage } from '#/lib/phone'
 import { prisma } from '#/lib/prisma'
 import { requirePermission } from '#/lib/require-permission'
 import type {
@@ -461,12 +462,15 @@ export async function sendVisitorChatMessageHandler({
       isNewConversation = true
       const visitorName = (validated.name ?? '').trim()
       const visitorEmail = (validated.email ?? '').trim() || null
-      const visitorPhone = (validated.phone ?? '').trim() || null
+      const rawVisitorPhone = (validated.phone ?? '').trim()
+      const visitorPhone = rawVisitorPhone
+        ? normalizePhoneForStorage(rawVisitorPhone)
+        : null
 
       if (visitorName.length < 2 || visitorName.length > 80) {
         throw new Error('Please enter your name (2–80 characters).')
       }
-      if (!visitorEmail && !visitorPhone) {
+      if (!visitorEmail && !rawVisitorPhone) {
         throw new Error(
           'Please provide an email address or phone number so we can follow up.',
         )
@@ -474,7 +478,10 @@ export async function sendVisitorChatMessageHandler({
       if (visitorEmail && !isSingleMailboxEmail(visitorEmail)) {
         throw new Error('Please enter a valid single email address.')
       }
-      if (visitorPhone && (visitorPhone.length < 7 || visitorPhone.length > 30)) {
+      if (
+        rawVisitorPhone &&
+        (!visitorPhone || visitorPhone.length < 8 || visitorPhone.length > 16)
+      ) {
         throw new Error('Please enter a valid phone number.')
       }
 
@@ -756,12 +763,19 @@ async function findDeterministicMatchedGuest(
     }
   }
 
-  const normalizedPhone = visitorPhone?.trim() || ''
-  if (normalizedPhone) {
+  const rawPhone = visitorPhone?.trim() || ''
+  const normalizedPhone = normalizePhoneForStorage(rawPhone)
+  const phoneCandidates = Array.from(
+    new Set([normalizedPhone, rawPhone].filter(Boolean)),
+  )
+  if (phoneCandidates.length > 0) {
     const phoneMatches = await prisma.guest.findMany({
       where: {
         deletedAt: null,
-        phone: normalizedPhone,
+        phone:
+          phoneCandidates.length === 1
+            ? phoneCandidates[0]
+            : { in: phoneCandidates },
       },
       take: 2,
       select: { id: true, firstName: true, lastName: true },

@@ -3,6 +3,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { NotFoundPage } from '#/components/common/NotFoundPage'
 import { CurrencyProvider } from '#/lib/currency'
+import { I18nProvider } from '#/lib/i18n'
 
 import appCss from '../styles.css?url'
 
@@ -55,7 +56,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <CurrencyProvider>{children}</CurrencyProvider>
+        <I18nProvider>
+          <CurrencyProvider>{children}</CurrencyProvider>
+        </I18nProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

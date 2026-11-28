@@ -129,11 +129,19 @@ describe('CmsSettings', () => {
 
     const sidebar = container.querySelector('#cms-sections-sidebar')!
     const form = container.querySelector('form')!
+    const previewLink = screen.getByRole('link', {
+      name: /Preview Public Site/i,
+    })
+    const hideBtn = screen.getByRole('button', { name: /Hide Menu/i })
 
+    expect(hideBtn.parentElement).toContainElement(previewLink)
+    expect(
+      within(form).queryByRole('button', { name: /Hide Menu/i }),
+    ).not.toBeInTheDocument()
     expect(sidebar.className).toContain('lg:col-span-4')
     expect(form.className).toContain('lg:col-span-8')
 
-    fireEvent.click(screen.getByRole('button', { name: /Hide Menu/i }))
+    fireEvent.click(hideBtn)
     expect(sidebar.className).toContain('lg:hidden')
     expect(form.className).toContain('lg:col-span-12')
 

@@ -93,11 +93,11 @@ describe('EditGuestModal', () => {
     fireEvent.change(lastNameInput, { target: { value: 'Santos' } })
     expect(saveBtn).toBeDisabled()
 
-    // 3. phone
-    const phoneInput = screen.getByDisplayValue('+63 917 123 4567')
+    // 3. phone (country selector + subscriber digits normalized to 639171234567)
+    const phoneInput = screen.getByDisplayValue('9171234567')
     fireEvent.change(phoneInput, { target: { value: '09180001111' } })
     expect(saveBtn).toBeEnabled()
-    fireEvent.change(phoneInput, { target: { value: '+63 917 123 4567' } })
+    fireEvent.change(phoneInput, { target: { value: '9171234567' } })
     expect(saveBtn).toBeDisabled()
 
     // 4. email
