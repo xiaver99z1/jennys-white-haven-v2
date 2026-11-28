@@ -18,4 +18,4 @@ Notes:
 - Database access only through Prisma.
 - Authentication handled only by Better Auth.
 - All reservation rates, payments, and balances are stored and billed in **Philippine Pesos (`PHP`)**; foreign currencies selected on public pages are display estimates only.
-- Media relationships use explicit foreign keys (`User -> Media`, `Room -> RoomMedia -> Media`, `Booking -> BookingMedia -> Media`, `Business -> BusinessMedia -> Media`).
+- Media relationships use explicit foreign keys (`User -> Media`, `Room -> RoomMedia -> Media`, `Booking -> BookingMedia -> Media`, `SiteSection -> BusinessMedia -> Media`).

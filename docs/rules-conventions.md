@@ -45,6 +45,6 @@
    - `User -> Media` (profile image)
    - `Room -> RoomMedia -> Media`
    - `Booking -> BookingMedia -> Media`
-   - `Business -> BusinessMedia -> Media` (CMS / site media)
+   - `SiteSection -> BusinessMedia -> Media` (CMS / site media)
 7. **Database transactions:** Always use database transactions (`prisma.$transaction`) when creating or updating media relationships.
 8. **Safe deletion & cleanup:** Delete R2 files when media records are permanently deleted, but **never delete the actual R2 file before confirming the database operation**. Mark/queue deletions and use a cleanup process or background job to handle failed R2 deletions.

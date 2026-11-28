@@ -9,7 +9,7 @@ Full-stack staycation reservation platform, CMS, and operations dashboard for **
 
 - **Framework:** TanStack Start (file-based routing) + React 19 + TypeScript
 - **Styling:** Tailwind CSS v4 + Lucide Icons
-- **Database & ORM:** PostgreSQL + Prisma
+- **Database & ORM:** PostgreSQL + Prisma (`prisma/schema.prisma`)
 - **Authentication & RBAC:** Better Auth (`/api/auth/$`) + role permissions (`super_admin`, `owner`, `manager`, `receptionist`)
 - **Storage & Media:** Cloudflare R2 (presigned uploads, relational media keys) + Cloudflare CDN (`WebP` / `AVIF`)
 - **Transactional Email:** Nodemailer SMTP (account activation, password reset, live chat inquiry & guest reply alerts)
@@ -26,7 +26,7 @@ Full-stack staycation reservation platform, CMS, and operations dashboard for **
 
 2. **Configure environment variables**:
 
-   Copy `.env.example` to `.env` and configure PostgreSQL (`DATABASE_URL`), Better Auth (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`), Cloudflare R2 credentials, and SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`).
+   Create a `.env` file in the project root and set PostgreSQL (`DATABASE_URL`), Better Auth (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`), Cloudflare R2 (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PRIVATE_BUCKET_NAME`, `R2_PUBLIC_URL`), and SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`), plus optional `VITE_GA_MEASUREMENT_ID`.
 
 3. **Generate Prisma client & sync schema**:
 
@@ -47,22 +47,24 @@ Full-stack staycation reservation platform, CMS, and operations dashboard for **
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `pnpm dev` | Start Vite + TanStack Start dev server on port 3000 |
-| `pnpm build` | Generate Prisma client and build production bundle |
-| `pnpm preview` | Preview production build locally |
-| `pnpm lint` | Run ESLint across the repository |
-| `pnpm format` | Format code with Prettier and fix ESLint issues |
-| `pnpm check` | Check Prettier formatting and ESLint rules |
-| `pnpm test` | Run unit tests with Vitest |
-| `pnpm coverage` | Run Vitest suite with V8 coverage report |
-| `pnpm db:generate` | Generate Prisma client |
-| `pnpm db:push` | Push `prisma/schema.prisma` changes to PostgreSQL |
+| Command                | Description                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm dev`             | Start Vite + TanStack Start dev server on port 3000                                    |
+| `pnpm generate-routes` | Regenerate TanStack Router route tree (`tsr generate`)                                 |
+| `pnpm build`           | Generate Prisma client and build production bundle (`pnpm db:generate && vite build`)  |
+| `pnpm preview`         | Preview production build locally                                                       |
+| `pnpm lint`            | Run ESLint across the repository                                                       |
+| `pnpm format`          | Format code with Prettier and fix ESLint issues (`prettier --write . && eslint --fix`) |
+| `pnpm check`           | Check code formatting with Prettier (`prettier --check .`)                             |
+| `pnpm test`            | Start Vitest in interactive/watch mode (`pnpm vitest run` for a single non-watch pass) |
+| `pnpm coverage`        | Run Vitest once with V8 coverage report (`vitest run --coverage`)                      |
+| `pnpm db:generate`     | Generate Prisma client (`prisma generate`)                                             |
+| `pnpm db:push`         | Push `prisma/schema.prisma` changes to PostgreSQL (`prisma db push`)                   |
+| `pnpm db:studio`       | Open Prisma Studio on port 5555 (`prisma studio --port 5555`)                          |
 
 ## Production & Database Rollout
 
-- **Database schema sync:** `pnpm build` runs `prisma generate && vite build` and does **not** mutate your database automatically. Whenever deploying schema additions (such as `Room` extra-person fees, `BlockedDate`, `Review`, `PageView`, `ChatConversation`, `ChatMessage`, or `User` chat presence columns), run `pnpm db:push` against the target database before serving traffic.
+- **Database schema sync:** `pnpm build` runs `pnpm db:generate && vite build` and does **not** mutate your database automatically. Whenever deploying schema additions (such as `Room` extra-person fees, `BlockedDate`, `Review`, `PageView`, `ChatConversation`, `ChatMessage`, or `User` chat presence columns), run `pnpm db:push` against the target database before serving traffic.
 - **Environment security:** Variables prefixed with `VITE_` are exposed to the client bundle. Keep all database, auth, SMTP, and R2 secrets unprefixed so they remain server-only.
 
 ## Project Conventions
