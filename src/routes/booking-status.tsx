@@ -6,9 +6,20 @@ import { getPublicCmsSections } from '#/server/cms-actions'
 import { lookupPublicBooking } from '#/server/public-actions'
 import { submitPublicReview } from '#/server/review-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
+import {
+  FieldError,
+  getFieldValidationClass,
+} from '#/components/common/FormFieldError'
 import { StatusBadge } from '#/components/common/StatusBadge'
 import { useCurrency } from '#/lib/currency'
 import { useI18n } from '#/lib/i18n'
+import {
+  hasFieldErrors,
+  validateBookingReferenceField,
+  validateLocationField,
+  validateLookupContactField,
+  validateTextField,
+} from '#/lib/validation'
 import {
   formatDate,
   formatPeso,
@@ -54,9 +65,28 @@ function BookingStatusPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [reviewJustSubmitted, setReviewJustSubmitted] = useState(false)
+  const [lookupErrors, setLookupErrors] = useState<{
+    bookingReference?: string | null
+    contact?: string | null
+  }>({})
+  const [reviewFieldErrors, setReviewFieldErrors] = useState<{
+    guestLocation?: string | null
+    title?: string | null
+    comment?: string | null
+  }>({})
 
   async function handleLookup(e: FormEvent) {
     e.preventDefault()
+    const nextLookupErrors = {
+      bookingReference: validateBookingReferenceField(
+        bookingReference,
+        t.validation,
+      ),
+      contact: validateLookupContactField(contact, t.validation),
+    }
+    setLookupErrors(nextLookupErrors)
+    if (hasFieldErrors(nextLookupErrors)) return
+
     setIsSearching(true)
     setError(null)
     setNotFound(false)
@@ -66,14 +96,17 @@ function BookingStatusPage() {
     setReviewJustSubmitted(false)
     try {
       const found = await lookupPublicBooking({
-        data: { bookingReference, contact },
+        data: {
+          bookingReference: bookingReference.trim(),
+          contact: contact.trim(),
+        },
       })
       if (!found) {
         setNotFound(true)
       } else {
         activeBookingRef.current = found.bookingReference
         setResult(found)
-        setVerifiedContact(contact)
+        setVerifiedContact(contact.trim())
       }
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to look up reservation.'))
@@ -85,6 +118,26 @@ function BookingStatusPage() {
   async function handleSubmitReview(e: FormEvent) {
     e.preventDefault()
     if (!result) return
+
+    const nextReviewErrors = {
+      guestLocation: validateLocationField(guestLocation, t.validation),
+      title: validateTextField(title, {
+        label: t.validation.headlineLabel,
+        minLength: 2,
+        maxLength: 120,
+        messages: t.validation,
+      }),
+      comment: validateTextField(comment, {
+        label: t.validation.reviewCommentLabel,
+        required: true,
+        minLength: 10,
+        maxLength: 1500,
+        messages: t.validation,
+      }),
+    }
+    setReviewFieldErrors(nextReviewErrors)
+    if (hasFieldErrors(nextReviewErrors)) return
+
     const targetBookingRef = result.bookingReference
     const targetContact = verifiedContact || contact
     setReviewError(null)
@@ -94,10 +147,10 @@ function BookingStatusPage() {
         data: {
           bookingReference: targetBookingRef,
           contact: targetContact,
-          guestLocation: guestLocation || undefined,
+          guestLocation: guestLocation.trim() || undefined,
           rating,
-          title: title || undefined,
-          comment,
+          title: title.trim() || undefined,
+          comment: comment.trim(),
         },
       })
       if (activeBookingRef.current !== targetBookingRef) {
@@ -116,6 +169,7 @@ function BookingStatusPage() {
       setGuestLocation('')
       setTitle('')
       setComment('')
+      setReviewFieldErrors({})
       setRating(5)
     } catch (err) {
       if (activeBookingRef.current === targetBookingRef) {
@@ -158,6 +212,7 @@ function BookingStatusPage() {
         </div>
 
         <form
+          noValidate
           onSubmit={handleLookup}
           className="bg-white rounded-3xl border border-stone-200/80 shadow-xs p-6 sm:p-8 space-y-4"
         >
@@ -181,10 +236,45 @@ function BookingStatusPage() {
               id="lookup-reference"
               type="text"
               required
+              maxLength={30}
+              aria-invalid={Boolean(lookupErrors.bookingReference)}
+              aria-describedby={
+                lookupErrors.bookingReference
+                  ? 'lookup-reference-error'
+                  : undefined
+              }
               value={bookingReference}
-              onChange={(e) => setBookingReference(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                setBookingReference(next)
+                if (lookupErrors.bookingReference) {
+                  setLookupErrors((prev) => ({
+                    ...prev,
+                    bookingReference: validateBookingReferenceField(
+                      next,
+                      t.validation,
+                    ),
+                  }))
+                }
+              }}
+              onBlur={() =>
+                setLookupErrors((prev) => ({
+                  ...prev,
+                  bookingReference: validateBookingReferenceField(
+                    bookingReference,
+                    t.validation,
+                  ),
+                }))
+              }
               placeholder="JWH-XXXXXX"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 uppercase"
+              className={getFieldValidationClass(
+                'w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 uppercase focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                Boolean(lookupErrors.bookingReference),
+              )}
+            />
+            <FieldError
+              id="lookup-reference-error"
+              message={lookupErrors.bookingReference}
             />
           </div>
 
@@ -199,10 +289,37 @@ function BookingStatusPage() {
               id="lookup-contact"
               type="text"
               required
+              maxLength={254}
+              aria-invalid={Boolean(lookupErrors.contact)}
+              aria-describedby={
+                lookupErrors.contact ? 'lookup-contact-error' : undefined
+              }
               value={contact}
-              onChange={(e) => setContact(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                setContact(next)
+                if (lookupErrors.contact) {
+                  setLookupErrors((prev) => ({
+                    ...prev,
+                    contact: validateLookupContactField(next, t.validation),
+                  }))
+                }
+              }}
+              onBlur={() =>
+                setLookupErrors((prev) => ({
+                  ...prev,
+                  contact: validateLookupContactField(contact, t.validation),
+                }))
+              }
               placeholder={t.bookingLookup.phoneOrEmailPlaceholder}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900"
+              className={getFieldValidationClass(
+                'w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                Boolean(lookupErrors.contact),
+              )}
+            />
+            <FieldError
+              id="lookup-contact-error"
+              message={lookupErrors.contact}
             />
           </div>
 
@@ -386,6 +503,7 @@ function BookingStatusPage() {
               </div>
             ) : isCompletedAndPaid ? (
               <form
+                noValidate
                 onSubmit={handleSubmitReview}
                 className="bg-[#F3EFE7] rounded-3xl border border-stone-200/80 p-6 sm:p-8 space-y-5"
               >
@@ -459,10 +577,44 @@ function BookingStatusPage() {
                       id="booking-review-location"
                       type="text"
                       maxLength={80}
+                      aria-invalid={Boolean(reviewFieldErrors.guestLocation)}
+                      aria-describedby={
+                        reviewFieldErrors.guestLocation
+                          ? 'booking-review-location-error'
+                          : undefined
+                      }
                       value={guestLocation}
-                      onChange={(e) => setGuestLocation(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setGuestLocation(next)
+                        if (reviewFieldErrors.guestLocation) {
+                          setReviewFieldErrors((prev) => ({
+                            ...prev,
+                            guestLocation: validateLocationField(
+                              next,
+                              t.validation,
+                            ),
+                          }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setReviewFieldErrors((prev) => ({
+                          ...prev,
+                          guestLocation: validateLocationField(
+                            guestLocation,
+                            t.validation,
+                          ),
+                        }))
+                      }
                       placeholder={t.bookingLookup.fromPlaceholder}
-                      className="w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900"
+                      className={getFieldValidationClass(
+                        'w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                        Boolean(reviewFieldErrors.guestLocation),
+                      )}
+                    />
+                    <FieldError
+                      id="booking-review-location-error"
+                      message={reviewFieldErrors.guestLocation}
                     />
                   </div>
                   <div>
@@ -476,10 +628,48 @@ function BookingStatusPage() {
                       id="booking-review-title"
                       type="text"
                       maxLength={120}
+                      aria-invalid={Boolean(reviewFieldErrors.title)}
+                      aria-describedby={
+                        reviewFieldErrors.title
+                          ? 'booking-review-title-error'
+                          : undefined
+                      }
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setTitle(next)
+                        if (reviewFieldErrors.title) {
+                          setReviewFieldErrors((prev) => ({
+                            ...prev,
+                            title: validateTextField(next, {
+                              label: t.validation.headlineLabel,
+                              minLength: 2,
+                              maxLength: 120,
+                              messages: t.validation,
+                            }),
+                          }))
+                        }
+                      }}
+                      onBlur={() =>
+                        setReviewFieldErrors((prev) => ({
+                          ...prev,
+                          title: validateTextField(title, {
+                            label: t.validation.headlineLabel,
+                            minLength: 2,
+                            maxLength: 120,
+                            messages: t.validation,
+                          }),
+                        }))
+                      }
                       placeholder={t.bookingLookup.headlinePlaceholder}
-                      className="w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900"
+                      className={getFieldValidationClass(
+                        'w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                        Boolean(reviewFieldErrors.title),
+                      )}
+                    />
+                    <FieldError
+                      id="booking-review-title-error"
+                      message={reviewFieldErrors.title}
                     />
                   </div>
                 </div>
@@ -497,10 +687,50 @@ function BookingStatusPage() {
                     minLength={10}
                     maxLength={1500}
                     rows={4}
+                    aria-invalid={Boolean(reviewFieldErrors.comment)}
+                    aria-describedby={
+                      reviewFieldErrors.comment
+                        ? 'booking-review-comment-error'
+                        : undefined
+                    }
                     value={comment}
-                    onChange={(e) => setComment(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setComment(next)
+                      if (reviewFieldErrors.comment) {
+                        setReviewFieldErrors((prev) => ({
+                          ...prev,
+                          comment: validateTextField(next, {
+                            label: t.validation.reviewCommentLabel,
+                            required: true,
+                            minLength: 10,
+                            maxLength: 1500,
+                            messages: t.validation,
+                          }),
+                        }))
+                      }
+                    }}
+                    onBlur={() =>
+                      setReviewFieldErrors((prev) => ({
+                        ...prev,
+                        comment: validateTextField(comment, {
+                          label: t.validation.reviewCommentLabel,
+                          required: true,
+                          minLength: 10,
+                          maxLength: 1500,
+                          messages: t.validation,
+                        }),
+                      }))
+                    }
                     placeholder={t.bookingLookup.yourReviewPlaceholder}
-                    className="w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900 resize-y"
+                    className={getFieldValidationClass(
+                      'w-full rounded-xl bg-white border border-stone-200 px-3.5 py-2.5 text-sm text-stone-900 resize-y focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700',
+                      Boolean(reviewFieldErrors.comment),
+                    )}
+                  />
+                  <FieldError
+                    id="booking-review-comment-error"
+                    message={reviewFieldErrors.comment}
                   />
                 </div>
 

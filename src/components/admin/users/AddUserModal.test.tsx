@@ -185,6 +185,27 @@ describe('AddUserModal', () => {
     })
   })
 
+  it('immediately flags numbers entered in Full Name and blocks invalid submission', async () => {
+    const user = userEvent.setup()
+    render(<AddUserModal {...defaultProps} />)
+
+    await user.type(screen.getByPlaceholderText(/e\.g\. jap ocifares/i), 'Jap9')
+    expect(
+      screen.getByText('Full name cannot contain numbers.'),
+    ).toBeInTheDocument()
+
+    await user.type(
+      screen.getByPlaceholderText(/staff@jennyswhitehaven.com/i),
+      'invalid-email',
+    )
+
+    await user.click(screen.getByRole('button', { name: /create user/i }))
+    expect(
+      screen.getByText('Please enter a valid email address.'),
+    ).toBeInTheDocument()
+    expect(createAdminUser).not.toHaveBeenCalled()
+  })
+
   it('triggers onClose when Cancel button is clicked', async () => {
     const user = userEvent.setup()
     render(<AddUserModal {...defaultProps} />)

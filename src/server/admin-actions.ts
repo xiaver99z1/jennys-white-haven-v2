@@ -16,6 +16,7 @@ import {
 import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
 import { logActivity } from '#/lib/logger'
 import { prisma } from '#/lib/prisma'
+import { validateEmailField, validatePersonName } from '#/lib/validation'
 import type {
   AdminUserIdInput,
   CreateAdminUserInput,
@@ -40,6 +41,15 @@ export const createAdminUserHandler = createServerOnlyFn(
   const normalizedRole = data.role.toLowerCase()
   const now = new Date()
   const session = await authSession()
+
+  const nameValidationError = validatePersonName(data.name, { label: 'Full name' })
+  if (nameValidationError) {
+    throw new Error(nameValidationError)
+  }
+  const emailValidationError = validateEmailField(data.email, { required: true })
+  if (emailValidationError) {
+    throw new Error(emailValidationError)
+  }
 
   try {
     const existingUser = await prisma.user.findUnique({
@@ -162,6 +172,11 @@ export const updateAdminUserHandler = createServerOnlyFn(
 
     if (!existingUser) {
       throw new Error('Target user not found.')
+    }
+
+    const nameError = validatePersonName(data.name, { label: 'Full name' })
+    if (nameError) {
+      throw new Error(nameError)
     }
 
     const isPasswordUpdated = Boolean(

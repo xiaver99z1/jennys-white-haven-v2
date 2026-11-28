@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import { PasswordChallengeModal } from '#/components/common/PasswordChallengeModal'
 import { PasswordInput } from '#/components/common/PasswordInput'
 import {
+  FULL_NAME_MAX_LENGTH,
   STAFF_ROLE_OPTIONS,
   validateStaffPassword,
 } from '#/lib/constants/auth'
+import { validatePersonName, validatePersonNameLive } from '#/lib/validation'
 import { updateAdminUser } from '#/server/admin-actions'
 import type { EditableStaffUser, ResortRole, StatusMessage } from '#/types'
 
@@ -16,6 +19,9 @@ interface EditUserModalProps {
   user: EditableStaffUser | null
 }
 
+const INPUT_CLASS =
+  'w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50'
+
 export function EditUserProfileModal({
   isOpen,
   onClose,
@@ -23,6 +29,7 @@ export function EditUserProfileModal({
   user,
 }: EditUserModalProps) {
   const [name, setName] = useState('')
+  const [nameError, setNameError] = useState<string | null>(null)
   const [role, setRole] = useState<ResortRole>('RECEPTIONIST')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -49,6 +56,7 @@ export function EditUserProfileModal({
   useEffect(() => {
     if (user) {
       setName(user.name || '')
+      setNameError(null)
       setRole((user.role?.toUpperCase() || 'RECEPTIONIST') as ResortRole)
       setPassword('')
       setConfirmPassword('')
@@ -70,6 +78,15 @@ export function EditUserProfileModal({
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
+
+    const nextNameError = validatePersonName(name, {
+      label: 'Full name',
+      maxLength: FULL_NAME_MAX_LENGTH,
+    })
+    setNameError(nextNameError)
+    if (nextNameError) {
+      return
+    }
 
     if (password) {
       const passwordError = validateStaffPassword(password)
@@ -139,18 +156,42 @@ export function EditUserProfileModal({
           </div>
         )}
 
-        <form onSubmit={handlePreSubmit} className="space-y-4">
+        <form onSubmit={handlePreSubmit} noValidate className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
+            <label
+              htmlFor="edit-staff-name"
+              className="block text-sm font-medium text-stone-700 mb-1"
+            >
               Full Name
             </label>
             <input
+              id="edit-staff-name"
               type="text"
               required
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50"
+              onChange={(e) => {
+                const next = e.target.value
+                setName(next)
+                setNameError((prev) =>
+                  validatePersonNameLive(next, prev, {
+                    label: 'Full name',
+                    maxLength: FULL_NAME_MAX_LENGTH,
+                  }),
+                )
+              }}
+              onBlur={() =>
+                setNameError(
+                  validatePersonName(name, {
+                    label: 'Full name',
+                    maxLength: FULL_NAME_MAX_LENGTH,
+                  }),
+                )
+              }
+              aria-invalid={Boolean(nameError)}
+              aria-describedby={nameError ? 'edit-staff-name-error' : undefined}
+              className={getFieldValidationClass(INPUT_CLASS, Boolean(nameError))}
             />
+            <FieldError id="edit-staff-name-error" message={nameError} />
           </div>
 
           <div>

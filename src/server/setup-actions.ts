@@ -2,7 +2,6 @@ import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { hashPassword } from 'better-auth/crypto'
 import { getServerHeaders } from '#/lib/auth-helpers'
 import {
-  EMAIL_REGEX,
   FULL_NAME_MAX_LENGTH,
   FULL_NAME_MIN_LENGTH,
   VERIFICATION_EXPIRES_MINUTES,
@@ -12,6 +11,7 @@ import {
 } from '#/lib/constants/auth'
 import { generateActivationToken, sendVerificationEmail } from '#/lib/email'
 import { prisma } from '#/lib/prisma'
+import { validateEmailField, validatePersonName } from '#/lib/validation'
 import type { InitialSetupInput } from '#/types'
 
 export type { InitialSetupInput }
@@ -35,17 +35,18 @@ export const createInitialSuperAdminHandler = createServerOnlyFn(
   const email = data.email.trim().toLowerCase()
   const { password, confirmPassword } = data
 
-  if (
-    name.length < FULL_NAME_MIN_LENGTH ||
-    name.length > FULL_NAME_MAX_LENGTH
-  ) {
-    throw new Error(
-      `Full name must be between ${FULL_NAME_MIN_LENGTH} and ${FULL_NAME_MAX_LENGTH} characters.`,
-    )
+  const nameError = validatePersonName(name, {
+    label: 'Full name',
+    minLength: FULL_NAME_MIN_LENGTH,
+    maxLength: FULL_NAME_MAX_LENGTH,
+  })
+  if (nameError) {
+    throw new Error(nameError)
   }
 
-  if (!EMAIL_REGEX.test(email)) {
-    throw new Error('Please enter a valid email address.')
+  const emailError = validateEmailField(email, { required: true })
+  if (emailError) {
+    throw new Error(emailError)
   }
 
   const passwordError = validateStrongPassword(password)

@@ -11,6 +11,12 @@ import { isValidCalendarDate, formatPeso } from '#/lib/formatters'
 import { normalizePhoneForStorage, phonesMatch } from '#/lib/phone'
 import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
+  validateEmailField,
+  validatePersonName,
+  validatePhoneField,
+  validateTextField,
+} from '#/lib/validation'
+import {
   calculateNights,
   generateBookingReference,
   getStayOverlapBounds,
@@ -294,6 +300,21 @@ export async function createPublicBookingHandler({
   const lastName = data.lastName.trim()
   const phone = normalizePhoneForStorage(data.phone)
   const email = data.email?.trim() || null
+
+  const firstNameErr = validatePersonName(firstName, { label: 'First name' })
+  const lastNameErr = validatePersonName(lastName, { label: 'Last name' })
+  const phoneErr = validatePhoneField(data.phone, { required: true })
+  const emailErr = validateEmailField(email, { required: false })
+  const requestErr = validateTextField(data.specialRequests, {
+    label: 'Special requests',
+    required: false,
+    maxLength: 500,
+  })
+  const firstValidationError =
+    firstNameErr || lastNameErr || phoneErr || emailErr || requestErr
+  if (firstValidationError) {
+    throw new Error(firstValidationError)
+  }
 
   if (!firstName || !lastName || !phone) {
     throw new Error('First name, last name, and phone number are required.')

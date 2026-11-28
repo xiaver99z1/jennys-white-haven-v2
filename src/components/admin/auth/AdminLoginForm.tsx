@@ -4,20 +4,29 @@ import {
   PasswordField,
   useCooldown,
 } from '#/components/admin/auth/AuthPageShell'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import { authClient } from '#/lib/auth-client'
 import {
   RESEND_COOLDOWN_SECONDS,
   formatCooldownDuration,
 } from '#/lib/constants/auth'
 import { getErrorMessage } from '#/lib/formatters'
+import { hasFieldErrors, validateEmailField } from '#/lib/validation'
 import { logUserLogin, resendVerificationByEmail } from '#/server/auth-actions'
 import type { StatusMessage } from '#/types'
+
+const LOGIN_INPUT_CLASS =
+  'w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600 transition'
 
 export function AdminLoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string | null
+    password?: string | null
+  }>({})
   const [loading, setLoading] = useState(false)
   const [needsVerification, setNeedsVerification] = useState(false)
   const [resending, setResending] = useState(false)
@@ -31,6 +40,16 @@ export function AdminLoginForm() {
     setError('')
     setNeedsVerification(false)
     setResendStatus(null)
+
+    const nextErrors = {
+      email: validateEmailField(email, { required: true }),
+      password: !password ? 'Password is required.' : null,
+    }
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -90,7 +109,7 @@ export function AdminLoginForm() {
 
   return (
     <AuthPageShell>
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} noValidate className="space-y-5">
         <div>
           <label
             htmlFor="admin-email"
@@ -104,21 +123,56 @@ export function AdminLoginForm() {
             required
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 focus:border-amber-600 transition"
+            onChange={(e) => {
+              const next = e.target.value
+              setEmail(next)
+              if (fieldErrors.email) {
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  email: validateEmailField(next, { required: true }),
+                }))
+              }
+            }}
+            onBlur={() =>
+              setFieldErrors((prev) => ({
+                ...prev,
+                email: validateEmailField(email, { required: true }),
+              }))
+            }
+            aria-invalid={Boolean(fieldErrors.email)}
+            aria-describedby={fieldErrors.email ? 'admin-email-error' : undefined}
+            className={getFieldValidationClass(
+              LOGIN_INPUT_CLASS,
+              Boolean(fieldErrors.email),
+            )}
             placeholder="admin@example.com"
           />
+          <FieldError id="admin-email-error" message={fieldErrors.email} />
         </div>
 
-        <PasswordField
-          id="admin-password"
-          label="Password"
-          value={password}
-          showPassword={showPassword}
-          autoComplete="current-password"
-          onChange={setPassword}
-          onToggleVisibility={() => setShowPassword((prev) => !prev)}
-        />
+        <div>
+          <PasswordField
+            id="admin-password"
+            label="Password"
+            value={password}
+            showPassword={showPassword}
+            autoComplete="current-password"
+            onChange={(val) => {
+              setPassword(val)
+              if (fieldErrors.password) {
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  password: !val ? 'Password is required.' : null,
+                }))
+              }
+            }}
+            onToggleVisibility={() => setShowPassword((prev) => !prev)}
+          />
+          <FieldError
+            id="admin-password-error"
+            message={fieldErrors.password}
+          />
+        </div>
 
         {error && (
           <div

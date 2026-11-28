@@ -1,4 +1,5 @@
 import type { BookingStatus, PaymentStatus, RoomType } from '#/types'
+import type { FieldValidationMessages } from '#/lib/validation'
 
 export type LocaleCode = 'en' | 'ko' | 'ja'
 
@@ -333,6 +334,18 @@ export interface TranslationDictionary {
       performance: { title: string; description: string }
       targeting: { title: string; description: string }
     }
+  }
+  validation: FieldValidationMessages & {
+    followUpContactRequired: string
+    firstNameLabel: string
+    lastNameLabel: string
+    fullNameLabel: string
+    emailLabel: string
+    specialRequestsLabel: string
+    messageLabel: string
+    fromLabel: string
+    headlineLabel: string
+    reviewCommentLabel: string
   }
 }
 
@@ -710,6 +723,48 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         },
       },
     },
+    validation: {
+      required: (field) => `${field} is required.`,
+      nameNoNumbers: (field) => `${field} cannot contain numbers.`,
+      nameInvalidChars: (field) =>
+        `${field} can only contain letters, spaces, hyphens, and apostrophes.`,
+      nameLength: (field, min, max) =>
+        `${field} must be between ${min} and ${max} characters.`,
+      invalidEmail: 'Please enter a valid email address.',
+      phoneRequired: 'Phone number is required.',
+      phoneInvalidLength: (countryName, dialCode, min, max) =>
+        min === max
+          ? `Please enter a valid ${countryName} (${dialCode}) phone number (${min} digits).`
+          : `Please enter a valid ${countryName} (${dialCode}) phone number (${min}–${max} digits).`,
+      phoneIntlInvalidLength:
+        'Please enter a valid international phone number (7–15 digits including country code).',
+      maxLengthExceeded: (field, max) =>
+        `${field} must be ${max} characters or fewer.`,
+      minLengthRequired: (field, min) =>
+        `${field} must be at least ${min} characters.`,
+      invalidBookingReference:
+        'Booking reference should look like JWH-20261128-XXXX (letters, numbers, and hyphens only).',
+      invalidLookupContact:
+        'Enter the registered email address or phone number used when booking.',
+      invalidNationality:
+        'Nationality must be 2–60 letters without numbers or special symbols.',
+      idTypeRequiredForNumber: 'Please select an ID type for the ID number.',
+      invalidIdNumber:
+        'ID number must be 2–40 alphanumeric characters (letters, numbers, spaces, hyphens, or slashes).',
+      invalidLocation:
+        'Location must be 2–80 characters and cannot include HTML or special symbols.',
+      followUpContactRequired:
+        'Please provide an email address or phone number so we can follow up.',
+      firstNameLabel: 'First name',
+      lastNameLabel: 'Last name',
+      fullNameLabel: 'Name',
+      emailLabel: 'Email address',
+      specialRequestsLabel: 'Special requests',
+      messageLabel: 'Message',
+      fromLabel: 'City / Country',
+      headlineLabel: 'Headline',
+      reviewCommentLabel: 'Your review',
+    },
   },
 
   ko: {
@@ -1081,6 +1136,49 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
             '여행 프로모션 효과를 측정하고 소셜 플랫폼에서 관련 숙박 소식을 전달하는 데 사용됩니다. 비활성화 시 맞춤형 프로모션이 표시되지 않습니다.',
         },
       },
+    },
+    validation: {
+      required: (field) => `${field} 항목을 입력해 주세요.`,
+      nameNoNumbers: (field) => `${field}에는 숫자를 입력할 수 없습니다.`,
+      nameInvalidChars: (field) =>
+        `${field}에는 문자, 공백, 하이픈(-), 아포스트로피(')만 입력할 수 있습니다.`,
+      nameLength: (field, min, max) =>
+        `${field}은(는) ${min}자 이상 ${max}자 이하로 입력해 주세요.`,
+      invalidEmail:
+        '올바른 이메일 주소를 입력해 주세요 (예: name@example.com).',
+      phoneRequired: '휴대폰 번호를 입력해 주세요.',
+      phoneInvalidLength: (countryName, dialCode, min, max) =>
+        min === max
+          ? `${countryName} (${dialCode}) 번호 ${min}자리를 정확히 입력해 주세요.`
+          : `${countryName} (${dialCode}) 번호 ${min}~${max}자리를 입력해 주세요.`,
+      phoneIntlInvalidLength:
+        '국가 번호를 포함해 7~15자리의 올바른 국제 전화번호를 입력해 주세요.',
+      maxLengthExceeded: (field, max) =>
+        `${field}은(는) 최대 ${max}자까지 입력할 수 있습니다.`,
+      minLengthRequired: (field, min) =>
+        `${field}은(는) 최소 ${min}자 이상 입력해 주세요.`,
+      invalidBookingReference:
+        '예약 번호는 JWH-20261128-XXXX 형식(영문, 숫자, 하이픈)으로 입력해 주세요.',
+      invalidLookupContact:
+        '예약 시 등록한 이메일 주소 또는 휴대폰 번호를 입력해 주세요.',
+      invalidNationality:
+        '국적은 숫자나 특수문자 없이 2~60자로 입력해 주세요.',
+      idTypeRequiredForNumber: '신분증 번호에 해당하는 신분증 종류를 선택해 주세요.',
+      invalidIdNumber:
+        '신분증 번호는 2~40자의 영문·숫자·공백·하이픈(-)·슬래시(/)만 사용할 수 있습니다.',
+      invalidLocation:
+        '거주 지역은 특수 기호 없이 2~80자로 입력해 주세요.',
+      followUpContactRequired:
+        '답변을 받으실 수 있도록 이메일 또는 휴대폰 번호 중 하나를 입력해 주세요.',
+      firstNameLabel: '이름',
+      lastNameLabel: '성',
+      fullNameLabel: '성함',
+      emailLabel: '이메일',
+      specialRequestsLabel: '특별 요청 사항',
+      messageLabel: '문의 내용',
+      fromLabel: '거주 도시/국가',
+      headlineLabel: '한 줄 제목',
+      reviewCommentLabel: '상세 후기',
     },
   },
 
@@ -1454,6 +1552,49 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
             'キャンペーンの効果測定やSNSでの最新情報のご案内などに使用されます。無効にするとターゲティング広告は配信されません。',
         },
       },
+    },
+    validation: {
+      required: (field) => `${field}を入力してください。`,
+      nameNoNumbers: (field) => `${field}に数字は入力できません。`,
+      nameInvalidChars: (field) =>
+        `${field}には文字・スペース・ハイフン（-）・アポストロフィ（'）のみ使用できます。`,
+      nameLength: (field, min, max) =>
+        `${field}は${min}〜${max}文字で入力してください。`,
+      invalidEmail:
+        '正しいメールアドレスを入力してください（例：name@example.com）。',
+      phoneRequired: '電話番号を入力してください。',
+      phoneInvalidLength: (countryName, dialCode, min, max) =>
+        min === max
+          ? `${countryName}（${dialCode}）の電話番号を${min}桁で入力してください。`
+          : `${countryName}（${dialCode}）の電話番号を${min}〜${max}桁で入力してください。`,
+      phoneIntlInvalidLength:
+        '国番号を含め7〜15桁の正しい国際電話番号を入力してください。',
+      maxLengthExceeded: (field, max) =>
+        `${field}は${max}文字以内で入力してください。`,
+      minLengthRequired: (field, min) =>
+        `${field}は${min}文字以上で入力してください。`,
+      invalidBookingReference:
+        '予約番号は JWH-20261128-XXXX の形式（英数字・ハイフン）で入力してください。',
+      invalidLookupContact:
+        'ご予約時に登録したメールアドレスまたは電話番号を入力してください。',
+      invalidNationality:
+        '国籍は数字や記号を含めず2〜60文字で入力してください。',
+      idTypeRequiredForNumber: '身分証明書の種類を選択してください。',
+      invalidIdNumber:
+        '身分証明書番号は2〜40文字の英数字・スペース・ハイフン・スラッシュで入力してください。',
+      invalidLocation:
+        '地域名は記号を含めず2〜80文字で入力してください。',
+      followUpContactRequired:
+        'ご返信のため、メールアドレスまたは電話番号のいずれかをご入力ください。',
+      firstNameLabel: '名',
+      lastNameLabel: '姓',
+      fullNameLabel: 'お名前',
+      emailLabel: 'メールアドレス',
+      specialRequestsLabel: '特別なご要望',
+      messageLabel: 'メッセージ',
+      fromLabel: 'お住まいの地域',
+      headlineLabel: 'タイトル',
+      reviewCommentLabel: '口コミ本文',
     },
   },
 }

@@ -22,6 +22,7 @@ import { formatFullName } from '#/lib/formatters'
 import { normalizePhoneForStorage, phonesMatch } from '#/lib/phone'
 import { prisma } from '#/lib/prisma'
 import { requirePermission } from '#/lib/require-permission'
+import { validatePersonName, validatePhoneField } from '#/lib/validation'
 import type {
   AdminChatConversationSummary,
   AdminChatInboxResponse,
@@ -467,8 +468,12 @@ export async function sendVisitorChatMessageHandler({
         ? normalizePhoneForStorage(rawVisitorPhone)
         : null
 
-      if (visitorName.length < 2 || visitorName.length > 80) {
-        throw new Error('Please enter your name (2–80 characters).')
+      const visitorNameErr = validatePersonName(visitorName, {
+        label: 'Name',
+        maxLength: 80,
+      })
+      if (visitorNameErr) {
+        throw new Error(visitorNameErr)
       }
       if (!visitorEmail && !rawVisitorPhone) {
         throw new Error(
@@ -478,11 +483,18 @@ export async function sendVisitorChatMessageHandler({
       if (visitorEmail && !isSingleMailboxEmail(visitorEmail)) {
         throw new Error('Please enter a valid single email address.')
       }
-      if (
-        rawVisitorPhone &&
-        (!visitorPhone || visitorPhone.length < 8 || visitorPhone.length > 16)
-      ) {
-        throw new Error('Please enter a valid phone number.')
+      if (rawVisitorPhone) {
+        const visitorPhoneErr = validatePhoneField(rawVisitorPhone, {
+          required: false,
+        })
+        if (
+          visitorPhoneErr ||
+          !visitorPhone ||
+          visitorPhone.length < 8 ||
+          visitorPhone.length > 16
+        ) {
+          throw new Error(visitorPhoneErr || 'Please enter a valid phone number.')
+        }
       }
 
       if (ipAddress !== 'unknown') {

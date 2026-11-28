@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Ban, CalendarOff, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import {
   createBlockedDate,
   deleteBlockedDate,
@@ -10,6 +11,11 @@ import {
   buildOccupiedBookedRanges,
 } from '#/lib/constants/rooms'
 import { formatDate, formatLocalDate } from '#/lib/formatters'
+import {
+  hasFieldErrors,
+  validateStayDatesRange,
+  validateTextField,
+} from '#/lib/validation'
 import type {
   BlockedDateItem,
   BookedDateRange,
@@ -55,6 +61,10 @@ export function BlockedDatesModal({
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    dates?: string | null
+    reason?: string | null
+  }>({})
 
   const selectedRoom = useMemo(
     () => (scopeRoomId === 'ALL' ? null : rooms.find((r) => r.id === scopeRoomId)),
@@ -77,12 +87,28 @@ export function BlockedDatesModal({
 
   async function handleAddBlockedDate(e: React.FormEvent) {
     e.preventDefault()
-    if (!startDate || !endDate) {
-      setError('Please select both a start date and an end date.')
+    setError(null)
+    const nextErrors = {
+      dates: validateStayDatesRange(
+        startDate,
+        endDate,
+        'Please select both a start date and an end date.',
+      ),
+      reason: validateTextField(reason, {
+        label: 'Reason',
+        required: true,
+        minLength: 2,
+        maxLength: 120,
+      }),
+    }
+    setFieldErrors(nextErrors)
+    if (hasFieldErrors(nextErrors)) {
+      if (nextErrors.dates) {
+        setError(nextErrors.dates)
+      }
       return
     }
     setLoading(true)
-    setError(null)
     try {
       await createBlockedDate({
         data: {
@@ -92,6 +118,7 @@ export function BlockedDatesModal({
           reason: reason.trim() || 'Personal / Family Use',
         },
       })
+      setFieldErrors({})
       await onSuccess()
     } catch (err: any) {
       setError(err.message || 'Failed to block dates.')
@@ -151,6 +178,7 @@ export function BlockedDatesModal({
 
           {/* Create Blocked Date Form */}
           <form
+            noValidate
             onSubmit={handleAddBlockedDate}
             className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3.5"
           >
@@ -178,19 +206,32 @@ export function BlockedDatesModal({
               </select>
             </div>
 
-            <StayDateRangePicker
-              idPrefix="block-dates"
-              checkInLabel="Unavailable From"
-              checkOutLabel="Available Again"
-              checkIn={startDate}
-              checkOut={endDate}
-              bookedRanges={existingRanges}
-              required
-              onChange={({ checkIn, checkOut }) => {
-                setStartDate(checkIn)
-                setEndDate(checkOut)
-              }}
-            />
+            <div>
+              <StayDateRangePicker
+                idPrefix="block-dates"
+                checkInLabel="Unavailable From"
+                checkOutLabel="Available Again"
+                checkIn={startDate}
+                checkOut={endDate}
+                bookedRanges={existingRanges}
+                required
+                onChange={({ checkIn, checkOut }) => {
+                  setStartDate(checkIn)
+                  setEndDate(checkOut)
+                  if (fieldErrors.dates) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      dates: validateStayDatesRange(
+                        checkIn,
+                        checkOut,
+                        'Please select both a start date and an end date.',
+                      ),
+                    }))
+                  }
+                }}
+              />
+              <FieldError message={fieldErrors.dates} />
+            </div>
 
             <div>
               <label
@@ -203,17 +244,51 @@ export function BlockedDatesModal({
                 id="block-reason"
                 type="text"
                 required
+                maxLength={120}
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setReason(next)
+                  if (fieldErrors.reason) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      reason: validateTextField(next, {
+                        label: 'Reason',
+                        required: true,
+                        minLength: 2,
+                        maxLength: 120,
+                      }),
+                    }))
+                  }
+                }}
+                onBlur={() =>
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    reason: validateTextField(reason, {
+                      label: 'Reason',
+                      required: true,
+                      minLength: 2,
+                      maxLength: 120,
+                    }),
+                  }))
+                }
+                aria-invalid={Boolean(fieldErrors.reason)}
                 placeholder="e.g. New Year — Family Use"
-                className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                className={getFieldValidationClass(
+                  'w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600',
+                  Boolean(fieldErrors.reason),
+                )}
               />
+              <FieldError message={fieldErrors.reason} />
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {BLOCKED_DATE_REASON_PRESETS.map((preset) => (
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => setReason(preset)}
+                    onClick={() => {
+                      setReason(preset)
+                      setFieldErrors((prev) => ({ ...prev, reason: null }))
+                    }}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition cursor-pointer ${
                       reason === preset
                         ? 'bg-stone-900 text-white border-stone-900'

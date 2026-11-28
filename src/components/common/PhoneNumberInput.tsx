@@ -14,9 +14,12 @@ export interface PhoneNumberInputProps {
   id?: string
   value: string
   onChange: (nextStoredPhone: string) => void
+  onBlur?: () => void
   defaultCountry?: PhoneCountryIso
   required?: boolean
   disabled?: boolean
+  invalid?: boolean
+  ariaDescribedBy?: string
   placeholder?: string
   size?: 'sm' | 'md'
   variant?: 'public' | 'admin'
@@ -27,9 +30,12 @@ export function PhoneNumberInput({
   id,
   value,
   onChange,
+  onBlur,
   defaultCountry = DEFAULT_PHONE_COUNTRY,
   required = false,
   disabled = false,
+  invalid = false,
+  ariaDescribedBy,
   placeholder,
   size = 'md',
   variant = 'public',
@@ -127,15 +133,16 @@ export function PhoneNumberInput({
 
   const paddingClass =
     size === 'sm' ? 'py-2 text-xs' : 'py-2.5 text-sm'
-  const ringClass =
-    variant === 'admin'
-      ? 'focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-600'
-      : 'focus-within:ring-2 focus-within:ring-amber-700/20 focus-within:border-amber-700'
+  const ringClass = invalid
+    ? 'border-rose-400 focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-500'
+    : variant === 'admin'
+      ? 'border-stone-200 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-600'
+      : 'border-stone-200 focus-within:ring-2 focus-within:ring-amber-700/20 focus-within:border-amber-700'
 
   return (
     <div ref={wrapperRef} className="relative">
       <div
-        className={`flex items-stretch rounded-xl border border-stone-200 bg-white transition ${ringClass} ${
+        className={`flex items-stretch rounded-xl border bg-white transition ${ringClass} ${
           disabled ? 'opacity-60 bg-stone-100' : ''
         }`}
       >
@@ -171,8 +178,11 @@ export function PhoneNumberInput({
           }
           required={required}
           disabled={disabled}
+          aria-invalid={invalid || undefined}
+          aria-describedby={ariaDescribedBy}
           value={nationalNumber}
           onChange={(e) => handleInputChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder ?? activeCountry.placeholder}
           className={`w-full min-w-0 px-3 ${paddingClass} rounded-r-xl bg-transparent text-stone-900 placeholder:text-stone-400 focus:outline-none`}
         />

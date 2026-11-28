@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useCooldown } from '#/components/admin/auth/AuthPageShell'
+import { FieldError, getFieldValidationClass } from '#/components/common/FormFieldError'
 import { PasswordInput } from '#/components/common/PasswordInput'
 import { authClient } from '#/lib/auth-client'
 import {
@@ -7,11 +8,13 @@ import {
   IMAGE_UPLOAD_PRESETS,
 } from '#/lib/image-compress'
 import {
+  FULL_NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   PASSWORD_RESET_COOLDOWN_SECONDS,
   formatCooldownDuration,
 } from '#/lib/constants/auth'
 import { formatRoleLabel, getErrorMessage } from '#/lib/formatters'
+import { validatePersonName, validatePersonNameLive } from '#/lib/validation'
 import {
   logProfileActivity,
   saveProfileAvatar,
@@ -27,6 +30,7 @@ export function ProfileSettings() {
   // Profile Info States
   const [name, setName] = useState('')
   const [initialName, setInitialName] = useState('')
+  const [nameError, setNameError] = useState<string | null>(null)
   const [image, setImage] = useState<string | null>(null)
   const [initialImage, setInitialImage] = useState<string | null>(null)
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
@@ -185,6 +189,14 @@ export function ProfileSettings() {
   const handlePreSavePersonalInfo = (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
+    const err = validatePersonName(name, {
+      label: 'Full name',
+      maxLength: FULL_NAME_MAX_LENGTH,
+    })
+    setNameError(err)
+    if (err) {
+      return
+    }
     setConfirmAction('profile')
   }
 
@@ -411,6 +423,7 @@ export function ProfileSettings() {
       {/* Personal Information Form */}
       <form
         onSubmit={handlePreSavePersonalInfo}
+        noValidate
         className="bg-white p-6 rounded-2xl shadow-xs border border-stone-200 space-y-4"
       >
         <div>
@@ -433,9 +446,32 @@ export function ProfileSettings() {
             id="full-name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 transition text-stone-800"
+            onChange={(e) => {
+              const next = e.target.value
+              setName(next)
+              setNameError((prev) =>
+                validatePersonNameLive(next, prev, {
+                  label: 'Full name',
+                  maxLength: FULL_NAME_MAX_LENGTH,
+                }),
+              )
+            }}
+            onBlur={() =>
+              setNameError(
+                validatePersonName(name, {
+                  label: 'Full name',
+                  maxLength: FULL_NAME_MAX_LENGTH,
+                }),
+              )
+            }
+            aria-invalid={Boolean(nameError)}
+            aria-describedby={nameError ? 'profile-full-name-error' : undefined}
+            className={getFieldValidationClass(
+              'w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 transition text-stone-800',
+              Boolean(nameError),
+            )}
           />
+          <FieldError id="profile-full-name-error" message={nameError} />
         </div>
 
         <div className="space-y-1">

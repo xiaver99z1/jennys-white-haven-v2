@@ -148,6 +148,27 @@ describe('AddGuestModal', () => {
     })
   })
 
+  it('immediately validates numbers in first/last name and blocks invalid submit', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<AddGuestModal {...defaultProps} />)
+
+    const firstNameInput = screen.getByPlaceholderText('e.g. Maria')
+    const lastNameInput = screen.getByPlaceholderText('e.g. Santos')
+
+    await user.type(firstNameInput, 'Maria1')
+    expect(
+      screen.getByText('First name cannot contain numbers.'),
+    ).toBeInTheDocument()
+
+    await user.type(lastNameInput, 'Santos2')
+    expect(
+      screen.getByText('Last name cannot contain numbers.'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /create guest/i }))
+    expect(createGuest).not.toHaveBeenCalled()
+  })
+
   it('closes modal when Cancel button is clicked', async () => {
     const user = userEvent.setup({ delay: null })
     render(<AddGuestModal {...defaultProps} />)
