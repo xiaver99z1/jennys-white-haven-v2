@@ -7,6 +7,7 @@ import {
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '#/lib/auth'
 import { authClient } from '#/lib/auth-client'
+import { ADMIN_PRESENCE_HEARTBEAT_MS } from '#/lib/constants/chat'
 import { DEFAULT_ADMIN_ICON_LOGO } from '#/lib/constants/cms'
 import { hasPermission } from '#/lib/permissions'
 import { logUserLogout } from '#/server/auth-actions'
@@ -207,7 +208,7 @@ function AdminLayout() {
     }
 
     syncPresence()
-    const interval = setInterval(syncPresence, 25000)
+    const interval = setInterval(syncPresence, ADMIN_PRESENCE_HEARTBEAT_MS)
     window.addEventListener('admin-chat-refresh', syncPresence)
     return () => {
       active = false

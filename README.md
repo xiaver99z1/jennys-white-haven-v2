@@ -1,209 +1,78 @@
-Welcome to your new TanStack Start app!
+# Jenny's White Haven
 
-# Getting Started
+Full-stack staycation reservation platform, CMS, and operations dashboard for **Jenny's White Haven** on Camotes Island, Cebu.
 
-To run this application:
+- **Public Visitor Experience** — Aman-inspired coastal calm with hero carousel & availability search, Standard / Deluxe / Whole House accommodations, adult & child extra-person pricing, global `Intl.NumberFormat` currency display converter (PHP billing source of truth), Camotes Island tourist spots guide, photo gallery, verified post-stay guest reviews, contact & Google Map directions, privacy-first cookie preferences & page-view analytics, and real-time guest live chat support.
+- **Admin Operations Dashboard** — Clean Shopify-style back office with KPI overview, bookings table & 14-day room calendar, house/room blocked-date management, rooms & R2 media management, guest profiles, 2-pane live chat support inbox (with in-app & SMTP email alerts), guest review moderation, collapsible website CMS editor, financial/occupancy/analytics reports, notifications, and RBAC staff & session audit management.
 
-```bash
-npm install
-npm run dev
-```
+## Tech Stack
 
-# Building For Production
+- **Framework:** TanStack Start (file-based routing) + React 19 + TypeScript
+- **Styling:** Tailwind CSS v4 + Lucide Icons
+- **Database & ORM:** PostgreSQL + Prisma
+- **Authentication & RBAC:** Better Auth (`/api/auth/$`) + role permissions (`super_admin`, `owner`, `manager`, `receptionist`)
+- **Storage & Media:** Cloudflare R2 (presigned uploads, relational media keys) + Cloudflare CDN (`WebP` / `AVIF`)
+- **Transactional Email:** Nodemailer SMTP (account activation, password reset, live chat inquiry & guest reply alerts)
+- **Testing & Quality:** Vitest + Testing Library + ESLint (`@tanstack/eslint-config`) + Prettier
+- **Package Manager & Hosting:** `pnpm` · Deployed on Vercel (`vercel.json`)
 
-To build this application for production:
+## Getting Started
 
-```bash
-npm run build
-```
+1. **Install dependencies** (always use `pnpm`):
 
-## Styling
+   ```bash
+   pnpm install
+   ```
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+2. **Configure environment variables**:
 
-### Removing Tailwind CSS
+   Copy `.env.example` to `.env` and configure PostgreSQL (`DATABASE_URL`), Better Auth (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`), Cloudflare R2 credentials, and SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`).
 
-If you prefer not to use Tailwind CSS:
+3. **Generate Prisma client & sync schema**:
 
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
+   ```bash
+   pnpm db:generate
+   pnpm db:push
+   ```
 
-## Linting & Formatting
+4. **Start the development server** (runs on `http://localhost:3000`):
 
+   ```bash
+   pnpm dev
+   ```
 
-This project uses [eslint](https://eslint.org/) and [prettier](https://prettier.io/) for linting and formatting. Eslint is configured using [tanstack/eslint-config](https://tanstack.com/config/latest/docs/eslint). The following scripts are available:
+5. **First-time Super Admin setup**:
 
-```bash
-npm run lint
-npm run format
-npm run check
-```
+   When zero users exist in PostgreSQL, visiting `/admin` redirects automatically to `/admin/setup` to provision and verify the initial `super_admin` account via email. No default credentials or seeders exist in code.
 
+## Scripts
 
-## Deploy to Vercel
+| Command | Description |
+| --- | --- |
+| `pnpm dev` | Start Vite + TanStack Start dev server on port 3000 |
+| `pnpm build` | Generate Prisma client and build production bundle |
+| `pnpm preview` | Preview production build locally |
+| `pnpm lint` | Run ESLint across the repository |
+| `pnpm format` | Format code with Prettier and fix ESLint issues |
+| `pnpm check` | Check Prettier formatting and ESLint rules |
+| `pnpm test` | Run unit tests with Vitest |
+| `pnpm coverage` | Run Vitest suite with V8 coverage report |
+| `pnpm db:generate` | Generate Prisma client |
+| `pnpm db:push` | Push `prisma/schema.prisma` changes to PostgreSQL |
 
-1. Push this repo to GitHub, GitLab, or Bitbucket
-2. In Vercel, choose **Add New > Project** and import the repo
-3. Keep the detected TanStack Start framework settings
-4. Add production values from `.env.example` under **Settings > Environment Variables**
-5. Deploy
+## Production & Database Rollout
 
-Vercel runs the build script and deploys Nitro's output as Vercel Functions and
-static assets. The included `vercel.json` makes framework detection explicit.
+- **Database schema sync:** `pnpm build` runs `prisma generate && vite build` and does **not** mutate your database automatically. Whenever deploying schema additions (such as `Room` extra-person fees, `BlockedDate`, `Review`, `PageView`, `ChatConversation`, `ChatMessage`, or `User` chat presence columns), run `pnpm db:push` against the target database before serving traffic.
+- **Environment security:** Variables prefixed with `VITE_` are exposed to the client bundle. Keep all database, auth, SMTP, and R2 secrets unprefixed so they remain server-only.
 
-Variables prefixed with `VITE_` are included in the browser bundle. Keep secrets
-unprefixed so they remain server-only.
+## Project Conventions
 
+Detailed engineering and design conventions live in [`AGENTS.md`](./AGENTS.md) and [`docs/`](./docs):
 
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+- [`docs/stack-conventions.md`](./docs/stack-conventions.md)
+- [`docs/command-conventions.md`](./docs/command-conventions.md)
+- [`docs/structure-conventions.md`](./docs/structure-conventions.md)
+- [`docs/rules-conventions.md`](./docs/rules-conventions.md)
+- [`docs/style-conventions.md`](./docs/style-conventions.md)
+- [`docs/auth-conventions.md`](./docs/auth-conventions.md)
+- [`docs/client-design.md`](./docs/client-design.md)

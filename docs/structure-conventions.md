@@ -1,26 +1,36 @@
 # Structure conventions
 
 - `src/routes/` — file-based routes (TanStack Router)
-  - `index.tsx`, `rooms/index.tsx`, `rooms/$id.tsx`, `explore.tsx`, `booking-status.tsx` → Public visitor site (homepage, rooms, CMS-editable Camotes Island tourist spots guide, booking status)
-  - `verify-activation.tsx`, `reset-password.tsx` → Email activation and password reset pages
+  - `index.tsx`, `rooms/index.tsx`, `rooms/$id.tsx`, `explore.tsx`, `gallery.tsx`, `reviews.tsx`, `contact.tsx`, `booking-status.tsx` → Public visitor site (homepage, rooms & availability search, room reservation form, Camotes Island tourist spots guide, photo gallery, verified guest reviews, contact & Google Map, booking status & post-stay review submission)
+  - `verify-activation.tsx`, `reset-password.tsx` → Staff email activation and password reset pages
+  - `api/auth/$.ts`, `api/media/view.ts` → Better Auth handler and authenticated private media viewer
 - `src/routes/admin/` — Admin section
   - `setup.tsx` → Initial Super Admin setup page (no sidebar; active only when 0 users exist)
   - `login.tsx` → Login page (no sidebar)
-  - `route.tsx` → Protected layout + sidebar + initial-setup guard
+  - `route.tsx` → Protected layout + sidebar + initial-setup guard + staff chat presence heartbeat
   - `index.tsx` → Dashboard
-  - `bookings.tsx`, `rooms.tsx`, `guests.tsx`, `users.tsx`, `settings.tsx`, `profile.tsx` → Admin modules
-- `src/types/index.ts` — centralized shared TypeScript types (`RoomItem`, `GuestItem`, `BookingItem`, `DashboardStats`, `User`, `AdminRouter`, domain unions)
-- `src/lib/auth.ts` — Better Auth server instance
-- `src/lib/auth-client.ts` — Better Auth client
-- `src/lib/email.ts` — Nodemailer SMTP verification & password-reset email helper and SHA-256 activation token utilities
-- `src/lib/prisma.ts` — Prisma client
-- `src/lib/permissions.ts` — RBAC `ROLES` and `hasPermission()`
-- `src/lib/formatters.ts` — reusable formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `formatShortDate`, `formatFullName`, `formatRoleLabel`, `getErrorMessage`) and status/role badge lookups
-- `src/lib/constants/auth.ts` — centralized auth, token TTL, rate-limit, password complexity, and staff role constants & validators (`EMAIL_REGEX`, `STAFF_ROLE_OPTIONS`, `validateStrongPassword`, `validateStaffPassword`, `extractRequestClientMeta`, `resolveUserDisplayIdentifier`)
-- `src/lib/constants/labels.ts` — centralized UI labels (`ADMIN_LABELS`) and status/role badge metadata
-- `src/lib/constants/rooms.ts` — domain option presets (`ROOM_TYPES`, `BOOKING_STATUSES`, `PAYMENT_STATUSES`, `GUEST_ID_TYPES`, `RESORT_AMENITY_CATEGORIES`)
-- `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `Panel`, `PasswordChallengeModal`, `StatCard`, `StatusBadge`)
-- `src/components/admin/` — admin feature components (`auth`, `bookings`, `dashboard`, `guests`, `profile`, `rooms`, `users`)
+  - `bookings.tsx`, `rooms.tsx`, `guests.tsx`, `chat.tsx`, `reviews.tsx`, `notifications.tsx`, `users.tsx`, `settings.tsx`, `profile.tsx` → Admin feature modules
+  - `reports/` (`route.tsx`, `index.tsx`, `revenue.tsx`, `occupancy.tsx`, `bookings.tsx`, `guests.tsx`, `analytics.tsx`) → Financial, operational, and traffic reports
+- `src/types/index.ts` — centralized shared TypeScript types (`RoomItem`, `GuestItem`, `BookingItem`, `BlockedDateItem`, `AdminReviewItem`, `PublicChatConversation`, `AdminChatConversationSummary`, `CmsSectionData`, `DashboardStats`, `User`, `AdminRouter`, domain unions)
+- `src/lib/` — shared core modules & utilities
+  - `auth.ts`, `auth-client.ts`, `auth-helpers.ts` — Better Auth server/client instances and server session helper
+  - `permissions.ts`, `require-permission.ts` — RBAC `ROLES`, `hasPermission()`, and shared server `requirePermission()` guard
+  - `prisma.ts` — Prisma client singleton
+  - `r2.ts`, `image-compress.ts` — Cloudflare R2 object-key/presigned-URL helpers and client WebP upload compression
+  - `email.ts` — Nodemailer SMTP helper (verification, password-reset, live-chat inquiry alerts, and guest reply emails) and SHA-256 token utilities
+  - `currency.tsx` — `CurrencyProvider` and `useCurrency()` hook for `Intl.NumberFormat` multi-currency display conversion from PHP
+  - `formatters.ts` — memoized `Intl` formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `parseLocalIsoDate`, `computeStayNights`, `formatShortDate`, `formatLocalDateOnly`, `formatLocalDateTime`, `formatChatTime`, `formatUtcTimestamp`, `formatCalendarDayHeader`, `formatFullName`, `formatRoleLabel`, `getErrorMessage`) and status/role badge lookups
+  - `cookie-consent.ts`, `hero-rich-text.ts`, `logger.ts`, `parse-user-agent.ts` — cookie consent state, sanitized hero rich text, audit logging, and device/browser UA parsing
+- `src/lib/constants/` — centralized domain constants, presets, and validators
+  - `auth.ts` — auth, token TTL, rate-limit, password complexity, and staff role constants & validators
+  - `chat.ts` — live-chat presence windows, alert cooldowns, message page sizes, rate limits, polling intervals, and quick-reply presets
+  - `cms.ts` — default CMS sections, brand logos, hero carousel config, gallery captions/featured flags, and Camotes tourist spot serializers
+  - `currencies.ts` — supported currencies (`PHP`, `USD`, `EUR`, `GBP`, `AUD`, `CAD`, `SGD`, `JPY`, `KRW`), fallback PHP rates, cache keys, and TTL
+  - `labels.ts` — centralized UI labels (`ADMIN_LABELS`), review rating labels, and booking/payment/room/review/chat/role badge metadata
+  - `rooms.ts` — room/booking/payment/amenity presets, blocked-date reason presets, extra-guest fee calculators/parsers, and `buildOccupiedBookedRanges()`
+- `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `ExtraGuestsCounterField`, `NotFoundPage`, `Panel`, `PasswordChallengeModal`, `PasswordInput`, `StatCard`, `StatusBadge`)
+- `src/components/public/` — public visitor components (`PublicLayout`, `HeroCarouselSection`, `StayDateRangePicker`, `CurrencySelector`, `PublicChatWidget`, `ExploreGuideView`, `GalleryPageView`, `ReviewsPageView`, `SectionPhotoGalleryModal`, `CookieConsentCenter`, `AnalyticsTracker`)
+- `src/components/admin/` — admin feature components (`auth`, `bookings`, `chat`, `dashboard`, `guests`, `notifications`, `profile`, `reports`, `reviews`, `rooms`, `settings`, `users`)
 - `src/server/` — server functions and handlers (`*-actions.ts`, `upload.ts`)
 - `prisma/` — Prisma schema and migrations
 - `docs/` — agent conventions and design references

@@ -9,10 +9,10 @@ import {
   DEFAULT_EXTRA_PERSON_FEE,
   PAYMENT_STATUSES,
   PAYMENT_METHODS,
+  buildOccupiedBookedRanges,
   calculateExtraGuestsFee,
   formatExtraGuestsNote,
   getTotalExtraGuests,
-  isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import type {
   BlockedDateItem,
@@ -24,7 +24,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from '#/types'
-import { formatDateInput, formatLocalDate, formatPeso } from '#/lib/formatters'
+import { computeStayNights, formatLocalDate, formatPeso } from '#/lib/formatters'
 
 export type { BookingGuestOption, BookingRoomOption }
 export { formatLocalDate }
@@ -85,46 +85,21 @@ export function AddBookingModal({
     [rooms, formData.roomId],
   )
 
-  const roomBookedRanges = useMemo<BookedDateRange[]>(() => {
-    const selectedIsWholeHouse = isWholeHouseRoom(selectedRoom)
-    const fromBookings = existingBookings
-      .filter(
-        (b) =>
-          !b.deletedAt &&
-          ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status) &&
-          (selectedIsWholeHouse ||
-            b.roomId === formData.roomId ||
-            isWholeHouseRoom(b.room)),
-      )
-      .map((b) => ({
-        checkIn: formatDateInput(b.checkIn),
-        checkOut: formatDateInput(b.checkOut),
-      }))
-    const fromBlocked = blockedDates
-      .filter(
-        (bd) =>
-          selectedIsWholeHouse ||
-          !bd.roomId ||
-          bd.roomId === formData.roomId ||
-          isWholeHouseRoom(bd.room),
-      )
-      .map((bd) => ({
-        checkIn: formatDateInput(bd.startDate),
-        checkOut: formatDateInput(bd.endDate),
-      }))
-    return [...fromBookings, ...fromBlocked].filter(
-      (r) => Boolean(r.checkIn) && Boolean(r.checkOut),
-    )
-  }, [existingBookings, blockedDates, formData.roomId, selectedRoom])
+  const roomBookedRanges = useMemo<BookedDateRange[]>(
+    () =>
+      buildOccupiedBookedRanges({
+        existingBookings,
+        blockedDates,
+        roomId: formData.roomId,
+        targetRoom: selectedRoom,
+      }),
+    [existingBookings, blockedDates, formData.roomId, selectedRoom],
+  )
 
-  const nights = useMemo(() => {
-    const start = new Date(formData.checkIn)
-    const end = new Date(formData.checkOut)
-    const diff = Math.round(
-      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-    )
-    return diff > 0 ? diff : 0
-  }, [formData.checkIn, formData.checkOut])
+  const nights = useMemo(
+    () => computeStayNights(formData.checkIn, formData.checkOut),
+    [formData.checkIn, formData.checkOut],
+  )
 
   const isValidStay = nights > 0
 
@@ -316,8 +291,8 @@ export function AddBookingModal({
                   </option>
                   {rooms.map((room) => (
                     <option key={room.id} value={room.id}>
-                      Room {room.roomNumber} - {room.name} (₱
-                      {Number(room.pricePerNight).toLocaleString()}/night)
+                      Room {room.roomNumber} - {room.name} (
+                      {formatPeso(room.pricePerNight)}/night)
                     </option>
                   ))}
                 </select>
@@ -389,11 +364,9 @@ export function AddBookingModal({
                 </span>
                 <p className="text-xs text-stone-600 mt-0.5">
                   {isValidStay
-                    ? `${nights} night(s) × ₱${
-                        selectedRoom
-                          ? Number(selectedRoom.pricePerNight).toLocaleString()
-                          : '0'
-                      }${
+                    ? `${nights} night(s) × ${formatPeso(
+                        selectedRoom ? selectedRoom.pricePerNight : 0,
+                      )}${
                         totalExtraGuests > 0
                           ? ` + ${totalExtraGuests} extra person(s) (${formatPeso(extraGuestsFeeTotal)})`
                           : ''

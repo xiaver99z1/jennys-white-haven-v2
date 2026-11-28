@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
-import { requirePermission } from '#/server/room-actions'
+import { requirePermission } from '#/lib/require-permission'
 import {
   resolveReportDateRange,
   validateReportInput,

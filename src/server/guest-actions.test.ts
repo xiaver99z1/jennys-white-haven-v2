@@ -13,7 +13,7 @@ import {
 import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
-import { requirePermission } from '#/server/room-actions'
+import { requirePermission } from '#/lib/require-permission'
 
 vi.mock('#/lib/prisma', () => ({
   prisma: {
@@ -34,7 +34,7 @@ vi.mock('#/lib/auth-helpers', () => ({
   authSession: vi.fn(),
 }))
 
-vi.mock('#/server/room-actions', () => ({
+vi.mock('#/lib/require-permission', () => ({
   requirePermission: vi.fn(),
 }))
 

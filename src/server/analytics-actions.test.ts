@@ -16,7 +16,7 @@ const { mockRequirePermission, mockCreate, mockFindMany } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
 }))
 
-vi.mock('#/server/room-actions', () => ({
+vi.mock('#/lib/require-permission', () => ({
   requirePermission: mockRequirePermission,
 }))
 

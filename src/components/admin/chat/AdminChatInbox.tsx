@@ -13,7 +13,17 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { EmptyState } from '#/components/common/EmptyState'
-import { formatShortDate, getErrorMessage } from '#/lib/formatters'
+import { StatusBadge } from '#/components/common/StatusBadge'
+import {
+  CHAT_OPEN_POLL_INTERVAL_MS,
+  STAFF_QUICK_REPLIES,
+} from '#/lib/constants/chat'
+import {
+  formatShortDate,
+  formatUtcTimestamp,
+  getChatStatusMeta,
+  getErrorMessage,
+} from '#/lib/formatters'
 import {
   getAdminChatInbox,
   getAdminChatThread,
@@ -27,23 +37,6 @@ import type {
   ChatMessageItem,
   ChatThreadStatus,
 } from '#/types'
-
-const STAFF_QUICK_REPLIES = [
-  'Hello! Welcome to Jenny’s White Haven. How can we assist with your stay?',
-  'Standard check-in is at 2:00 PM and check-out is at 12:00 PM.',
-  'You can check live dates and rates anytime on our Rooms page.',
-  'Yes, we can help arrange port pickup from Consuelo or Poro port!',
-] as const
-
-function formatMessageTimestamp(value: Date | string): string {
-  const dt = new Date(value)
-  if (Number.isNaN(dt.getTime())) return ''
-  return `${formatShortDate(dt)} · ${dt.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  })} UTC`
-}
 
 interface AdminChatInboxProps {
   initialData: AdminChatInboxResponse
@@ -217,7 +210,7 @@ export function AdminChatInbox({
       if (selectedIdRef.current) {
         void loadThread(selectedIdRef.current, true)
       }
-    }, 3500)
+    }, CHAT_OPEN_POLL_INTERVAL_MS)
 
     return () => clearInterval(timer)
   }, [loadInbox, loadThread])
@@ -520,15 +513,10 @@ export function AdminChatInbox({
                         {conv.lastMessagePreview || 'Started a conversation'}
                       </p>
                       <div className="flex items-center justify-between gap-2 pt-0.5">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            conv.status === 'OPEN'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : 'bg-stone-100 text-stone-600 border-stone-200'
-                          }`}
-                        >
-                          {conv.status === 'OPEN' ? 'Open' : 'Resolved'}
-                        </span>
+                        <StatusBadge
+                          {...getChatStatusMeta(conv.status)}
+                          size="xs"
+                        />
                         {conv.unreadByStaff > 0 && (
                           <span className="px-2 py-0.5 rounded-full bg-amber-700 text-white text-[10px] font-bold">
                             {conv.unreadByStaff} new
@@ -644,7 +632,7 @@ export function AdminChatInbox({
                           {isStaff
                             ? `${msg.senderName} (Staff)`
                             : msg.senderName}{' '}
-                          · {formatMessageTimestamp(msg.createdAt)}
+                          · {formatUtcTimestamp(msg.createdAt)}
                         </span>
                         <div
                           className={`max-w-[80%] px-4 py-2.5 text-xs leading-relaxed whitespace-pre-wrap break-words ${

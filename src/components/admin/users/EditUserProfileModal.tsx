@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
 import { PasswordChallengeModal } from '#/components/common/PasswordChallengeModal'
+import { PasswordInput } from '#/components/common/PasswordInput'
 import {
   STAFF_ROLE_OPTIONS,
   validateStaffPassword,
@@ -180,31 +180,18 @@ export function EditUserProfileModal({
                 (Leave blank to keep current)
               </span>
             </label>
-            <div className="relative">
-              <input
-                id="edit-staff-new-password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="8-16 chars, upper, lower, number, special"
-                className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 pr-10 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden text-sm"
-              />
-              <button
-                type="button"
-                aria-label={
-                  showPassword ? 'Hide new password' : 'Show new password'
-                }
-                onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
+            <PasswordInput
+              id="edit-staff-new-password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="8-16 chars, upper, lower, number, special"
+              visible={showPassword}
+              onVisibleChange={setShowPassword}
+              showLabel="Show new password"
+              hideLabel="Hide new password"
+              className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 text-sm"
+            />
           </div>
 
           <div>
@@ -214,33 +201,18 @@ export function EditUserProfileModal({
             >
               Confirm New Password
             </label>
-            <div className="relative">
-              <input
-                id="edit-staff-confirm-password"
-                type={showConfirmPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
-                className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 pr-10 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden text-sm"
-              />
-              <button
-                type="button"
-                aria-label={
-                  showConfirmPassword
-                    ? 'Hide password confirmation'
-                    : 'Show password confirmation'
-                }
-                onClick={() => setShowConfirmPassword((prev) => !prev)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition cursor-pointer"
-              >
-                {showConfirmPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
+            <PasswordInput
+              id="edit-staff-confirm-password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+              visible={showConfirmPassword}
+              onVisibleChange={setShowConfirmPassword}
+              showLabel="Show password confirmation"
+              hideLabel="Hide password confirmation"
+              className="w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600/50 text-sm"
+            />
           </div>
 
           <div className="mt-6 flex justify-end space-x-3 pt-2">

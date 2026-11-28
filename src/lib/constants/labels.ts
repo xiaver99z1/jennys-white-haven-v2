@@ -1,4 +1,11 @@
-import type { BookingStatus, PaymentStatus, RoomStatus, StatusMeta } from '#/types'
+import type {
+  BookingStatus,
+  ChatThreadStatus,
+  PaymentStatus,
+  ReviewStatus,
+  RoomStatus,
+  StatusMeta,
+} from '#/types'
 
 export const DEFAULT_BADGE_CLASS =
   'bg-stone-100 text-stone-700 border-stone-200'
@@ -62,6 +69,40 @@ export const ROOM_STATUS_META: Record<RoomStatus, StatusMeta> = {
     label: 'Maintenance',
     className: 'bg-rose-50 text-rose-700 border-rose-200',
   },
+}
+
+export const REVIEW_STATUS_META: Record<ReviewStatus, StatusMeta> = {
+  PENDING: {
+    label: 'PENDING',
+    className: 'bg-amber-50 text-amber-800 border-amber-200',
+  },
+  APPROVED: {
+    label: 'APPROVED',
+    className: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  },
+  HIDDEN: {
+    label: 'HIDDEN',
+    className: 'bg-stone-100 text-stone-600 border-stone-200',
+  },
+}
+
+export const CHAT_STATUS_META: Record<ChatThreadStatus, StatusMeta> = {
+  OPEN: {
+    label: 'Open',
+    className: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  },
+  RESOLVED: {
+    label: 'Resolved',
+    className: 'bg-stone-100 text-stone-600 border-stone-200',
+  },
+}
+
+export const REVIEW_RATING_LABELS: Record<number, string> = {
+  1: 'Needs improvement',
+  2: 'Fair stay',
+  3: 'Good stay',
+  4: 'Very good stay',
+  5: 'Wonderful sanctuary',
 }
 
 export const ROLE_BADGE_CLASSES: Record<string, string> = {

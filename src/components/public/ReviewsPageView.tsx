@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, MessageSquareQuote, ShieldCheck, Star } from 'lucide-react'
 import { formatDate } from '#/lib/formatters'
@@ -11,13 +11,19 @@ interface ReviewsPageViewProps {
 export function ReviewsPageView({ summary }: ReviewsPageViewProps) {
   const [selectedStar, setSelectedStar] = useState<number | null>(null)
 
-  const filteredReviews =
-    selectedStar === null
-      ? summary.reviews
-      : summary.reviews.filter((review) => review.rating === selectedStar)
-  const allReviewsVerified =
-    summary.reviews.length > 0 &&
-    summary.reviews.every((review) => review.isVerifiedStay)
+  const filteredReviews = useMemo(
+    () =>
+      selectedStar === null
+        ? summary.reviews
+        : summary.reviews.filter((review) => review.rating === selectedStar),
+    [summary.reviews, selectedStar],
+  )
+  const allReviewsVerified = useMemo(
+    () =>
+      summary.reviews.length > 0 &&
+      summary.reviews.every((review) => review.isVerifiedStay),
+    [summary.reviews],
+  )
 
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12 sm:py-16 space-y-12">

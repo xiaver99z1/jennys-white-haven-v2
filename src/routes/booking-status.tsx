@@ -7,6 +7,7 @@ import { lookupPublicBooking } from '#/server/public-actions'
 import { submitPublicReview } from '#/server/review-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StatusBadge } from '#/components/common/StatusBadge'
+import { REVIEW_RATING_LABELS } from '#/lib/constants/labels'
 import { useCurrency } from '#/lib/currency'
 import {
   formatDate,
@@ -17,14 +18,6 @@ import {
   getPaymentStatusMeta,
 } from '#/lib/formatters'
 import type { PublicBookingLookupResult } from '#/types'
-
-const RATING_LABELS: Record<number, string> = {
-  1: 'Needs improvement',
-  2: 'Fair stay',
-  3: 'Good stay',
-  4: 'Very good stay',
-  5: 'Wonderful sanctuary',
-}
 
 export const Route = createFileRoute('/booking-status')({
   loader: async () => {
@@ -436,7 +429,7 @@ function BookingStatusPage() {
                       </button>
                     ))}
                     <span className="text-xs text-stone-600 ml-2">
-                      {RATING_LABELS[activeRatingDisplay]}
+                      {REVIEW_RATING_LABELS[activeRatingDisplay]}
                     </span>
                   </div>
                 </div>

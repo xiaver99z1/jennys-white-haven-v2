@@ -2,19 +2,44 @@ import type { ReportDateRangeInput, ReportPreset, StatusMeta } from '#/types'
 import {
   ADMIN_LABELS,
   BOOKING_STATUS_META,
+  CHAT_STATUS_META,
   DEFAULT_BADGE_CLASS,
   DEFAULT_ROLE_BADGE_CLASS,
   PAYMENT_STATUS_META,
+  REVIEW_STATUS_META,
   ROLE_BADGE_CLASSES,
   ROOM_STATUS_META,
   SHORT_MONTH_NAMES,
 } from '#/lib/constants/labels'
 
+const PESO_NUMBER_FORMATTER = new Intl.NumberFormat('en-US')
+const LOCAL_DATE_FORMATTER = new Intl.DateTimeFormat()
+const LOCAL_TIME_FORMATTER = new Intl.DateTimeFormat([], {
+  hour: '2-digit',
+  minute: '2-digit',
+})
+const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat([], {
+  hour: 'numeric',
+  minute: '2-digit',
+})
+const UTC_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
+const CALENDAR_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+})
+const CALENDAR_MONTH_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+})
+
 /**
  * Formats a numeric or string amount in Philippine Pesos (e.g. "₱2,500").
  */
 export function formatPeso(amount: number | string): string {
-  return `₱${Number(amount).toLocaleString()}`
+  return `₱${PESO_NUMBER_FORMATTER.format(Number(amount))}`
 }
 
 /**
@@ -27,7 +52,9 @@ export function formatDate(value: Date | string): string {
 /**
  * Formats an optional Date or string for `<input type="date" />` ("YYYY-MM-DD" or "").
  */
-export function formatDateInput(value: Date | string | undefined | null): string {
+export function formatDateInput(
+  value: Date | string | undefined | null,
+): string {
   if (!value) return ''
   return formatDate(value)
 }
@@ -43,11 +70,92 @@ export function formatLocalDate(date: Date): string {
 }
 
 /**
+ * Parses a "YYYY-MM-DD" ISO string into a local midnight Date, or undefined if invalid.
+ */
+export function parseLocalIsoDate(iso?: string): Date | undefined {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return undefined
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== m - 1 ||
+    dt.getDate() !== d
+  ) {
+    return undefined
+  }
+  return dt
+}
+
+/**
+ * Computes the number of stay nights between two "YYYY-MM-DD" calendar dates (0 if invalid or non-positive).
+ */
+export function computeStayNights(
+  checkIn?: string,
+  checkOut?: string,
+): number {
+  const from = parseLocalIsoDate(checkIn)
+  const to = parseLocalIsoDate(checkOut)
+  if (!from || !to) return 0
+  const diffMs = to.getTime() - from.getTime()
+  if (diffMs <= 0) return 0
+  return Math.round(diffMs / 86_400_000)
+}
+
+/**
  * Formats a Date or ISO date string as "MMM. D, YYYY" (e.g. "Nov. 13, 2026").
  */
 export function formatShortDate(dateInput: Date | string): string {
   const date = new Date(dateInput)
   return `${SHORT_MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`
+}
+
+/**
+ * Formats a Date or ISO date string using the user's locale date format.
+ */
+export function formatLocalDateOnly(value: Date | string): string {
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return ''
+  return LOCAL_DATE_FORMATTER.format(dt)
+}
+
+/**
+ * Formats a Date or ISO date string into a localized date + HH:MM time string.
+ */
+export function formatLocalDateTime(value: Date | string): string {
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return ''
+  return `${LOCAL_DATE_FORMATTER.format(dt)} ${LOCAL_TIME_FORMATTER.format(dt)}`
+}
+
+/**
+ * Formats a chat timestamp into a concise local time string (e.g. "2:30 PM").
+ */
+export function formatChatTime(value: Date | string): string {
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return ''
+  return CHAT_TIME_FORMATTER.format(dt)
+}
+
+/**
+ * Formats a Date or ISO string as "MMM. D, YYYY · H:MM AM/PM UTC" for admin audit/chat views.
+ */
+export function formatUtcTimestamp(value: Date | string): string {
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return ''
+  return `${formatShortDate(dt)} · ${UTC_TIME_FORMATTER.format(dt)} UTC`
+}
+
+/**
+ * Formats weekday and short month/day labels for calendar grid headers using cached Intl formatters.
+ */
+export function formatCalendarDayHeader(date: Date): {
+  dayLabel: string
+  dateLabel: string
+} {
+  return {
+    dayLabel: CALENDAR_WEEKDAY_FORMATTER.format(date),
+    dateLabel: CALENDAR_MONTH_DAY_FORMATTER.format(date),
+  }
 }
 
 /**
@@ -87,6 +195,30 @@ export function getPaymentStatusMeta(status: string): StatusMeta {
 export function getRoomStatusMeta(status: string): StatusMeta {
   return (
     (ROOM_STATUS_META as Record<string, StatusMeta | undefined>)[status] ?? {
+      label: status,
+      className: DEFAULT_BADGE_CLASS,
+    }
+  )
+}
+
+/**
+ * Resolves badge label and Tailwind classes for a guest review moderation status.
+ */
+export function getReviewStatusMeta(status: string): StatusMeta {
+  return (
+    (REVIEW_STATUS_META as Record<string, StatusMeta | undefined>)[status] ?? {
+      label: status,
+      className: DEFAULT_BADGE_CLASS,
+    }
+  )
+}
+
+/**
+ * Resolves badge label and Tailwind classes for a live chat thread status.
+ */
+export function getChatStatusMeta(status: string): StatusMeta {
+  return (
+    (CHAT_STATUS_META as Record<string, StatusMeta | undefined>)[status] ?? {
       label: status,
       className: DEFAULT_BADGE_CLASS,
     }

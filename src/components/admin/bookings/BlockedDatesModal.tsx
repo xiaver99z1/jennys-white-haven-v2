@@ -5,12 +5,11 @@ import {
   deleteBlockedDate,
 } from '#/server/booking-actions'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
-import { isWholeHouseRoom } from '#/lib/constants/rooms'
 import {
-  formatDate,
-  formatDateInput,
-  formatLocalDate,
-} from '#/lib/formatters'
+  BLOCKED_DATE_REASON_PRESETS,
+  buildOccupiedBookedRanges,
+} from '#/lib/constants/rooms'
+import { formatDate, formatLocalDate } from '#/lib/formatters'
 import type {
   BlockedDateItem,
   BookedDateRange,
@@ -26,14 +25,6 @@ interface BlockedDatesModalProps {
   blockedDates: BlockedDateItem[]
   existingBookings: BookingItem[]
 }
-
-const REASON_PRESETS = [
-  'New Year — Family Use',
-  'Holiday / Family Stay',
-  'Personal / Owner Use',
-  'Property Maintenance',
-  'Private Event',
-] as const
 
 function getDefaultDates() {
   const today = new Date()
@@ -70,37 +61,17 @@ export function BlockedDatesModal({
     [rooms, scopeRoomId],
   )
 
-  const existingRanges = useMemo<BookedDateRange[]>(() => {
-    const blocksAll = !selectedRoom || isWholeHouseRoom(selectedRoom)
-    const bookingRanges = existingBookings
-      .filter(
-        (b) =>
-          !b.deletedAt &&
-          ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status) &&
-          (blocksAll ||
-            b.roomId === selectedRoom.id ||
-            isWholeHouseRoom(b.room)),
-      )
-      .map((b) => ({
-        checkIn: formatDateInput(b.checkIn),
-        checkOut: formatDateInput(b.checkOut),
-      }))
-    const blockRanges = blockedDates
-      .filter(
-        (bd) =>
-          blocksAll ||
-          !bd.roomId ||
-          bd.roomId === selectedRoom.id ||
-          isWholeHouseRoom(bd.room),
-      )
-      .map((bd) => ({
-        checkIn: formatDateInput(bd.startDate),
-        checkOut: formatDateInput(bd.endDate),
-      }))
-    return [...bookingRanges, ...blockRanges].filter(
-      (r) => Boolean(r.checkIn) && Boolean(r.checkOut),
-    )
-  }, [existingBookings, blockedDates, selectedRoom])
+  const existingRanges = useMemo<BookedDateRange[]>(
+    () =>
+      buildOccupiedBookedRanges({
+        existingBookings,
+        blockedDates,
+        roomId: selectedRoom?.id,
+        targetRoom: selectedRoom,
+        blocksAllRooms: !selectedRoom,
+      }),
+    [existingBookings, blockedDates, selectedRoom],
+  )
 
   if (!isOpen) return null
 
@@ -238,7 +209,7 @@ export function BlockedDatesModal({
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
               />
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {REASON_PRESETS.map((preset) => (
+                {BLOCKED_DATE_REASON_PRESETS.map((preset) => (
                   <button
                     key={preset}
                     type="button"

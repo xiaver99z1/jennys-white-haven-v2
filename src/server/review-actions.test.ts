@@ -31,7 +31,7 @@ const {
   mockBookingFindFirst: vi.fn(),
 }))
 
-vi.mock('#/server/room-actions', () => ({
+vi.mock('#/lib/require-permission', () => ({
   requirePermission: mockRequirePermission,
 }))
 

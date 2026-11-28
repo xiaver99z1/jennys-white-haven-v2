@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import {
   CheckCircle2,
@@ -11,7 +11,12 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ConfirmModal } from '#/components/common/ConfirmModal'
-import { formatDate, getErrorMessage } from '#/lib/formatters'
+import { StatusBadge } from '#/components/common/StatusBadge'
+import {
+  formatDate,
+  getErrorMessage,
+  getReviewStatusMeta,
+} from '#/lib/formatters'
 import { deleteReview, moderateReview } from '#/server/review-actions'
 import type { AdminReviewItem, ReviewStatus } from '#/types'
 
@@ -20,12 +25,6 @@ interface ReviewsManagerProps {
 }
 
 type FilterTab = 'ALL' | ReviewStatus
-
-const STATUS_BADGE_CLASSES: Record<ReviewStatus, string> = {
-  PENDING: 'bg-amber-50 text-amber-800 border-amber-200',
-  APPROVED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-  HIDDEN: 'bg-stone-100 text-stone-600 border-stone-200',
-}
 
 export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
   const router = useRouter()
@@ -44,22 +43,43 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
     setReviews(initialReviews)
   }, [initialReviews])
 
-  const pendingCount = reviews.filter((r) => r.status === 'PENDING').length
-  const approvedReviews = reviews.filter((r) => r.status === 'APPROVED')
-  const hiddenCount = reviews.filter((r) => r.status === 'HIDDEN').length
-  const avgApprovedRating =
-    approvedReviews.length > 0
-      ? Math.round(
-          (approvedReviews.reduce((sum, r) => sum + r.rating, 0) /
-            approvedReviews.length) *
-            10,
-        ) / 10
-      : 0
+  const {
+    pendingCount,
+    approvedCount,
+    hiddenCount,
+    avgApprovedRating,
+  } = useMemo(() => {
+    let pending = 0
+    let approved = 0
+    let hidden = 0
+    let ratingSum = 0
 
-  const filteredReviews =
-    activeTab === 'ALL'
-      ? reviews
-      : reviews.filter((review) => review.status === activeTab)
+    for (const review of reviews) {
+      if (review.status === 'PENDING') pending++
+      else if (review.status === 'APPROVED') {
+        approved++
+        ratingSum += review.rating
+      } else {
+        hidden++
+      }
+    }
+
+    return {
+      pendingCount: pending,
+      approvedCount: approved,
+      hiddenCount: hidden,
+      avgApprovedRating:
+        approved > 0 ? Math.round((ratingSum / approved) * 10) / 10 : 0,
+    }
+  }, [reviews])
+
+  const filteredReviews = useMemo(
+    () =>
+      activeTab === 'ALL'
+        ? reviews
+        : reviews.filter((review) => review.status === activeTab),
+    [reviews, activeTab],
+  )
 
   async function handleModerate(
     id: string,
@@ -184,7 +204,7 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
         <div className="bg-white rounded-2xl border border-stone-200 p-4">
           <p className="text-xs font-medium text-stone-500">Published</p>
           <p className="text-2xl font-bold text-emerald-700 mt-1">
-            {approvedReviews.length}
+            {approvedCount}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-stone-200 p-4">
@@ -193,9 +213,9 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
           </p>
           <div className="flex items-center gap-1.5 mt-1">
             <p className="text-2xl font-bold text-stone-900">
-              {approvedReviews.length > 0 ? avgApprovedRating.toFixed(1) : '—'}
+              {approvedCount > 0 ? avgApprovedRating.toFixed(1) : '—'}
             </p>
-            {approvedReviews.length > 0 && (
+            {approvedCount > 0 && (
               <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
             )}
           </div>
@@ -223,7 +243,7 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
             { key: 'PENDING', label: `Pending (${pendingCount})` },
             {
               key: 'APPROVED',
-              label: `Approved (${approvedReviews.length})`,
+              label: `Approved (${approvedCount})`,
             },
             { key: 'HIDDEN', label: `Hidden (${hiddenCount})` },
           ] as Array<{ key: FilterTab; label: string }>
@@ -268,11 +288,7 @@ export function ReviewsManager({ initialReviews }: ReviewsManagerProps) {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${STATUS_BADGE_CLASSES[review.status]}`}
-                      >
-                        {review.status}
-                      </span>
+                      <StatusBadge {...getReviewStatusMeta(review.status)} />
                       {review.isFeatured && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
                           <Pin className="w-3 h-3" />
