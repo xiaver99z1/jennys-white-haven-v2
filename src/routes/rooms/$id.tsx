@@ -7,8 +7,10 @@ import { createPublicBooking, getPublicRoomById } from '#/server/public-actions'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { StayDateRangePicker } from '#/components/public/StayDateRangePicker'
 import { ExtraGuestsCounterField } from '#/components/common/ExtraGuestsCounterField'
+import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
 import { calculateExtraGuestsFee } from '#/lib/constants/rooms'
 import { useCurrency } from '#/lib/currency'
+import { useI18n } from '#/lib/i18n'
 import {
   computeStayNights,
   formatPeso,
@@ -62,6 +64,7 @@ export const Route = createFileRoute('/rooms/$id')({
 function PublicRoomDetailPage() {
   const { room, sections } = Route.useLoaderData()
   const { currency, isConverted, formatPrice } = useCurrency()
+  const { t } = useI18n()
   const search = Route.useSearch()
 
   const contact = sections.find((s) => s.key === 'contact')
@@ -94,17 +97,17 @@ function PublicRoomDetailPage() {
       <PublicLayout contactSection={contact} brandingSection={branding}>
         <div className="max-w-3xl mx-auto px-6 py-24 text-center space-y-4">
           <h1 className="text-3xl font-serif text-stone-900">
-            Room Not Found
+            {t.roomDetail.notFoundTitle}
           </h1>
           <p className="text-sm text-stone-600">
-            This accommodation is no longer available.
+            {t.roomDetail.notFoundDesc}
           </p>
           <Link
             to="/rooms"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em]"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Rooms
+            {t.roomDetail.backToRooms}
           </Link>
         </div>
       </PublicLayout>
@@ -128,7 +131,7 @@ function PublicRoomDetailPage() {
     e.preventDefault()
     if (!room) return
     if (!checkIn || !checkOut) {
-      setError('Please select both check-in and check-out dates.')
+      setError(t.roomDetail.selectBothDatesError)
       return
     }
     setIsSubmitting(true)
@@ -169,7 +172,7 @@ function PublicRoomDetailPage() {
           className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-stone-600 hover:text-stone-900 transition"
         >
           <ArrowLeft className="w-4 h-4" />
-          All Rooms
+          {t.roomDetail.allRooms}
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
@@ -188,7 +191,7 @@ function PublicRoomDetailPage() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-xs uppercase tracking-widest text-stone-400">
-                    Room {room.roomNumber}
+                    {t.common.roomNumber(room.roomNumber)}
                   </div>
                 )}
               </div>
@@ -221,13 +224,13 @@ function PublicRoomDetailPage() {
 
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-amber-800 font-semibold">
-                <span>{room.type}</span>
+                <span>{t.common.roomTypes[room.type]}</span>
                 <span>·</span>
-                <span>Room {room.roomNumber}</span>
+                <span>{t.common.roomNumber(room.roomNumber)}</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" />
-                  Up to {room.capacity} guests
+                  {t.common.upToGuests(room.capacity)}
                 </span>
               </div>
 
@@ -245,7 +248,7 @@ function PublicRoomDetailPage() {
             {room.amenities.length > 0 && (
               <div className="pt-6 border-t border-stone-200/80 space-y-4">
                 <h2 className="text-xs uppercase tracking-[0.22em] text-stone-500 font-semibold">
-                  Room Amenities
+                  {t.roomDetail.roomAmenities}
                 </h2>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {room.amenities.map((item) => (
@@ -270,10 +273,13 @@ function PublicRoomDetailPage() {
                   <span className="text-2xl font-serif text-stone-900">
                     {formatPrice(room.pricePerNight)}
                   </span>
-                  <span className="text-xs text-stone-500"> / night</span>
+                  <span className="text-xs text-stone-500">
+                    {' '}
+                    {t.common.perNight}
+                  </span>
                 </div>
                 <span className="text-[11px] uppercase tracking-[0.18em] text-stone-500">
-                  Max {room.capacity} guests
+                  {t.common.maxGuests(room.capacity)}
                 </span>
               </div>
 
@@ -282,15 +288,14 @@ function PublicRoomDetailPage() {
                   <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-5 space-y-2">
                     <div className="flex items-center gap-2 text-emerald-800 font-semibold text-sm">
                       <CheckCircle2 className="w-5 h-5" />
-                      Reservation Request Received
+                      {t.roomDetail.reservationReceived}
                     </div>
                     <p className="text-xs text-emerald-700 leading-relaxed">
-                      Save your booking reference below to check your status at
-                      any time.
+                      {t.roomDetail.saveReferenceHint}
                     </p>
                     <div className="pt-2">
                       <div className="text-[11px] uppercase tracking-wider text-emerald-700">
-                        Booking Reference
+                        {t.roomDetail.bookingReference}
                       </div>
                       <div className="text-2xl font-mono font-bold text-emerald-950 tracking-wider">
                         {confirmation.bookingReference}
@@ -300,19 +305,20 @@ function PublicRoomDetailPage() {
 
                   <div className="rounded-2xl bg-stone-50 border border-stone-200/70 p-4 space-y-2 text-xs text-stone-700">
                     <div className="flex justify-between">
-                      <span>Duration</span>
+                      <span>{t.roomDetail.duration}</span>
                       <span className="font-semibold">
-                        {confirmation.nights}{' '}
-                        {confirmation.nights === 1 ? 'night' : 'nights'}
+                        {t.common.nightCount(confirmation.nights)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Estimated Total</span>
+                      <span>{t.roomDetail.totalStay}</span>
                       <span className="font-semibold text-right">
                         {formatPrice(confirmation.totalAmount)}
                         {isConverted && (
                           <span className="block text-[11px] font-normal text-stone-500">
-                            Billed as {formatPeso(confirmation.totalAmount)} PHP
+                            {t.roomDetail.billedAsPhp(
+                              formatPeso(confirmation.totalAmount),
+                            )}
                           </span>
                         )}
                       </span>
@@ -321,7 +327,9 @@ function PublicRoomDetailPage() {
 
                   {contact?.metadata.paymentInfo && (
                     <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-4 text-xs text-amber-950 leading-relaxed">
-                      <p className="font-semibold mb-1">Payment Instructions</p>
+                      <p className="font-semibold mb-1">
+                        {t.roomDetail.paymentInstructions}
+                      </p>
                       <p>{contact.metadata.paymentInfo}</p>
                     </div>
                   )}
@@ -330,7 +338,7 @@ function PublicRoomDetailPage() {
                     to="/booking-status"
                     className="block w-full text-center py-3 px-4 rounded-xl bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-900 transition"
                   >
-                    Track Booking Status
+                    {t.roomDetail.trackBookingStatus}
                   </Link>
                 </div>
               ) : (
@@ -361,7 +369,7 @@ function PublicRoomDetailPage() {
                       htmlFor="book-guests"
                       className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                     >
-                      Included Guests (Up to {room.capacity})
+                      {t.roomDetail.includedGuests(room.capacity)}
                     </label>
                     <select
                       id="book-guests"
@@ -374,7 +382,7 @@ function PublicRoomDetailPage() {
                         (_, i) => i + 1,
                       ).map((n) => (
                         <option key={n} value={n}>
-                          {n} {n === 1 ? 'Guest' : 'Guests'}
+                          {t.common.guestCount(n)}
                         </option>
                       ))}
                     </select>
@@ -400,7 +408,7 @@ function PublicRoomDetailPage() {
                         htmlFor="book-first-name"
                         className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                       >
-                        First Name *
+                        {t.roomDetail.firstName}
                       </label>
                       <input
                         id="book-first-name"
@@ -416,7 +424,7 @@ function PublicRoomDetailPage() {
                         htmlFor="book-last-name"
                         className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                       >
-                        Last Name *
+                        {t.roomDetail.lastName}
                       </label>
                       <input
                         id="book-last-name"
@@ -434,16 +442,14 @@ function PublicRoomDetailPage() {
                       htmlFor="book-phone"
                       className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                     >
-                      Mobile / Phone Number *
+                      {t.roomDetail.mobilePhone}
                     </label>
-                    <input
+                    <PhoneNumberInput
                       id="book-phone"
-                      type="tel"
                       required
+                      variant="public"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+63 9XX XXX XXXX"
-                      className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
+                      onChange={setPhone}
                     />
                   </div>
 
@@ -452,7 +458,7 @@ function PublicRoomDetailPage() {
                       htmlFor="book-email"
                       className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                     >
-                      Email (Optional)
+                      {t.roomDetail.emailOptional}
                     </label>
                     <input
                       id="book-email"
@@ -468,14 +474,14 @@ function PublicRoomDetailPage() {
                       htmlFor="book-requests"
                       className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1"
                     >
-                      Special Requests
+                      {t.roomDetail.specialRequests}
                     </label>
                     <textarea
                       id="book-requests"
                       rows={2}
                       value={specialRequests}
                       onChange={(e) => setSpecialRequests(e.target.value)}
-                      placeholder="Port pickup, early check-in, etc."
+                      placeholder={t.roomDetail.specialRequestsPlaceholder}
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 text-sm text-stone-900"
                     />
                   </div>
@@ -484,8 +490,8 @@ function PublicRoomDetailPage() {
                     <div className="rounded-2xl bg-stone-50 border border-stone-200/70 p-4 space-y-1.5 text-xs">
                       <div className="flex justify-between gap-2 text-stone-600">
                         <span>
-                          {formatPrice(room.pricePerNight)} × {nights}{' '}
-                          {nights === 1 ? 'night' : 'nights'}
+                          {formatPrice(room.pricePerNight)} ×{' '}
+                          {t.common.nightCount(nights)}
                         </span>
                         <span className="whitespace-nowrap">
                           {formatPrice(baseRoomTotal)}
@@ -494,8 +500,7 @@ function PublicRoomDetailPage() {
                       {extraAdults > 0 && (
                         <div className="flex justify-between gap-2 text-amber-900">
                           <span>
-                            +{extraAdults} extra{' '}
-                            {extraAdults === 1 ? 'adult' : 'adults'} ×{' '}
+                            {t.roomDetail.extraAdultsSummary(extraAdults)} ×{' '}
                             {formatPrice(extraAdultFeeRate)} × {nights}n
                           </span>
                           <span className="whitespace-nowrap">
@@ -509,8 +514,7 @@ function PublicRoomDetailPage() {
                       {extraChildren > 0 && (
                         <div className="flex justify-between gap-2 text-amber-900">
                           <span>
-                            +{extraChildren} extra{' '}
-                            {extraChildren === 1 ? 'child' : 'children'} ×{' '}
+                            {t.roomDetail.extraChildrenSummary(extraChildren)} ×{' '}
                             {formatPrice(extraChildFeeRate)} × {nights}n
                           </span>
                           <span className="whitespace-nowrap">
@@ -522,16 +526,17 @@ function PublicRoomDetailPage() {
                         </div>
                       )}
                       <div className="flex justify-between gap-2 font-semibold text-stone-900 pt-1.5 border-t border-stone-200/70">
-                        <span>Total Stay</span>
+                        <span>{t.roomDetail.totalStay}</span>
                         <span className="whitespace-nowrap">
                           {formatPrice(estimatedTotal)}
                         </span>
                       </div>
                       {isConverted && (
                         <p className="text-[11px] text-stone-500 pt-1 leading-snug">
-                          Approx. in {currency} (from{' '}
-                          {formatPeso(estimatedTotal)} PHP) · Reservations are
-                          billed in PHP.
+                          {t.roomDetail.approxCurrencyNote(
+                            currency,
+                            formatPeso(estimatedTotal),
+                          )}
                         </p>
                       )}
                     </div>
@@ -546,8 +551,8 @@ function PublicRoomDetailPage() {
                       <Loader2 className="w-4 h-4 animate-spin" />
                     )}
                     {isSubmitting
-                      ? 'Submitting Request...'
-                      : 'Request Reservation'}
+                      ? t.roomDetail.submittingRequest
+                      : t.roomDetail.requestReservation}
                   </button>
                 </form>
               )}

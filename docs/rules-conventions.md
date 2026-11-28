@@ -21,17 +21,20 @@
 ## Reuse & code organization
 
 - **Types:** Import and define shared domain, entity, and router types in `#/types` (`src/types/index.ts`). Do not duplicate interfaces across components.
-- **Formatters & Currency:**
+- **Formatters, Currency, Phone & Guest i18n:**
   - Use `#/lib/formatters` (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `parseLocalIsoDate`, `computeStayNights`, `formatShortDate`, `formatLocalDateOnly`, `formatLocalDateTime`, `formatChatTime`, `formatUtcTimestamp`, `formatCalendarDayHeader`, `formatFullName`, `getBookingStatusMeta`, `getPaymentStatusMeta`, `getRoomStatusMeta`, `getReviewStatusMeta`, `getChatStatusMeta`, `getRoleBadgeClass`, `getErrorMessage`). Do not inline `.toLocaleString()`, `.toLocaleDateString()`, or `.toLocaleTimeString()` in UI components or server handlers.
-  - On **public guest pages**, format room rates, extra-person fees, and booking totals with `useCurrency().formatPrice(phpAmount)` from `#/lib/currency` (while noting PHP as the billing currency when converted). On **admin pages, logs, and database writes**, always use `formatPeso` and raw PHP amounts.
+  - On **public guest pages**, format room rates, extra-person fees, and booking totals with `useCurrency().formatPrice(phpAmount)` from `#/lib/currency` (while noting PHP as the billing currency when converted), and localize guest UI strings and stay dates through `useI18n()` from `#/lib/i18n` (`en`, `ko`, `ja`). On **admin pages, logs, and database writes**, always use `formatPeso` and raw PHP amounts.
+  - Collect guest mobile numbers on both public and admin forms with `<PhoneNumberInput>` (`#/components/common/PhoneNumberInput`) and normalize server-side writes with `normalizePhoneForStorage()` from `#/lib/phone` so PostgreSQL stores digits-only international numbers without `+` (e.g., `639568198715`). Use `phonesMatch()` when comparing user-entered contact numbers against stored guest phones.
 - **Constants & Labels:** Put domain constants in `#/lib/constants/`:
   - `auth.ts` — auth/security constants and password validators
   - `chat.ts` — live-chat timing, pagination, rate-limit, and quick-reply presets
   - `cms.ts` — CMS section defaults, brand logos, hero config, and tourist spot serializers
   - `currencies.ts` — supported currencies, fallback rates, and storage keys
   - `labels.ts` — `ADMIN_LABELS`, `REVIEW_RATING_LABELS`, and `*_STATUS_META` badge maps
+  - `locales.ts` — supported guest locales (`en`, `ko`, `ja`) and typed `TRANSLATIONS` dictionary
+  - `phone-countries.ts` — country calling codes, trunk-zero rules, and national phone length bounds
   - `rooms.ts` — room/booking/amenity/blocked-date presets, extra-guest fee helpers, and `buildOccupiedBookedRanges`
-- **Common Components:** Reuse `#/components/common/` (`StatusBadge`, `EmptyState`, `StatCard`, `Panel`, `ConfirmModal`, `PasswordChallengeModal`, `PasswordInput`, `ExtraGuestsCounterField`, `AdminDataTable`) and `#/components/admin/auth/AuthPageShell` (`AuthPageShell`, `PasswordField`) instead of duplicating badge, password eye-toggle, stepper, card, modal, auth shell, or empty-state markup.
+- **Common Components:** Reuse `#/components/common/` (`StatusBadge`, `EmptyState`, `StatCard`, `Panel`, `ConfirmModal`, `PasswordChallengeModal`, `PasswordInput`, `PhoneNumberInput`, `ExtraGuestsCounterField`, `AdminDataTable`) and `#/components/admin/auth/AuthPageShell` (`AuthPageShell`, `PasswordField`) instead of duplicating badge, password eye-toggle, country phone selector, stepper, card, modal, auth shell, or empty-state markup.
 - **Verification:** Before finishing changes, pass `pnpm exec tsc --noEmit`, `pnpm lint` (0 errors/warnings), unit tests (`pnpm vitest run`), and `pnpm build`.
 
 ## Media & File Storage (Cloudflare R2)

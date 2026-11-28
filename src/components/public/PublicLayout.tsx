@@ -4,9 +4,11 @@ import { Link } from '@tanstack/react-router'
 import { ChevronDown, Images, MapPin, Menu, Phone, Star, X } from 'lucide-react'
 import { resolveBrandLogos } from '#/lib/constants/cms'
 import { CurrencyContext, CurrencyProvider } from '#/lib/currency'
+import { I18nContext, I18nProvider, useI18n } from '#/lib/i18n'
 import { AnalyticsTracker } from '#/components/public/AnalyticsTracker'
 import { CookieConsentCenter } from '#/components/public/CookieConsentCenter'
 import { CurrencySelector } from '#/components/public/CurrencySelector'
+import { LanguageSelector } from '#/components/public/LanguageSelector'
 import { PublicChatWidget } from '#/components/public/PublicChatWidget'
 import type { CmsSectionData } from '#/types'
 
@@ -17,13 +19,13 @@ interface PublicLayoutProps {
   showExploreLink?: boolean
 }
 
-export function PublicLayout({
+function PublicLayoutInner({
   children,
   contactSection,
   brandingSection,
   showExploreLink = true,
 }: PublicLayoutProps) {
-  const existingCurrencyContext = useContext(CurrencyContext)
+  const { t } = useI18n()
   const brandLogos = resolveBrandLogos(brandingSection)
   const [menuOpen, setMenuOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -222,14 +224,14 @@ export function PublicLayout({
               className="hover:text-stone-900 transition"
               activeProps={{ className: 'text-stone-950 font-semibold' }}
             >
-              Sanctuary
+              {t.nav.sanctuary}
             </Link>
             <Link
               to="/rooms"
               className="hover:text-stone-900 transition"
               activeProps={{ className: 'text-stone-950 font-semibold' }}
             >
-              Rooms
+              {t.nav.rooms}
             </Link>
             {showExploreLink && (
               <Link
@@ -237,7 +239,7 @@ export function PublicLayout({
                 className="hover:text-stone-900 transition"
                 activeProps={{ className: 'text-stone-950 font-semibold' }}
               >
-                Explore Camotes
+                {t.nav.exploreCamotes}
               </Link>
             )}
             <Link
@@ -245,7 +247,7 @@ export function PublicLayout({
               className="hover:text-stone-900 transition"
               activeProps={{ className: 'text-stone-950 font-semibold' }}
             >
-              Booking Status
+              {t.nav.bookingStatus}
             </Link>
 
             {/* More Dropdown Menu (triggers on hover + click) */}
@@ -280,7 +282,7 @@ export function PublicLayout({
                 onKeyDown={handleMoreTriggerKeyDown}
                 className="inline-flex items-center gap-1.5 hover:text-stone-900 transition cursor-pointer uppercase tracking-[0.18em] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 rounded-md px-1 py-0.5"
               >
-                <span>More</span>
+                <span>{t.nav.more}</span>
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`}
                 />
@@ -291,7 +293,7 @@ export function PublicLayout({
                   <div
                     id="more-nav-menu"
                     role="menu"
-                    aria-label="More pages"
+                    aria-label={t.nav.morePagesLabel}
                     onKeyDown={handleMoreMenuKeyDown}
                     className="w-64 rounded-2xl bg-[#FAF8F4] border border-stone-200/80 shadow-xl py-2 normal-case tracking-normal"
                   >
@@ -310,10 +312,10 @@ export function PublicLayout({
                       <Images className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                          Photo Gallery
+                          {t.nav.photoGallery}
                         </p>
                         <p className="text-[11px] text-stone-500 mt-0.5">
-                          Spaces &amp; daily life at the haven
+                          {t.nav.photoGalleryDesc}
                         </p>
                       </div>
                     </Link>
@@ -332,10 +334,10 @@ export function PublicLayout({
                       <Star className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                          Guest Reviews
+                          {t.nav.guestReviews}
                         </p>
                         <p className="text-[11px] text-stone-500 mt-0.5">
-                          Ratings &amp; stories from past stays
+                          {t.nav.guestReviewsDesc}
                         </p>
                       </div>
                     </Link>
@@ -355,10 +357,10 @@ export function PublicLayout({
                       <MapPin className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                          Google Map
+                          {t.nav.googleMap}
                         </p>
                         <p className="text-[11px] text-stone-500 mt-0.5">
-                          Directions to Santiago Bay, Camotes
+                          {t.nav.googleMapDesc}
                         </p>
                       </div>
                     </Link>
@@ -377,10 +379,10 @@ export function PublicLayout({
                       <Phone className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-900 group-hover:text-amber-900">
-                          Contact Us
+                          {t.nav.contactUs}
                         </p>
                         <p className="text-[11px] text-stone-500 mt-0.5">
-                          Phone, email, hours &amp; port guide
+                          {t.nav.contactUsDesc}
                         </p>
                       </div>
                     </Link>
@@ -389,14 +391,10 @@ export function PublicLayout({
               )}
             </div>
 
-            <CurrencySelector variant="desktop" />
-
-            <Link
-              to="/rooms"
-              className="px-5 py-2.5 rounded-full bg-stone-900 text-[#FAF8F4] hover:bg-amber-900 transition tracking-[0.16em]"
-            >
-              Reserve
-            </Link>
+            <div className="flex items-center gap-2">
+              <LanguageSelector variant="desktop" />
+              <CurrencySelector variant="desktop" />
+            </div>
           </nav>
 
           {/* Mobile Menu Toggle */}
@@ -418,14 +416,14 @@ export function PublicLayout({
               className="block py-1 hover:text-stone-950"
               onClick={() => setMenuOpen(false)}
             >
-              Sanctuary
+              {t.nav.sanctuary}
             </Link>
             <Link
               to="/rooms"
               className="block py-1 hover:text-stone-950"
               onClick={() => setMenuOpen(false)}
             >
-              Rooms
+              {t.nav.rooms}
             </Link>
             {showExploreLink && (
               <Link
@@ -433,7 +431,7 @@ export function PublicLayout({
                 className="block py-1 hover:text-stone-950"
                 onClick={() => setMenuOpen(false)}
               >
-                Explore Camotes
+                {t.nav.exploreCamotes}
               </Link>
             )}
             <Link
@@ -441,25 +439,25 @@ export function PublicLayout({
               className="block py-1 hover:text-stone-950"
               onClick={() => setMenuOpen(false)}
             >
-              Booking Status
+              {t.nav.bookingStatus}
             </Link>
             <div className="pt-2 border-t border-stone-200/70 space-y-3">
               <p className="text-[10px] tracking-[0.24em] text-stone-400">
-                More
+                {t.nav.more}
               </p>
               <Link
                 to="/gallery"
                 className="block py-1 hover:text-stone-950"
                 onClick={() => setMenuOpen(false)}
               >
-                Photo Gallery
+                {t.nav.photoGallery}
               </Link>
               <Link
                 to="/reviews"
                 className="block py-1 hover:text-stone-950"
                 onClick={() => setMenuOpen(false)}
               >
-                Guest Reviews
+                {t.nav.guestReviews}
               </Link>
               <Link
                 to="/contact"
@@ -467,24 +465,18 @@ export function PublicLayout({
                 className="block py-1 hover:text-stone-950"
                 onClick={() => setMenuOpen(false)}
               >
-                Google Map
+                {t.nav.googleMap}
               </Link>
               <Link
                 to="/contact"
                 className="block py-1 hover:text-stone-950"
                 onClick={() => setMenuOpen(false)}
               >
-                Contact Us
+                {t.nav.contactUs}
               </Link>
             </div>
+            <LanguageSelector variant="mobile" />
             <CurrencySelector variant="mobile" />
-            <Link
-              to="/rooms"
-              className="inline-block px-5 py-2.5 rounded-full bg-stone-900 text-[#FAF8F4]"
-              onClick={() => setMenuOpen(false)}
-            >
-              Reserve a Stay
-            </Link>
           </div>
         )}
       </header>
@@ -506,14 +498,13 @@ export function PublicLayout({
               className="h-14 w-auto object-contain"
             />
             <p className="text-sm text-stone-600 leading-relaxed max-w-sm">
-              {contactSection?.body ||
-                'A quiet rooms-only coastal retreat on Camotes Island, Cebu, designed for unhurried island stays.'}
+              {contactSection?.body || t.footer.defaultTagline}
             </p>
           </div>
 
           <div className="space-y-2.5 text-sm">
             <p className="text-[11px] uppercase tracking-[0.22em] text-stone-500 font-semibold">
-              Location &amp; Contact
+              {t.footer.locationAndContact}
             </p>
             <p className="text-stone-800">
               {meta.address ||
@@ -523,46 +514,46 @@ export function PublicLayout({
             {meta.email && <p className="text-stone-600">{meta.email}</p>}
             {(meta.checkInTime || meta.checkOutTime) && (
               <p className="text-xs text-stone-500 pt-1">
-                Check-in {meta.checkInTime || '2:00 PM'} · Check-out{' '}
-                {meta.checkOutTime || '12:00 PM'}
+                {t.footer.checkIn} {meta.checkInTime || '2:00 PM'} ·{' '}
+                {t.footer.checkOut} {meta.checkOutTime || '12:00 PM'}
               </p>
             )}
           </div>
 
           <div className="space-y-2.5 text-sm">
             <p className="text-[11px] uppercase tracking-[0.22em] text-stone-500 font-semibold">
-              Guest Services
+              {t.footer.guestServices}
             </p>
             <div className="flex flex-col space-y-2 text-stone-700">
               <Link to="/rooms" className="hover:text-stone-950 transition">
-                Browse Rooms &amp; Rates
+                {t.footer.browseRoomsAndRates}
               </Link>
               {showExploreLink && (
                 <Link to="/explore" className="hover:text-stone-950 transition">
-                  Camotes Island Guide
+                  {t.footer.camotesIslandGuide}
                 </Link>
               )}
               <Link
                 to="/booking-status"
                 className="hover:text-stone-950 transition"
               >
-                Check Booking Status
+                {t.footer.checkBookingStatus}
               </Link>
               <Link to="/gallery" className="hover:text-stone-950 transition">
-                Photo Gallery
+                {t.footer.photoGallery}
               </Link>
               <Link to="/reviews" className="hover:text-stone-950 transition">
-                Guest Reviews
+                {t.footer.guestReviews}
               </Link>
               <Link
                 to="/contact"
                 hash="map"
                 className="hover:text-stone-950 transition"
               >
-                Google Map &amp; Directions
+                {t.footer.googleMapAndDirections}
               </Link>
               <Link to="/contact" className="hover:text-stone-950 transition">
-                Contact Us
+                {t.footer.contactUs}
               </Link>
               <button
                 ref={footerCookieBtnRef}
@@ -570,13 +561,13 @@ export function PublicLayout({
                 onClick={(e) => handleOpenCookiePreferences(e.currentTarget)}
                 className="text-left hover:text-stone-950 transition cursor-pointer"
               >
-                Cookie Preferences
+                {t.footer.cookiePreferences}
               </button>
               <Link
                 to="/admin/login"
                 className="text-xs text-stone-500 hover:text-stone-800 transition pt-2"
               >
-                Staff Portal
+                {t.footer.staffPortal}
               </Link>
             </div>
           </div>
@@ -598,9 +589,19 @@ export function PublicLayout({
     </div>
   )
 
-  return existingCurrencyContext ? (
-    layoutContent
-  ) : (
-    <CurrencyProvider>{layoutContent}</CurrencyProvider>
-  )
+  return layoutContent
+}
+
+export function PublicLayout(props: PublicLayoutProps) {
+  const existingI18n = useContext(I18nContext)
+  const existingCurrency = useContext(CurrencyContext)
+
+  let node = <PublicLayoutInner {...props} />
+  if (!existingCurrency) {
+    node = <CurrencyProvider>{node}</CurrencyProvider>
+  }
+  if (!existingI18n) {
+    node = <I18nProvider>{node}</I18nProvider>
+  }
+  return node
 }

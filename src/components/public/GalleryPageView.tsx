@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Images } from 'lucide-react'
 import { getSectionPhotoItems } from '#/lib/constants/cms'
+import { useI18n } from '#/lib/i18n'
 import { SectionPhotoGalleryModal } from '#/components/public/SectionPhotoGalleryModal'
 import type { CmsSectionData } from '#/types'
 
@@ -10,6 +11,7 @@ interface GalleryPageViewProps {
 }
 
 export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
+  const { locale, t } = useI18n()
   const [lightboxState, setLightboxState] = useState<{
     isOpen: boolean
     initialMode: 'grid' | 'lightbox'
@@ -28,14 +30,13 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
         </div>
         <div className="space-y-3">
           <p className="text-[11px] uppercase tracking-[0.28em] text-amber-900/80 font-semibold">
-            Atmosphere · Photo Gallery
+            {t.gallery.eyebrow}
           </p>
           <h1 className="font-serif text-3xl sm:text-4xl text-stone-900">
-            Photo Gallery Unavailable
+            {t.gallery.unavailableTitle}
           </h1>
           <p className="text-sm sm:text-base text-stone-600 leading-relaxed max-w-xl mx-auto">
-            Our photo gallery is currently hidden while we refresh our island
-            photography. Browse our rooms or return to the sanctuary overview.
+            {t.gallery.unavailableDesc}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -43,14 +44,14 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
             to="/rooms"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-stone-900 text-[#FAF8F4] hover:bg-amber-900 text-xs uppercase tracking-[0.16em] font-medium transition"
           >
-            <span>Browse Rooms &amp; Rates</span>
+            <span>{t.footer.browseRoomsAndRates}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
             to="/"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-stone-300 text-stone-700 hover:bg-stone-100 text-xs uppercase tracking-[0.16em] font-medium transition"
           >
-            Return to Sanctuary
+            {t.explore.returnToSanctuary}
           </Link>
         </div>
       </section>
@@ -62,7 +63,10 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
     gallerySection.metadata.imageCaptionsJson,
   )
 
-  const eyebrow = gallerySection.metadata.eyebrow || 'Atmosphere'
+  const eyebrow =
+    locale === 'en'
+      ? gallerySection.metadata.eyebrow || t.gallery.eyebrow
+      : t.gallery.eyebrow
   const title = gallerySection.title || 'Spaces bathed in tropical light.'
   const subtitle =
     gallerySection.subtitle || 'A glimpse into daily life at the haven.'
@@ -91,11 +95,11 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
       <section className="space-y-6">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">
-            Pictures
+            {t.gallery.picturesHeading}
           </h2>
           {photos.length > 0 && (
             <span className="text-xs text-stone-500">
-              {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
+              {t.gallery.photoCount(photos.length)}
             </span>
           )}
         </div>
@@ -105,18 +109,17 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
             <Images className="w-8 h-8 text-stone-300 mx-auto" />
             <div className="space-y-1.5">
               <p className="font-serif text-xl text-stone-800">
-                Gallery photos are being curated
+                {t.gallery.curatingTitle}
               </p>
               <p className="text-sm text-stone-500 max-w-md mx-auto">
-                We are updating our island photography. Browse our suites and
-                rooms in the meantime.
+                {t.gallery.curatingDesc}
               </p>
             </div>
             <Link
               to="/rooms"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.16em] font-semibold hover:bg-amber-900 transition"
             >
-              <span>Browse Rooms</span>
+              <span>{t.gallery.browseRooms}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -176,7 +179,7 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
                 }
                 className="text-sm font-medium text-stone-700 hover:text-stone-950 underline underline-offset-4 transition cursor-pointer"
               >
-                Explore all pictures
+                {t.gallery.exploreAllPictures}
               </button>
             </div>
           </>

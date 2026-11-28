@@ -1,7 +1,7 @@
 # Structure conventions
 
 - `src/routes/` — file-based routes (TanStack Router)
-  - `__root.tsx` → Root HTML shell, global styles, and `CurrencyProvider`
+  - `__root.tsx` → Root HTML shell, global styles, `I18nProvider`, and `CurrencyProvider`
   - `index.tsx`, `rooms/index.tsx`, `rooms/$id.tsx`, `explore.tsx`, `gallery.tsx`, `reviews.tsx`, `contact.tsx`, `booking-status.tsx` → Public visitor site (homepage, rooms & availability search, room reservation form, Camotes Island tourist spots guide, photo gallery, verified guest reviews, contact & Google Map, booking status & post-stay review submission)
   - `verify-activation.tsx`, `reset-password.tsx` → Staff email activation and password reset pages
   - `api/auth/$.ts`, `api/media/$.ts` → Better Auth handler and media proxy/signed-access endpoint
@@ -20,6 +20,8 @@
   - `r2.ts`, `image-compress.ts` — Cloudflare R2 object-key/presigned-URL helpers and client WebP upload compression
   - `email.ts` — Nodemailer SMTP helper (verification, password-reset, live-chat inquiry alerts, and guest reply emails) and SHA-256 token utilities
   - `currency.tsx` — `CurrencyProvider` and `useCurrency()` hook for `Intl.NumberFormat` multi-currency display conversion from PHP
+  - `i18n.tsx` — `I18nProvider` and `useI18n()` hook for multi-language guest UI (`en`, `ko`, `ja`), `<html lang>` synchronization, and localized `Intl.DateTimeFormat` stay dates
+  - `phone.ts` — international phone composition, parsing, display formatting, cross-format matching (`phonesMatch`), and digits-only storage normalization (`normalizePhoneForStorage`, e.g., `639568198715`)
   - `formatters.ts` — memoized `Intl` formatters (`formatPeso`, `formatDate`, `formatDateInput`, `formatLocalDate`, `parseLocalIsoDate`, `computeStayNights`, `formatShortDate`, `formatLocalDateOnly`, `formatLocalDateTime`, `formatChatTime`, `formatUtcTimestamp`, `formatCalendarDayHeader`, `formatFullName`, `formatRoleLabel`, `getErrorMessage`) and status/role badge lookups
   - `cookie-consent.ts`, `csv.ts`, `hero-rich-text.ts`, `logger.ts`, `parse-user-agent.ts` — cookie consent state, CSV export builder, sanitized hero rich text, audit logging, and device/browser UA parsing
 - `src/lib/constants/` — centralized domain constants, presets, and validators
@@ -28,9 +30,11 @@
   - `cms.ts` — default CMS sections, brand logos, hero carousel config, gallery captions/featured flags, and Camotes tourist spot serializers
   - `currencies.ts` — supported currencies (`PHP`, `USD`, `EUR`, `GBP`, `AUD`, `CAD`, `SGD`, `JPY`, `KRW`), fallback PHP rates, cache keys, and TTL
   - `labels.ts` — centralized UI labels (`ADMIN_LABELS`), review rating labels, and booking/payment/room/review/chat/role badge metadata
+  - `locales.ts` — supported guest locales (`en`, `ko`, `ja`) and typed `TRANSLATIONS` dictionary
+  - `phone-countries.ts` — country calling codes (`PH +63`, `KR +82`, `JP +81`, `GB +44`, `US +1`, etc.), trunk-zero stripping rules, and national length bounds
   - `rooms.ts` — room/booking/payment/amenity presets, blocked-date reason presets, extra-guest fee calculators/parsers, and `buildOccupiedBookedRanges()`
-- `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `ExtraGuestsCounterField`, `NotFoundPage`, `Panel`, `PasswordChallengeModal`, `PasswordInput`, `StatCard`, `StatusBadge`)
-- `src/components/public/` — public visitor components (`PublicLayout`, `HeroCarouselSection`, `HeroRichTextContent`, `StayDateRangePicker`, `CurrencySelector`, `PublicChatWidget`, `ExploreGuideView`, `GalleryPageView`, `ReviewsPageView`, `SectionPhotoGalleryModal`, `CookieConsentCenter`, `AnalyticsTracker`)
+- `src/components/common/` — reusable UI components (`AdminDataTable`, `AdminNavbar`, `AdminSidebar`, `ConfirmModal`, `EmptyState`, `ExtraGuestsCounterField`, `NotFoundPage`, `Panel`, `PasswordChallengeModal`, `PasswordInput`, `PhoneNumberInput`, `StatCard`, `StatusBadge`)
+- `src/components/public/` — public visitor components (`PublicLayout`, `HeroCarouselSection`, `HeroRichTextContent`, `StayDateRangePicker`, `LanguageSelector`, `CurrencySelector`, `PublicChatWidget`, `ExploreGuideView`, `GalleryPageView`, `ReviewsPageView`, `SectionPhotoGalleryModal`, `CookieConsentCenter`, `AnalyticsTracker`)
 - `src/components/admin/` — admin feature components (`auth`, `bookings`, `chat`, `dashboard`, `guests`, `notifications`, `profile`, `reports`, `reviews`, `rooms`, `settings`, `users`)
 - `src/server/` — server functions and handlers (`*-actions.ts`, `upload.ts`)
 - `src/test/setup.ts` — Vitest DOM setup

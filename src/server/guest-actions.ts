@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { prisma } from '#/lib/prisma'
 import { logActivity } from '#/lib/logger'
 import { authSession } from '#/lib/auth-helpers'
+import { normalizePhoneForStorage } from '#/lib/phone'
 import { requirePermission } from '#/lib/require-permission'
 
 // --- 1. GET GUESTS LIST ---
@@ -60,12 +61,15 @@ export async function createGuestHandler({
     }
   }
 
+  const normalizedPhone =
+    normalizePhoneForStorage(data.phone) || data.phone.trim()
+
   const guest = await prisma.guest.create({
     data: {
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
       email: normalizedEmail,
-      phone: data.phone.trim(),
+      phone: normalizedPhone,
       idType: data.idType?.trim() || null,
       idNumber: data.idNumber?.trim() || null,
       nationality: data.nationality?.trim() || 'Filipino',
@@ -151,13 +155,18 @@ export async function updateGuestHandler({
     }
   }
 
+  const normalizedPhone =
+    data.phone !== undefined
+      ? normalizePhoneForStorage(data.phone) || data.phone.trim()
+      : undefined
+
   const updatedGuest = await prisma.guest.update({
     where: { id: data.id },
     data: {
       firstName: data.firstName?.trim(),
       lastName: data.lastName?.trim(),
       email: normalizedEmail,
-      phone: data.phone?.trim(),
+      phone: normalizedPhone,
       idType: data.idType !== undefined ? data.idType.trim() || null : undefined,
       idNumber:
         data.idNumber !== undefined ? data.idNumber.trim() || null : undefined,

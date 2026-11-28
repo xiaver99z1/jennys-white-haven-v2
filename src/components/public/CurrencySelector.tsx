@@ -5,6 +5,7 @@ import {
   isSupportedCurrency,
   useCurrency,
 } from '#/lib/currency'
+import { useI18n } from '#/lib/i18n'
 
 interface CurrencySelectorProps {
   variant?: 'desktop' | 'mobile'
@@ -14,6 +15,7 @@ export function CurrencySelector({
   variant = 'desktop',
 }: CurrencySelectorProps) {
   const { currency, currencyOption, setCurrency } = useCurrency()
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -114,7 +116,7 @@ export function CurrencySelector({
           className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.24em] text-stone-400 font-semibold"
         >
           <Globe className="w-3.5 h-3.5 text-amber-800" />
-          Currency / Country Rate
+          {t.currency.mobileLabel}
         </label>
         <select
           id="mobile-currency-select"
@@ -181,7 +183,7 @@ export function CurrencySelector({
             id="public-currency-heading"
             className="px-3.5 py-1.5 text-[10px] uppercase tracking-[0.2em] text-stone-400 font-semibold"
           >
-            Display Rates In
+            {t.currency.displayRatesIn}
           </div>
           <div
             id="public-currency-listbox"
@@ -242,8 +244,7 @@ export function CurrencySelector({
             })}
           </div>
           <div className="px-3.5 pt-2 pb-1 mt-1 border-t border-stone-200/70 text-[10px] text-stone-500 leading-snug">
-            Converted from PHP for guest convenience. Reservations are billed in
-            PHP (₱).
+            {t.currency.billingHint}
           </div>
         </div>
       )}

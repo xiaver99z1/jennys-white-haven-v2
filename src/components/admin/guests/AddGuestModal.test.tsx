@@ -35,15 +35,16 @@ describe('AddGuestModal', () => {
     expect(screen.getByText(/add new guest/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText('e.g. Maria')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('e.g. Santos')).toBeInTheDocument()
+    expect(screen.getByLabelText(/phone number/i)).toBeInTheDocument()
     expect(
-      screen.getByPlaceholderText(/e\.g\. \+63 917 123 4567/i),
-    ).toBeInTheDocument()
+      screen.getByRole('button', { name: /country calling code/i }),
+    ).toHaveTextContent('+63')
     expect(
       screen.getByRole('button', { name: /create guest/i }),
     ).toBeInTheDocument()
   })
 
-  it('allows user to fill out all fields and submit successfully', async () => {
+  it('allows user to fill out all fields and submit digits-only international phone', async () => {
     vi.mocked(createGuest).mockResolvedValueOnce({ success: true } as any)
     const user = userEvent.setup({ delay: null })
 
@@ -51,10 +52,7 @@ describe('AddGuestModal', () => {
 
     await user.type(screen.getByPlaceholderText('e.g. Maria'), 'Maria')
     await user.type(screen.getByPlaceholderText('e.g. Santos'), 'Santos')
-    await user.type(
-      screen.getByPlaceholderText(/e\.g\. \+63 917 123 4567/i),
-      '09171234567',
-    )
+    await user.type(screen.getByLabelText(/phone number/i), '9568198715')
     await user.type(
       screen.getByPlaceholderText(/e\.g\. maria@example\.com/i),
       'maria@example.com',
@@ -82,7 +80,7 @@ describe('AddGuestModal', () => {
           firstName: 'Maria',
           lastName: 'Santos',
           email: 'maria@example.com',
-          phone: '09171234567',
+          phone: '639568198715',
           idType: 'Passport',
           idNumber: 'P987654',
           nationality: 'Canadian',
@@ -94,7 +92,7 @@ describe('AddGuestModal', () => {
     })
   })
 
-  it('submits undefined for empty optional fields', async () => {
+  it('submits undefined for empty optional fields and strips trunk zero on phone', async () => {
     vi.mocked(createGuest).mockResolvedValueOnce({ success: true } as any)
     const user = userEvent.setup({ delay: null })
 
@@ -102,10 +100,7 @@ describe('AddGuestModal', () => {
 
     await user.type(screen.getByPlaceholderText('e.g. Maria'), 'Juan')
     await user.type(screen.getByPlaceholderText('e.g. Santos'), 'Cruz')
-    await user.type(
-      screen.getByPlaceholderText(/e\.g\. \+63 917 123 4567/i),
-      '09180001111',
-    )
+    await user.type(screen.getByLabelText(/phone number/i), '09180001111')
     await user.clear(screen.getByPlaceholderText(/e\.g\. filipino/i))
     await user.selectOptions(screen.getByRole('combobox'), '')
 
@@ -117,7 +112,7 @@ describe('AddGuestModal', () => {
           firstName: 'Juan',
           lastName: 'Cruz',
           email: undefined,
-          phone: '09180001111',
+          phone: '639180001111',
           idType: undefined,
           idNumber: undefined,
           nationality: undefined,
@@ -137,10 +132,7 @@ describe('AddGuestModal', () => {
 
     await user.type(screen.getByPlaceholderText('e.g. Maria'), 'Maria')
     await user.type(screen.getByPlaceholderText('e.g. Santos'), 'Santos')
-    await user.type(
-      screen.getByPlaceholderText(/e\.g\. \+63 917 123 4567/i),
-      '09171234567',
-    )
+    await user.type(screen.getByLabelText(/phone number/i), '09171234567')
 
     await user.click(screen.getByRole('button', { name: /create guest/i }))
 

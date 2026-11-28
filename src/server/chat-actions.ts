@@ -19,6 +19,7 @@ import {
   sendChatReplyToGuestEmail,
 } from '#/lib/email'
 import { formatFullName } from '#/lib/formatters'
+import { normalizePhoneForStorage, phonesMatch } from '#/lib/phone'
 import { prisma } from '#/lib/prisma'
 import { requirePermission } from '#/lib/require-permission'
 import type {
@@ -461,12 +462,15 @@ export async function sendVisitorChatMessageHandler({
       isNewConversation = true
       const visitorName = (validated.name ?? '').trim()
       const visitorEmail = (validated.email ?? '').trim() || null
-      const visitorPhone = (validated.phone ?? '').trim() || null
+      const rawVisitorPhone = (validated.phone ?? '').trim()
+      const visitorPhone = rawVisitorPhone
+        ? normalizePhoneForStorage(rawVisitorPhone)
+        : null
 
       if (visitorName.length < 2 || visitorName.length > 80) {
         throw new Error('Please enter your name (2–80 characters).')
       }
-      if (!visitorEmail && !visitorPhone) {
+      if (!visitorEmail && !rawVisitorPhone) {
         throw new Error(
           'Please provide an email address or phone number so we can follow up.',
         )
@@ -474,7 +478,10 @@ export async function sendVisitorChatMessageHandler({
       if (visitorEmail && !isSingleMailboxEmail(visitorEmail)) {
         throw new Error('Please enter a valid single email address.')
       }
-      if (visitorPhone && (visitorPhone.length < 7 || visitorPhone.length > 30)) {
+      if (
+        rawVisitorPhone &&
+        (!visitorPhone || visitorPhone.length < 8 || visitorPhone.length > 16)
+      ) {
         throw new Error('Please enter a valid phone number.')
       }
 
@@ -756,16 +763,32 @@ async function findDeterministicMatchedGuest(
     }
   }
 
-  const normalizedPhone = visitorPhone?.trim() || ''
-  if (normalizedPhone) {
-    const phoneMatches = await prisma.guest.findMany({
+  const rawPhone = visitorPhone?.trim() || ''
+  const normalizedPhone = normalizePhoneForStorage(rawPhone)
+  const phoneCandidates = Array.from(
+    new Set([normalizedPhone, rawPhone].filter(Boolean)),
+  )
+  const phoneSuffix = normalizedPhone.length >= 7 ? normalizedPhone.slice(-4) : ''
+  if (phoneCandidates.length > 0) {
+    const candidates = await prisma.guest.findMany({
       where: {
         deletedAt: null,
-        phone: normalizedPhone,
+        OR: [
+          {
+            phone:
+              phoneCandidates.length === 1
+                ? phoneCandidates[0]
+                : { in: phoneCandidates },
+          },
+          ...(phoneSuffix ? [{ phone: { endsWith: phoneSuffix } }] : []),
+        ],
       },
-      take: 2,
-      select: { id: true, firstName: true, lastName: true },
+      take: 25,
+      select: { id: true, firstName: true, lastName: true, phone: true },
     })
+    const phoneMatches = candidates.filter((g) =>
+      phonesMatch(g.phone, rawPhone),
+    )
     if (phoneMatches.length === 1) {
       const g = phoneMatches[0]
       return { id: g.id, name: formatFullName(g.firstName, g.lastName) }
@@ -852,9 +875,22 @@ export async function getAdminChatInboxHandler({
         .filter((v): v is string => Boolean(v)),
     ),
   )
+  const normalizedPhoneSet = new Set(
+    phones
+      .map((p) => normalizePhoneForStorage(p))
+      .filter((v) => v.length > 0),
+  )
+  const allExactPhones = Array.from(new Set([...phones, ...normalizedPhoneSet]))
+  const phoneSuffixes = Array.from(
+    new Set(
+      Array.from(normalizedPhoneSet)
+        .filter((p) => p.length >= 7)
+        .map((p) => p.slice(-4)),
+    ),
+  )
 
   const matchedGuests =
-    emails.length > 0 || phones.length > 0
+    emails.length > 0 || allExactPhones.length > 0
       ? await prisma.guest.findMany({
           where: {
             deletedAt: null,
@@ -864,7 +900,12 @@ export async function getAdminChatInboxHandler({
                     email: { equals: email, mode: 'insensitive' as const },
                   }))
                 : []),
-              ...(phones.length > 0 ? [{ phone: { in: phones } }] : []),
+              ...(allExactPhones.length > 0
+                ? [{ phone: { in: allExactPhones } }]
+                : []),
+              ...phoneSuffixes.map((suffix) => ({
+                phone: { endsWith: suffix },
+              })),
             ],
           },
           select: {
@@ -879,6 +920,15 @@ export async function getAdminChatInboxHandler({
 
   const guestByEmail = new Map<string, MatchedGuestSummary | 'AMBIGUOUS'>()
   const guestByPhone = new Map<string, MatchedGuestSummary | 'AMBIGUOUS'>()
+  const registerPhoneKey = (key: string, summary: MatchedGuestSummary) => {
+    if (!key) return
+    const existing = guestByPhone.get(key)
+    if (!existing) {
+      guestByPhone.set(key, summary)
+    } else if (existing === 'AMBIGUOUS' || existing.id !== summary.id) {
+      guestByPhone.set(key, 'AMBIGUOUS')
+    }
+  }
   for (const guest of matchedGuests) {
     const summary: MatchedGuestSummary = {
       id: guest.id,
@@ -894,13 +944,8 @@ export async function getAdminChatInboxHandler({
       }
     }
     if (guest.phone) {
-      const key = guest.phone.trim()
-      const existing = guestByPhone.get(key)
-      if (!existing) {
-        guestByPhone.set(key, summary)
-      } else if (existing === 'AMBIGUOUS' || existing.id !== summary.id) {
-        guestByPhone.set(key, 'AMBIGUOUS')
-      }
+      registerPhoneKey(guest.phone.trim(), summary)
+      registerPhoneKey(normalizePhoneForStorage(guest.phone), summary)
     }
   }
 
@@ -908,6 +953,9 @@ export async function getAdminChatInboxHandler({
     conversations: conversations.map((c): AdminChatConversationSummary => {
       const emailKey = c.visitorEmail?.trim().toLowerCase() || ''
       const phoneKey = c.visitorPhone?.trim() || ''
+      const normalizedPhoneKey = phoneKey
+        ? normalizePhoneForStorage(phoneKey)
+        : ''
 
       // Deterministic priority: email match first; fall back to phone only when there is no email match; reject ambiguous matches
       const emailMatch = emailKey ? guestByEmail.get(emailKey) : undefined
@@ -917,7 +965,11 @@ export async function getAdminChatInboxHandler({
       } else if (emailMatch) {
         matched = emailMatch
       } else if (phoneKey) {
-        const phoneMatch = guestByPhone.get(phoneKey)
+        const phoneMatch =
+          guestByPhone.get(phoneKey) ??
+          (normalizedPhoneKey
+            ? guestByPhone.get(normalizedPhoneKey)
+            : undefined)
         matched = phoneMatch && phoneMatch !== 'AMBIGUOUS' ? phoneMatch : null
       }
 

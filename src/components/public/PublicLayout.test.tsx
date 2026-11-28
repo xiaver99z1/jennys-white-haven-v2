@@ -50,11 +50,14 @@ describe('PublicLayout', () => {
     expect(screen.getByText('Camotes Island Guide')).toBeInTheDocument()
     expect(screen.getByText('Booking Status')).toBeInTheDocument()
     expect(
+      screen.queryByRole('link', { name: /^Reserve$/i }),
+    ).not.toBeInTheDocument()
+    expect(
       screen.getByText(/Santiago Bay, San Francisco, Camotes Island, Cebu/i),
     ).toBeInTheDocument()
   })
 
-  it('toggles mobile navigation drawer', () => {
+  it('toggles mobile navigation drawer without Reserve CTA', () => {
     render(
       <PublicLayout contactSection={contactSection}>
         <div>Body</div>
@@ -64,12 +67,14 @@ describe('PublicLayout', () => {
     fireEvent.click(
       screen.getByRole('button', { name: /Open navigation menu/i }),
     )
-    expect(screen.getByText('Reserve a Stay')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select language')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select currency')).toBeInTheDocument()
+    expect(screen.queryByText(/Reserve a Stay/i)).not.toBeInTheDocument()
 
     fireEvent.click(
       screen.getByRole('button', { name: /Close navigation menu/i }),
     )
-    expect(screen.queryByText('Reserve a Stay')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Select language')).not.toBeInTheDocument()
   })
 
   it('hides Explore links when showExploreLink is false', () => {
@@ -137,5 +142,32 @@ describe('PublicLayout', () => {
     fireEvent.click(screen.getByRole('option', { name: /United States/i }))
 
     expect(screen.getByTestId('sample-price')).toHaveTextContent('$60.20')
+  })
+
+  it('switches guest translations across English, Korean, and Japanese via LanguageSelector', () => {
+    render(
+      <PublicLayout contactSection={contactSection}>
+        <div>Body</div>
+      </PublicLayout>,
+    )
+
+    const langTrigger = screen.getByRole('button', {
+      name: /Select language \(current: English\)/i,
+    })
+    fireEvent.click(langTrigger)
+    fireEvent.click(screen.getByRole('option', { name: /Korean/i }))
+
+    expect(screen.getByText('객실 안내')).toBeInTheDocument()
+    expect(document.documentElement.lang).toBe('ko')
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /Select language \(current: 한국어\)/i,
+      }),
+    )
+    fireEvent.click(screen.getByRole('option', { name: /Japanese/i }))
+
+    expect(screen.getByText('客室案内')).toBeInTheDocument()
+    expect(document.documentElement.lang).toBe('ja')
   })
 })

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { getSpotImages, parseTouristSpots } from '#/lib/constants/cms'
+import { useI18n } from '#/lib/i18n'
 import type {
   CmsSectionData,
   TouristSpotCategory,
@@ -24,6 +25,7 @@ interface ExploreGuideViewProps {
 }
 
 export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
+  const { locale, t } = useI18n()
   const [selectedCategory, setSelectedCategory] = useState<
     'ALL' | TouristSpotCategory
   >('ALL')
@@ -133,15 +135,13 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
         </div>
         <div className="space-y-3">
           <p className="text-[11px] uppercase tracking-[0.28em] text-amber-900/80 font-semibold">
-            Island Guide · Camotes, Cebu
+            {t.explore.eyebrow}
           </p>
           <h1 className="font-serif text-3xl sm:text-4xl text-stone-900">
-            Camotes Island Guide Unavailable
+            {t.explore.unavailableTitle}
           </h1>
           <p className="text-sm sm:text-base text-stone-600 leading-relaxed max-w-xl mx-auto">
-            Our island destination guide is currently hidden while we update
-            recommendations for your stay. Browse our rooms or reach out to our
-            team for local travel tips.
+            {t.explore.unavailableDesc}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -149,14 +149,14 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
             to="/rooms"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-stone-900 text-[#FAF8F4] hover:bg-amber-900 text-xs uppercase tracking-[0.16em] font-medium transition"
           >
-            <span>Browse Rooms &amp; Rates</span>
+            <span>{t.footer.browseRoomsAndRates}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
             to="/"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-stone-300 text-stone-700 hover:bg-stone-100 text-xs uppercase tracking-[0.16em] font-medium transition"
           >
-            Return to Sanctuary
+            {t.explore.returnToSanctuary}
           </Link>
         </div>
       </section>
@@ -235,7 +235,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                   : 'bg-white border border-stone-200/90 text-stone-600 hover:border-stone-400 hover:text-stone-900'
               }`}
             >
-              All Spots ({spots.length})
+              {t.explore.allSpots(spots.length)}
             </button>
             {categories.map((cat) => (
               <button
@@ -307,8 +307,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       {spotImages.length > 0 && (
                         <span className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] bg-stone-900/75 text-[#FAF8F4] backdrop-blur-xs">
                           <Images className="w-3 h-3" />
-                          {spotImages.length}{' '}
-                          {spotImages.length === 1 ? 'Photo' : 'Photos'}
+                          {t.explore.photoCount(spotImages.length)}
                         </span>
                       )}
                     </div>
@@ -341,7 +340,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                             <div className="space-y-1">
                               <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                                 <Clock className="w-3 h-3 text-amber-800" />
-                                Distance
+                                {t.explore.distance}
                               </dt>
                               <dd className="text-stone-700 font-medium">
                                 {spot.travelTime}
@@ -352,7 +351,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                             <div className="space-y-1">
                               <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                                 <Sun className="w-3 h-3 text-amber-800" />
-                                Best Time
+                                {t.explore.bestTime}
                               </dt>
                               <dd className="text-stone-700 font-medium">
                                 {spot.bestTime}
@@ -363,7 +362,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                             <div className="space-y-1">
                               <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                                 <Ticket className="w-3 h-3 text-amber-800" />
-                                Fee / Access
+                                {t.explore.feeAccess}
                               </dt>
                               <dd className="text-stone-700 font-medium">
                                 {spot.entranceFee}
@@ -376,7 +375,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       {spot.tips && (
                         <div className="mt-auto rounded-2xl bg-[#FAF8F4] border border-stone-200/70 px-4 py-3 text-xs text-stone-600 leading-relaxed">
                           <span className="font-semibold text-amber-900 uppercase tracking-[0.14em] text-[10px] mr-2">
-                            Guest Tip
+                            {t.explore.guestTip}
                           </span>
                           {spot.tips}
                         </div>
@@ -393,21 +392,24 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
         <div className="rounded-3xl bg-[#F3EFE7] border border-stone-200/80 p-8 sm:p-12 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <p className="text-[11px] uppercase tracking-[0.24em] text-amber-900/80 font-semibold">
-              Stay at Jenny&apos;s White Haven
+              {t.explore.stayAtJwh}
             </p>
             <h2 className="font-serif text-2xl sm:text-3xl text-stone-900">
-              Return to coastal quiet after your island adventure.
+              {t.explore.returnToQuiet}
             </h2>
             <p className="text-sm text-stone-600 leading-relaxed">
-              Book your room directly with us and let our local team help plan
-              your Camotes Island itinerary.
+              {t.explore.bookDirectDesc}
             </p>
           </div>
           <Link
             to={exploreSection.ctaHref || '/rooms'}
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-stone-900 text-[#FAF8F4] hover:bg-amber-900 text-xs uppercase tracking-[0.16em] font-medium transition self-start md:self-auto shrink-0"
           >
-            <span>{exploreSection.ctaLabel || 'Browse Rooms & Rates'}</span>
+            <span>
+              {locale === 'en'
+                ? exploreSection.ctaLabel || t.footer.browseRoomsAndRates
+                : t.footer.browseRoomsAndRates}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -558,7 +560,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       <div className="space-y-1">
                         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                           <Clock className="w-3 h-3 text-amber-800" />
-                          Distance
+                          {t.explore.distance}
                         </dt>
                         <dd className="text-stone-800 font-medium">
                           {activeSpot.travelTime}
@@ -569,7 +571,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       <div className="space-y-1">
                         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                           <Sun className="w-3 h-3 text-amber-800" />
-                          Best Time
+                          {t.explore.bestTime}
                         </dt>
                         <dd className="text-stone-800 font-medium">
                           {activeSpot.bestTime}
@@ -580,7 +582,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       <div className="space-y-1">
                         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                           <Ticket className="w-3 h-3 text-amber-800" />
-                          Fee / Access
+                          {t.explore.feeAccess}
                         </dt>
                         <dd className="text-stone-800 font-medium">
                           {activeSpot.entranceFee}
@@ -593,7 +595,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                 {activeSpot.tips && (
                   <div className="rounded-2xl bg-white border border-stone-200/80 px-4 py-3 text-xs text-stone-600 leading-relaxed">
                     <span className="font-semibold text-amber-900 uppercase tracking-[0.14em] text-[10px] mr-2">
-                      Guest Tip
+                      {t.explore.guestTip}
                     </span>
                     {activeSpot.tips}
                   </div>

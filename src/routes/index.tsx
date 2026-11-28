@@ -15,6 +15,7 @@ import { HeroCarouselSection } from '#/components/public/HeroCarouselSection'
 import { PublicLayout } from '#/components/public/PublicLayout'
 import { SectionPhotoGalleryModal } from '#/components/public/SectionPhotoGalleryModal'
 import { useCurrency } from '#/lib/currency'
+import { useI18n } from '#/lib/i18n'
 
 export const Route = createFileRoute('/')({
   loader: async () => {
@@ -34,6 +35,7 @@ export const Route = createFileRoute('/')({
 function LandingPage() {
   const { sections, rooms, reviewsSummary } = Route.useLoaderData()
   const { formatPrice } = useCurrency()
+  const { locale, t } = useI18n()
   const navigate = useNavigate()
   const [selectedTopPhotoIdx, setSelectedTopPhotoIdx] = useState<number | null>(
     null,
@@ -86,14 +88,16 @@ function LandingPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
-                    {story?.metadata.eyebrow || 'The Sanctuary'}
+                    {locale === 'en'
+                      ? story?.metadata.eyebrow || t.home.theSanctuary
+                      : t.home.theSanctuary}
                   </p>
                   {gallery && topSixGalleryPhotos.length > 0 && (
                     <Link
                       to="/gallery"
                       className="inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.16em] font-semibold text-stone-700 hover:text-amber-900 transition"
                     >
-                      <span>All Pictures</span>
+                      <span>{t.home.allPictures}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                   )}
@@ -136,7 +140,7 @@ function LandingPage() {
                   </div>
                 ) : (
                   <div className="rounded-2xl bg-[#F3EFE7] border border-stone-200/80 p-6 text-xs text-stone-500">
-                    Sanctuary photo highlights will be shared here soon.
+                    {t.home.sanctuaryPhotosSoon}
                   </div>
                 )}
               </div>
@@ -145,7 +149,7 @@ function LandingPage() {
               {amenities && amenityItems.length > 0 && (
                 <div className="pt-6 border-t border-stone-200/80 space-y-4">
                   <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
-                    Included With Every Stay
+                    {t.home.includedWithEveryStay}
                   </p>
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {amenityItems.map((item) => (
@@ -206,7 +210,7 @@ function LandingPage() {
                 to="/rooms"
                 className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] font-semibold text-stone-900 hover:text-amber-900 transition self-start sm:self-auto"
               >
-                View All Rooms
+                {t.home.viewAllRooms}
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -232,14 +236,15 @@ function LandingPage() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs uppercase tracking-widest text-stone-400">
-                          Room {room.roomNumber}
+                          {t.common.roomNumber(room.roomNumber)}
                         </div>
                       )}
                     </div>
                     <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                       <div className="space-y-1.5">
                         <p className="text-[10px] uppercase tracking-[0.22em] text-stone-500">
-                          {room.type} · Up to {room.capacity} guests
+                          {t.common.roomTypes[room.type]} ·{' '}
+                          {t.common.upToGuests(room.capacity)}
                         </p>
                         <h3 className="text-xl font-serif text-stone-900 group-hover:text-amber-900 transition">
                           {room.name}
@@ -255,11 +260,11 @@ function LandingPage() {
                           {formatPrice(room.pricePerNight)}
                           <span className="text-xs font-normal text-stone-500">
                             {' '}
-                            / night
+                            {t.common.perNight}
                           </span>
                         </span>
                         <span className="text-xs uppercase tracking-[0.16em] text-amber-900 font-semibold">
-                          Reserve →
+                          {t.home.reserveArrow}
                         </span>
                       </div>
                     </div>
@@ -268,7 +273,7 @@ function LandingPage() {
               </div>
             ) : (
               <p className="text-sm text-stone-500">
-                Rooms are currently being prepared. Please check back shortly.
+                {t.home.roomsPreparedSoon}
               </p>
             )}
           </div>
@@ -280,10 +285,10 @@ function LandingPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 sm:gap-6">
           <div className="space-y-2.5 max-w-xl">
             <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
-              Guest Experiences
+              {t.home.guestExperiences}
             </p>
             <h2 className="text-3xl sm:text-4xl font-serif text-stone-900">
-              Words From Our Guests
+              {t.home.wordsFromGuests}
             </h2>
             {reviewsSummary.totalCount > 0 ? (
               <div className="flex items-center gap-2 pt-1 text-sm text-stone-600">
@@ -303,14 +308,12 @@ function LandingPage() {
                   {reviewsSummary.averageRating.toFixed(1)}
                 </span>
                 <span>
-                  · {reviewsSummary.totalCount}{' '}
-                  {reviewsSummary.totalCount === 1 ? 'review' : 'reviews'}
+                  · {t.home.reviewCount(reviewsSummary.totalCount)}
                 </span>
               </div>
             ) : (
               <p className="text-sm sm:text-base text-stone-600 leading-relaxed">
-                Reflections from travelers who have unwound with us on Camotes
-                Island.
+                {t.home.reviewsFallbackSubtitle}
               </p>
             )}
           </div>
@@ -320,8 +323,8 @@ function LandingPage() {
             className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] font-semibold text-stone-900 hover:text-amber-900 transition self-start sm:self-auto"
           >
             {reviewsSummary.totalCount > 0
-              ? 'View All Reviews'
-              : 'Review Your Stay'}
+              ? t.home.viewAllReviews
+              : t.home.reviewYourStay}
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -351,7 +354,7 @@ function LandingPage() {
                     {review.isVerifiedStay && (
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                         <ShieldCheck className="w-3 h-3" />
-                        Verified
+                        {t.home.verified}
                       </span>
                     )}
                   </div>
@@ -384,18 +387,17 @@ function LandingPage() {
           <div className="rounded-3xl bg-[#F3EFE7] border border-stone-200/80 p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div className="space-y-2 max-w-xl">
               <p className="font-serif text-2xl text-stone-900">
-                Stayed at Jenny&apos;s White Haven recently?
+                {t.home.stayedRecentlyTitle}
               </p>
               <p className="text-sm text-stone-600 leading-relaxed">
-                We would love to hear about your island stay. Share a short
-                note about your room and experience for future guests.
+                {t.home.stayedRecentlyDesc}
               </p>
             </div>
             <Link
               to="/booking-status"
               className="px-6 py-3 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-900 transition self-start sm:self-auto shrink-0"
             >
-              Review Your Stay
+              {t.home.reviewYourStay}
             </Link>
           </div>
         )}
@@ -426,13 +428,13 @@ function LandingPage() {
                 to="/rooms"
                 className="px-6 py-3 rounded-full bg-[#FAF8F4] text-stone-900 text-xs uppercase tracking-[0.18em] font-semibold hover:bg-amber-100 transition"
               >
-                Book a Room
+                {t.home.bookARoom}
               </Link>
               <Link
                 to="/booking-status"
                 className="px-6 py-3 rounded-full border border-stone-600 text-[#FAF8F4] text-xs uppercase tracking-[0.18em] font-semibold hover:bg-stone-800 transition"
               >
-                Check Status
+                {t.home.checkStatus}
               </Link>
             </div>
           </div>

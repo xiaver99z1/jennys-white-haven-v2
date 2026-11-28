@@ -333,4 +333,56 @@ describe('public-actions', () => {
     })
     expect(mismatch).toBeNull()
   })
+
+  it('reuses a returning guest with a legacy formatted phone when booking without an email', async () => {
+    const tx = {
+      room: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'r2',
+          roomNumber: '102',
+          capacity: 4,
+          pricePerNight: 5000,
+          deletedAt: null,
+          status: 'AVAILABLE',
+        }),
+      },
+      booking: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({
+          id: 'b2',
+          bookingReference: 'JWH-777888',
+        }),
+      },
+      guest: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'g-legacy', phone: '+63 917 123 4567' },
+        ]),
+        create: vi.fn(),
+      },
+    }
+
+    mockTransaction.mockImplementationOnce(
+      async (cb: (t: typeof tx) => unknown) => cb(tx),
+    )
+
+    const res = await createPublicBookingHandler({
+      data: {
+        roomId: 'r2',
+        checkIn: '2026-07-01',
+        checkOut: '2026-07-03',
+        guestsCount: 2,
+        firstName: 'Maria',
+        lastName: 'Santos',
+        phone: '639171234567',
+      },
+    })
+
+    expect(res.bookingReference).toBe('JWH-777888')
+    expect(tx.guest.create).not.toHaveBeenCalled()
+    expect(tx.booking.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        guestId: 'g-legacy',
+      }),
+    })
+  })
 })

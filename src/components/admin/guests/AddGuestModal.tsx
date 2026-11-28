@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createGuest } from '#/server/guest-actions'
 import { X, UserPlus } from 'lucide-react'
+import { PhoneNumberInput } from '#/components/common/PhoneNumberInput'
 import { GUEST_ID_TYPES, DEFAULT_NATIONALITY } from '#/lib/constants/rooms'
 import type { GuestIdType } from '#/lib/constants/rooms'
 
@@ -134,18 +135,19 @@ export function AddGuestModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">
+                <label
+                  htmlFor="add-guest-phone"
+                  className="block font-semibold text-stone-700 mb-1"
+                >
                   Phone Number
                 </label>
-                <input
-                  type="tel"
+                <PhoneNumberInput
+                  id="add-guest-phone"
                   required
-                  placeholder="e.g. +63 917 123 4567"
+                  size="sm"
+                  variant="admin"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 text-stone-800"
+                  onChange={(phone) => setFormData({ ...formData, phone })}
                 />
               </div>
               <div>

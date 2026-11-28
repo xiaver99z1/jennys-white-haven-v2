@@ -1,6 +1,7 @@
 import { Minus, Plus } from 'lucide-react'
 import { useCurrency } from '#/lib/currency'
 import { formatPeso } from '#/lib/formatters'
+import { useI18n } from '#/lib/i18n'
 
 interface ExtraGuestsCounterFieldProps {
   idPrefix: string
@@ -37,9 +38,16 @@ export function ExtraGuestsCounterField({
 }: ExtraGuestsCounterFieldProps) {
   const isPublic = variant === 'public'
   const { formatPrice } = useCurrency()
+  const { t } = useI18n()
   const formatAmount = isPublic ? formatPrice : formatPeso
-  const adultRateLabel = `+${formatAmount(extraAdultFee)} / night`
-  const childRateLabel = `+${formatAmount(extraChildFee)} / night`
+  const perNightSuffix = isPublic ? t.common.perNight : '/ night'
+  const adultRateLabel = `+${formatAmount(extraAdultFee)} ${perNightSuffix}`
+  const childRateLabel = `+${formatAmount(extraChildFee)} ${perNightSuffix}`
+  const headingLabel = isPublic
+    ? t.extraGuests.additionalPersonsOptional
+    : 'Additional Persons (Auto-Compute Fee)'
+  const adultLabel = isPublic ? t.extraGuests.adult : 'Adult'
+  const childLabel = isPublic ? t.extraGuests.child : 'Child'
 
   return (
     <div
@@ -51,20 +59,14 @@ export function ExtraGuestsCounterField({
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <span
-          title={
-            isPublic
-              ? 'Additional Persons (Optional)'
-              : 'Additional Persons (Auto-Compute Fee)'
-          }
+          title={headingLabel}
           className={
             isPublic
               ? 'text-[11px] uppercase tracking-[0.16em] text-stone-600 font-semibold truncate'
               : 'text-[11px] font-semibold text-stone-700 uppercase tracking-wider truncate'
           }
         >
-          {isPublic
-            ? 'Additional Persons (Optional)'
-            : 'Additional Persons (Auto-Compute Fee)'}
+          {headingLabel}
         </span>
         {extraTotalFee > 0 && (
           <span className="text-[11px] font-semibold text-amber-800 whitespace-nowrap shrink-0">
@@ -81,7 +83,7 @@ export function ExtraGuestsCounterField({
               htmlFor={`${idPrefix}-extra-adults`}
               className="block text-xs font-semibold text-stone-800 truncate"
             >
-              Adult
+              {adultLabel}
             </label>
             <span
               title={adultRateLabel}
@@ -134,7 +136,7 @@ export function ExtraGuestsCounterField({
               htmlFor={`${idPrefix}-extra-children`}
               className="block text-xs font-semibold text-stone-800 truncate"
             >
-              Child
+              {childLabel}
             </label>
             <span
               title={childRateLabel}

@@ -5,6 +5,7 @@ import type { DateRange, Matcher } from 'react-day-picker'
 import { addDays, format, startOfToday } from 'date-fns'
 import { ArrowLeft, ArrowRight, Calendar, X } from 'lucide-react'
 import { computeStayNights, parseLocalIsoDate } from '#/lib/formatters'
+import { useI18n } from '#/lib/i18n'
 import type { BookedDateRange } from '#/types'
 
 export { computeStayNights, parseLocalIsoDate }
@@ -75,12 +76,15 @@ export function StayDateRangePicker({
   bookedRanges,
   allowPastDates = false,
   idPrefix = 'stay',
-  checkInLabel = 'Check-in',
-  checkOutLabel = 'Check-out',
+  checkInLabel,
+  checkOutLabel,
   compact = false,
   required = false,
   className = '',
 }: StayDateRangePickerProps) {
+  const { locale, localeOption, t, formatStayDate } = useI18n()
+  const resolvedCheckInLabel = checkInLabel ?? t.datePicker.checkIn
+  const resolvedCheckOutLabel = checkOutLabel ?? t.datePicker.checkOut
   const [isOpen, setIsOpen] = useState(false)
   const [activeField, setActiveField] = useState<'checkIn' | 'checkOut'>(
     'checkIn',
@@ -302,7 +306,7 @@ export function StayDateRangePicker({
         // Cannot span across booked nights -> start a new check-in at selectedDay and explain why
         const nextIso = toLocalIsoDate(selectedDay)
         setRangeNotice(
-          `Cannot cross booked dates — started new check-in on ${formatStayDisplayDate(nextIso)}.`,
+          t.datePicker.cannotCrossBooked(formatStayDate(nextIso)),
         )
         onChange({
           checkIn: nextIso,
@@ -345,9 +349,24 @@ export function StayDateRangePicker({
     ? 'w-full px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border bg-white text-left text-xs sm:text-sm transition flex items-center justify-between gap-1.5 cursor-pointer'
     : 'w-full px-3 py-2 rounded-xl border bg-white text-left text-xs sm:text-sm transition flex items-center justify-between gap-2 cursor-pointer'
 
-  const checkInDisplay = formatStayDisplayDate(checkIn)
-  const checkOutDisplay = formatStayDisplayDate(checkOut)
+  const checkInDisplay = formatStayDate(checkIn)
+  const checkOutDisplay = formatStayDate(checkOut)
   const hasBookedDates = occupiedNightRanges.length > 0
+
+  const calendarFormatters = useMemo(() => {
+    if (locale === 'en') return undefined
+    const captionFmt = new Intl.DateTimeFormat(localeOption.dateLocale, {
+      year: 'numeric',
+      month: 'long',
+    })
+    const weekdayFmt = new Intl.DateTimeFormat(localeOption.dateLocale, {
+      weekday: 'short',
+    })
+    return {
+      formatCaption: (month: Date) => captionFmt.format(month),
+      formatWeekdayName: (day: Date) => weekdayFmt.format(day),
+    }
+  }, [locale, localeOption.dateLocale])
 
   const calendarDialogId = `${idPrefix}-calendar-dialog`
 
@@ -380,10 +399,10 @@ export function StayDateRangePicker({
         <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-[0.22em] text-amber-800 font-semibold">
             {nights > 0
-              ? `${nights} ${nights === 1 ? 'night' : 'nights'} selected`
+              ? t.datePicker.nightsSelected(nights)
               : activeField === 'checkOut' && checkIn
-                ? 'Select your check-out date'
-                : 'Select your check-in date'}
+                ? t.datePicker.selectCheckOut
+                : t.datePicker.selectCheckIn}
           </p>
           <div className="flex flex-wrap items-center gap-1.5 text-sm font-serif text-stone-900">
             <button
@@ -398,11 +417,11 @@ export function StayDateRangePicker({
             >
               {checkInDisplay ? (
                 <>
-                  <span className="sr-only">{checkInLabel}: </span>
+                  <span className="sr-only">{resolvedCheckInLabel}: </span>
                   {checkInDisplay}
                 </>
               ) : (
-                checkInLabel
+                resolvedCheckInLabel
               )}
             </button>
             <span aria-hidden="true" className="text-stone-400">
@@ -420,11 +439,11 @@ export function StayDateRangePicker({
             >
               {checkOutDisplay ? (
                 <>
-                  <span className="sr-only">{checkOutLabel}: </span>
+                  <span className="sr-only">{resolvedCheckOutLabel}: </span>
                   {checkOutDisplay}
                 </>
               ) : (
-                checkOutLabel
+                resolvedCheckOutLabel
               )}
             </button>
           </div>
@@ -457,6 +476,7 @@ export function StayDateRangePicker({
         startMonth={allowPastDates ? undefined : today}
         selected={selectedRange}
         onSelect={handleSelectRange}
+        formatters={calendarFormatters}
         onDayMouseEnter={(day) => setHoveredDate(day)}
         onDayMouseLeave={() => setHoveredDate(null)}
         disabled={disabledMatchers}
@@ -530,7 +550,7 @@ export function StayDateRangePicker({
           {hasBookedDates && (
             <span className="inline-flex items-center gap-1.5 font-medium text-rose-700">
               <span className="w-3.5 h-3.5 rounded-sm bg-rose-100 border border-rose-400 inline-block" />
-              Booked / Unavailable
+              {t.datePicker.bookedUnavailable}
             </span>
           )}
           <button
@@ -539,7 +559,7 @@ export function StayDateRangePicker({
             disabled={!checkIn && !checkOut}
             className="text-xs font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
           >
-            Clear dates
+            {t.datePicker.clearDates}
           </button>
         </div>
 
@@ -548,7 +568,7 @@ export function StayDateRangePicker({
           onClick={() => closeCalendar(true)}
           className="px-5 py-2 rounded-full bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-[11px] uppercase tracking-[0.16em] font-semibold transition cursor-pointer"
         >
-          Done
+          {t.datePicker.done}
         </button>
       </div>
     </div>
@@ -563,7 +583,7 @@ export function StayDateRangePicker({
       <div className="min-w-0">
         <label
           htmlFor={`${idPrefix}-checkin`}
-          title={checkInLabel}
+          title={resolvedCheckInLabel}
           className={labelClass}
         >
           <Calendar
@@ -573,7 +593,7 @@ export function StayDateRangePicker({
                 : 'w-3.5 h-3.5 shrink-0'
             }
           />
-          <span className="truncate">{checkInLabel}</span>
+          <span className="truncate">{resolvedCheckInLabel}</span>
           {required && <span className="text-rose-500 shrink-0">*</span>}
         </label>
         <button
@@ -595,7 +615,7 @@ export function StayDateRangePicker({
               checkInDisplay ? 'text-stone-900 font-medium' : 'text-stone-400'
             }`}
           >
-            {checkInDisplay || 'Add date'}
+            {checkInDisplay || t.datePicker.addDate}
           </span>
           <Calendar className="w-3.5 h-3.5 text-stone-400 shrink-0" />
         </button>
@@ -605,7 +625,7 @@ export function StayDateRangePicker({
       <div className="min-w-0">
         <label
           htmlFor={`${idPrefix}-checkout`}
-          title={checkOutLabel}
+          title={resolvedCheckOutLabel}
           className={labelClass}
         >
           <Calendar
@@ -615,7 +635,7 @@ export function StayDateRangePicker({
                 : 'w-3.5 h-3.5 shrink-0'
             }
           />
-          <span className="truncate">{checkOutLabel}</span>
+          <span className="truncate">{resolvedCheckOutLabel}</span>
           {required && <span className="text-rose-500 shrink-0">*</span>}
         </label>
         <button
@@ -637,7 +657,7 @@ export function StayDateRangePicker({
               checkOutDisplay ? 'text-stone-900 font-medium' : 'text-stone-400'
             }`}
           >
-            {checkOutDisplay || 'Add date'}
+            {checkOutDisplay || t.datePicker.addDate}
           </span>
           <Calendar className="w-3.5 h-3.5 text-stone-400 shrink-0" />
         </button>

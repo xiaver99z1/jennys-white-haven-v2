@@ -10,6 +10,7 @@ import { EmptyState } from '#/components/common/EmptyState'
 import { ROOM_TYPES } from '#/lib/constants/rooms'
 import { useCurrency } from '#/lib/currency'
 import { isValidCalendarDate } from '#/lib/formatters'
+import { useI18n } from '#/lib/i18n'
 
 interface RoomsSearch {
   checkIn?: string
@@ -56,6 +57,7 @@ const ROOM_TYPE_FILTERS = ['ALL', ...ROOM_TYPES] as const
 function PublicRoomsPage() {
   const { rooms, sections } = Route.useLoaderData()
   const { formatPrice } = useCurrency()
+  const { locale, t } = useI18n()
   const search = Route.useSearch()
   const navigate = useNavigate({ from: '/rooms/' })
 
@@ -103,14 +105,19 @@ function PublicRoomsPage() {
         {/* Heading */}
         <div className="max-w-2xl space-y-3">
           <p className="text-[11px] uppercase tracking-[0.26em] text-amber-800 font-semibold">
-            {roomsSection?.metadata.eyebrow || 'Accommodations'}
+            {locale === 'en'
+              ? roomsSection?.metadata.eyebrow || t.roomsPage.eyebrow
+              : t.roomsPage.eyebrow}
           </p>
           <h1 className="text-3xl sm:text-5xl font-serif text-stone-900">
-            {roomsSection?.title || 'Sanctuaries by the Shore'}
+            {locale === 'en'
+              ? roomsSection?.title || t.roomsPage.defaultTitle
+              : t.roomsPage.defaultTitle}
           </h1>
           <p className="text-sm sm:text-base text-stone-600 leading-relaxed">
-            {roomsSection?.subtitle ||
-              'Select your preferred dates and room style to check live availability.'}
+            {locale === 'en'
+              ? roomsSection?.subtitle || t.roomsPage.defaultSubtitle
+              : t.roomsPage.defaultSubtitle}
           </p>
         </div>
 
@@ -136,7 +143,7 @@ function PublicRoomsPage() {
               className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5"
             >
               <Users className="w-3.5 h-3.5" />
-              Guests
+              {t.common.guests}
             </label>
             <select
               id="rooms-guests"
@@ -144,10 +151,10 @@ function PublicRoomsPage() {
               onChange={(e) => setGuests(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
             >
-              <option value="">Any</option>
+              <option value="">{t.common.any}</option>
               {[1, 2, 3, 4, 5, 6].map((n) => (
                 <option key={n} value={n}>
-                  {n}+ {n === 1 ? 'Guest' : 'Guests'}
+                  {t.common.guestsPlusCount(n)}
                 </option>
               ))}
             </select>
@@ -158,7 +165,7 @@ function PublicRoomsPage() {
               htmlFor="rooms-type"
               className="block text-[11px] uppercase tracking-[0.16em] text-stone-500 font-semibold mb-1.5"
             >
-              Room Type
+              {t.roomsPage.roomType}
             </label>
             <select
               id="rooms-type"
@@ -166,9 +173,9 @@ function PublicRoomsPage() {
               onChange={(e) => setType(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-stone-900/10"
             >
-              {ROOM_TYPE_FILTERS.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'ALL' ? 'All Room Types' : t}
+              {ROOM_TYPE_FILTERS.map((filterType) => (
+                <option key={filterType} value={filterType}>
+                  {t.common.roomTypes[filterType]}
                 </option>
               ))}
             </select>
@@ -180,21 +187,21 @@ function PublicRoomsPage() {
               className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] text-xs uppercase tracking-[0.16em] font-semibold transition cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
-              Search
+              {t.roomsPage.search}
             </button>
             <button
               type="button"
               onClick={handleReset}
               className="py-2.5 px-3 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition cursor-pointer"
             >
-              Clear
+              {t.roomsPage.clear}
             </button>
           </div>
         </form>
 
         {/* Results */}
         {rooms.length === 0 ? (
-          <EmptyState message="No rooms match your selected dates or filters. Try adjusting your search." />
+          <EmptyState message={t.roomsPage.emptyMessage} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {rooms.map((room) => (
@@ -220,7 +227,7 @@ function PublicRoomsPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xs uppercase tracking-widest text-stone-400">
-                      Room {room.roomNumber}
+                      {t.common.roomNumber(room.roomNumber)}
                     </div>
                   )}
                 </div>
@@ -228,8 +235,8 @@ function PublicRoomsPage() {
                 <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-stone-500">
-                      <span>{room.type}</span>
-                      <span>Up to {room.capacity} guests</span>
+                      <span>{t.common.roomTypes[room.type]}</span>
+                      <span>{t.common.upToGuests(room.capacity)}</span>
                     </div>
                     <h2 className="text-xl font-serif text-stone-900 group-hover:text-amber-900 transition">
                       {room.name}
@@ -258,11 +265,11 @@ function PublicRoomsPage() {
                       {formatPrice(room.pricePerNight)}
                       <span className="text-xs font-normal text-stone-500">
                         {' '}
-                        / night
+                        {t.common.perNight}
                       </span>
                     </span>
                     <span className="text-xs uppercase tracking-[0.16em] text-amber-900 font-semibold">
-                      View &amp; Reserve →
+                      {t.roomsPage.viewAndReserve}
                     </span>
                   </div>
                 </div>

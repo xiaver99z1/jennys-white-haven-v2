@@ -8,6 +8,7 @@ import {
   isWholeHouseRoom,
 } from '#/lib/constants/rooms'
 import { isValidCalendarDate, formatPeso } from '#/lib/formatters'
+import { normalizePhoneForStorage, phonesMatch } from '#/lib/phone'
 import { isBase64DataUrl, resolvePublicMediaUrl } from '#/lib/r2'
 import {
   calculateNights,
@@ -291,7 +292,7 @@ export async function createPublicBookingHandler({
 
   const firstName = data.firstName.trim()
   const lastName = data.lastName.trim()
-  const phone = data.phone.trim()
+  const phone = normalizePhoneForStorage(data.phone)
   const email = data.email?.trim() || null
 
   if (!firstName || !lastName || !phone) {
@@ -417,7 +418,7 @@ export async function createPublicBookingHandler({
         if (byEmail) {
           const samePerson =
             byEmail.deletedAt === null &&
-            byEmail.phone.trim() === phone &&
+            phonesMatch(byEmail.phone, phone) &&
             byEmail.firstName.trim().toLowerCase() === firstName.toLowerCase() &&
             byEmail.lastName.trim().toLowerCase() === lastName.toLowerCase()
           if (!samePerson) {
@@ -430,15 +431,35 @@ export async function createPublicBookingHandler({
       }
 
       if (!guest) {
-        guest = await tx.guest.findFirst({
-          where: {
-            deletedAt: null,
-            phone,
-            firstName: { equals: firstName, mode: 'insensitive' },
-            lastName: { equals: lastName, mode: 'insensitive' },
-          },
-          select: { id: true },
-        })
+        if (
+          typeof (tx.guest as { findMany?: typeof prisma.guest.findMany })
+            .findMany === 'function'
+        ) {
+          const sameNameGuests = await tx.guest.findMany({
+            where: {
+              deletedAt: null,
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+            },
+            select: { id: true, phone: true },
+          })
+          const matchedByPhone = sameNameGuests.find((candidate) =>
+            phonesMatch(candidate.phone, phone),
+          )
+          if (matchedByPhone) {
+            guest = { id: matchedByPhone.id }
+          }
+        } else {
+          guest = await tx.guest.findFirst({
+            where: {
+              deletedAt: null,
+              phone,
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+            },
+            select: { id: true },
+          })
+        }
       }
 
       if (!guest) {
@@ -588,7 +609,7 @@ export async function lookupPublicBookingHandler({
 
   if (!booking) return null
 
-  const matchesPhone = booking.guest.phone.trim().toLowerCase() === contact
+  const matchesPhone = phonesMatch(booking.guest.phone, contact)
   const matchesEmail =
     (booking.guest.email?.trim().toLowerCase() ?? '') === contact
 
