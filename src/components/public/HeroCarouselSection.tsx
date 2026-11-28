@@ -185,7 +185,7 @@ export function HeroCarouselSection({
           <button
             type="button"
             onClick={handlePrevSlide}
-            aria-label="Previous hero slide"
+            aria-label={t.home.prevHeroSlide}
             className="absolute left-3 bottom-3 md:bottom-auto md:left-4 md:top-1/2 md:-translate-y-1/2 z-20 p-1.5 md:p-2.5 rounded-full bg-stone-950/45 hover:bg-stone-950/75 text-[#FAF8F4] backdrop-blur-xs border border-white/15 transition cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
@@ -193,7 +193,7 @@ export function HeroCarouselSection({
           <button
             type="button"
             onClick={handleNextSlide}
-            aria-label="Next hero slide"
+            aria-label={t.home.nextHeroSlide}
             className="absolute right-3 bottom-3 md:bottom-auto md:right-4 md:top-1/2 md:-translate-y-1/2 z-20 p-1.5 md:p-2.5 rounded-full bg-stone-950/45 hover:bg-stone-950/75 text-[#FAF8F4] backdrop-blur-xs border border-white/15 transition cursor-pointer"
           >
             <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
@@ -317,8 +317,8 @@ export function HeroCarouselSection({
               aria-pressed={isManuallyPaused}
               aria-label={
                 isManuallyPaused
-                  ? 'Play hero slideshow'
-                  : 'Pause hero slideshow'
+                  ? t.home.playSlideshow
+                  : t.home.pauseSlideshow
               }
               onClick={() => setIsManuallyPaused((p) => !p)}
               className="p-1.5 rounded-full bg-stone-950/45 hover:bg-stone-950/75 text-[#FAF8F4] border border-white/15 backdrop-blur-xs transition cursor-pointer"
@@ -332,7 +332,7 @@ export function HeroCarouselSection({
           )}
           <div
             role="tablist"
-            aria-label="Hero slides"
+            aria-label={t.home.heroSlidesLabel}
             className="flex items-center gap-2"
           >
             {config.slides.map((slide, idx) => {
@@ -343,7 +343,7 @@ export function HeroCarouselSection({
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  aria-label={`Go to slide ${idx + 1}`}
+                  aria-label={t.home.goToSlide(idx + 1)}
                   onClick={() => setActiveIndex(idx)}
                   className={`h-2 rounded-full transition-all cursor-pointer ${
                     isActive

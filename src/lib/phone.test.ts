@@ -59,4 +59,22 @@ describe('phone utilities', () => {
     expect(phonesMatch('639568198715', '123')).toBe(false)
     expect(phonesMatch('639568198715', '639999999999')).toBe(false)
   })
+
+  it('preserves unsupported country codes and avoids re-prefixing over-long international numbers', () => {
+    // Unsupported country codes (+91 India, +55 Brazil, 0034 Spain) keep exact international digits
+    expect(normalizePhoneForStorage('+91 98765 43210')).toBe('919876543210')
+    expect(normalizePhoneForStorage('919876543210')).toBe('919876543210')
+    expect(normalizePhoneForStorage('+55 11 98765-4321')).toBe('5511987654321')
+    expect(normalizePhoneForStorage('0034 612 345 678')).toBe('34612345678')
+    expect(formatPhoneDisplay('919876543210')).toBe('+919876543210')
+
+    // Over-long Singapore input caps subscriber input at 8 digits and never re-prefixes with 63
+    expect(composeStoredPhone('SG', '8123456799')).toBe('6581234567')
+    expect(normalizePhoneForStorage(composeStoredPhone('SG', '8123456799'))).toBe(
+      '6581234567',
+    )
+    expect(normalizePhoneForStorage('+65 8123 4567 99')).toBe('658123456799')
+    expect(normalizePhoneForStorage('658123456799')).toBe('658123456799')
+    expect(phonesMatch('+91 98765 43210', '919876543210')).toBe(true)
+  })
 })

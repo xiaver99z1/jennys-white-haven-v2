@@ -94,6 +94,7 @@ export interface TranslationDictionary {
     bookingStatuses: Record<BookingStatus, string>
     paymentStatuses: Record<PaymentStatus, string>
     reviewRatings: Record<number, string>
+    ratingOutOfFive: (rating: number) => string
   }
   datePicker: {
     checkIn: string
@@ -131,6 +132,13 @@ export interface TranslationDictionary {
     stayedRecentlyDesc: string
     bookARoom: string
     checkStatus: string
+    sanctuaryPhotosSoon: string
+    prevHeroSlide: string
+    nextHeroSlide: string
+    playSlideshow: string
+    pauseSlideshow: string
+    heroSlidesLabel: string
+    goToSlide: (slideNumber: number) => string
   }
   roomsPage: {
     eyebrow: string
@@ -201,6 +209,7 @@ export interface TranslationDictionary {
     howWasYourStay: string
     reviewingAs: (guestName: string, roomName: string, ref: string) => string
     yourRating: string
+    rateStarAria: (stars: number) => string
     fromOptional: string
     fromPlaceholder: string
     headlineOptional: string
@@ -234,6 +243,8 @@ export interface TranslationDictionary {
     photoCount: (count: number) => string
     exploreAllPictures: string
     browseRooms: string
+    curatingTitle: string
+    curatingDesc: string
   }
   reviewsPage: {
     eyebrow: string
@@ -298,17 +309,30 @@ export interface TranslationDictionary {
     writeMessagePlaceholder: string
     close: string
     chatWithUs: string
+    openChatAria: string
+    closeChatAria: string
+    sendMessageAria: string
   }
   cookies: {
     bannerBody: string
     cookiePreferences: string
     agree: string
     privacyCenterTitle: string
+    closePrivacyCenterAria: string
+    readPrivacyNotice: string
+    hidePrivacyNotice: string
     manageConsentPreferences: string
     alwaysActive: string
     essentialOnly: string
     allowAll: string
     confirmChoices: string
+    toggleCategoryAria: (title: string) => string
+    categories: {
+      necessary: { title: string; description: string }
+      functional: { title: string; description: string }
+      performance: { title: string; description: string }
+      targeting: { title: string; description: string }
+    }
   }
 }
 
@@ -391,6 +415,7 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         4: 'Very good stay',
         5: 'Wonderful sanctuary',
       },
+      ratingOutOfFive: (n) => `${n} out of 5 stars`,
     },
     datePicker: {
       checkIn: 'Check-in',
@@ -432,6 +457,14 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         'We would love to hear about your island stay. Share a short note about your room and experience for future guests.',
       bookARoom: 'Book a Room',
       checkStatus: 'Check Status',
+      sanctuaryPhotosSoon:
+        'Sanctuary photo highlights will be shared here soon.',
+      prevHeroSlide: 'Previous hero slide',
+      nextHeroSlide: 'Next hero slide',
+      playSlideshow: 'Play hero slideshow',
+      pauseSlideshow: 'Pause hero slideshow',
+      heroSlidesLabel: 'Hero slides',
+      goToSlide: (n) => `Go to slide ${n}`,
     },
     roomsPage: {
       eyebrow: 'Accommodations',
@@ -512,6 +545,7 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       reviewingAs: (guest, room, ref) =>
         `Reviewing as ${guest} for ${room} (${ref}).`,
       yourRating: 'Your Rating *',
+      rateStarAria: (n) => `Rate ${n} out of 5 stars`,
       fromOptional: 'From (Optional)',
       fromPlaceholder: 'e.g., Cebu City',
       headlineOptional: 'Headline (Optional)',
@@ -550,6 +584,9 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       photoCount: (n) => `${n} ${n === 1 ? 'photo' : 'photos'}`,
       exploreAllPictures: 'Explore all pictures',
       browseRooms: 'Browse Rooms',
+      curatingTitle: 'Gallery photos are being curated',
+      curatingDesc:
+        'We are updating our island photography. Browse our suites and rooms in the meantime.',
     },
     reviewsPage: {
       eyebrow: 'Guest Experiences',
@@ -631,6 +668,9 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       writeMessagePlaceholder: 'Write a message...',
       close: 'Close',
       chatWithUs: 'Chat with us',
+      openChatAria: 'Open chat support',
+      closeChatAria: 'Close chat support',
+      sendMessageAria: 'Send message',
     },
     cookies: {
       bannerBody:
@@ -638,11 +678,37 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       cookiePreferences: 'Cookie Preferences',
       agree: 'Agree',
       privacyCenterTitle: 'Privacy Preferences Center',
+      closePrivacyCenterAria: 'Close privacy preferences center',
+      readPrivacyNotice: 'Read Privacy & Cookie Notice',
+      hidePrivacyNotice: 'Hide Privacy & Cookie Notice',
       manageConsentPreferences: 'Manage Consent Preferences',
       alwaysActive: 'Always Active',
       essentialOnly: 'Essential Only',
       allowAll: 'Allow All',
       confirmChoices: 'Confirm My Choices',
+      toggleCategoryAria: (title) => `Toggle ${title}`,
+      categories: {
+        necessary: {
+          title: 'Strictly Necessary Cookies',
+          description:
+            'Essential for the website to function properly, including room availability searches, reservation form security, payment proof uploads, and remembering your privacy preferences. These cookies cannot be switched off.',
+        },
+        functional: {
+          title: 'Functional Cookies',
+          description:
+            'Allow the website to remember choices you make during your visit—such as selected check-in and check-out dates, guest count, and display preferences—to provide a smoother booking experience.',
+        },
+        performance: {
+          title: 'Performance Cookies',
+          description:
+            'Help us understand how guests navigate our rooms and Camotes Island guide by collecting anonymous, aggregated traffic statistics so we can improve page speed and usability.',
+        },
+        targeting: {
+          title: 'Targeting Cookies',
+          description:
+            'Used to measure the effectiveness of our travel promotions and share relevant staycation updates on social platforms. If disabled, you will not receive targeted promotions from this site.',
+        },
+      },
     },
   },
 
@@ -724,6 +790,7 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         4: '매우 훌륭한 숙박',
         5: '최고의 힐링 안식처',
       },
+      ratingOutOfFive: (n) => `별점 5점 만점에 ${n}점`,
     },
     datePicker: {
       checkIn: '체크인',
@@ -764,6 +831,13 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         '소중한 섬 여행의 기억을 다음 여행자들과 나누어 주세요.',
       bookARoom: '객실 예약하기',
       checkStatus: '예약 조회',
+      sanctuaryPhotosSoon: '생추어리 주요 사진이 곧 업데이트됩니다.',
+      prevHeroSlide: '이전 배너 슬라이드',
+      nextHeroSlide: '다음 배너 슬라이드',
+      playSlideshow: '슬라이드쇼 재생',
+      pauseSlideshow: '슬라이드쇼 일시정지',
+      heroSlidesLabel: '메인 슬라이드 목록',
+      goToSlide: (n) => `${n}번 슬라이드로 이동`,
     },
     roomsPage: {
       eyebrow: '객실 안내',
@@ -843,6 +917,7 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       reviewingAs: (guest, room, ref) =>
         `${guest}님 · ${room} (${ref}) 투숙 후기 작성`,
       yourRating: '별점 평가 *',
+      rateStarAria: (n) => `별점 5점 중 ${n}점 선택`,
       fromOptional: '거주 도시/국가 (선택)',
       fromPlaceholder: '예: 서울, 대한민국',
       headlineOptional: '한 줄 제목 (선택)',
@@ -881,6 +956,9 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       photoCount: (n) => `사진 ${n}장`,
       exploreAllPictures: '전체 사진 크게 보기',
       browseRooms: '객실 둘러보기',
+      curatingTitle: '포토 갤러리 사진 준비 중',
+      curatingDesc:
+        '새로운 리조트 풍경 사진을 업데이트하고 있습니다. 먼저 객실 안내 페이지를 둘러보세요.',
     },
     reviewsPage: {
       eyebrow: '투숙객 경험',
@@ -962,6 +1040,9 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       writeMessagePlaceholder: '메시지를 입력하세요...',
       close: '닫기',
       chatWithUs: '실시간 문의',
+      openChatAria: '실시간 상담 창 열기',
+      closeChatAria: '실시간 상담 창 닫기',
+      sendMessageAria: '메시지 보내기',
     },
     cookies: {
       bannerBody:
@@ -969,11 +1050,37 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       cookiePreferences: '쿠키 설정',
       agree: '동의',
       privacyCenterTitle: '개인정보 및 쿠키 설정 센터',
+      closePrivacyCenterAria: '쿠키 설정 센터 닫기',
+      readPrivacyNotice: '개인정보 및 쿠키 안내 읽기',
+      hidePrivacyNotice: '개인정보 및 쿠키 안내 숨기기',
       manageConsentPreferences: '쿠키 동의 항목 관리',
       alwaysActive: '항상 사용',
       essentialOnly: '필수 쿠키만 허용',
       allowAll: '모두 허용',
       confirmChoices: '선택 설정 저장',
+      toggleCategoryAria: (title) => `${title} 설정 전환`,
+      categories: {
+        necessary: {
+          title: '필수 쿠키',
+          description:
+            '객실 조회, 예약 양식 보안, 입금 증빙 업로드 및 개인정보 동의 설정 저장 등 웹사이트의 핵심 기능 작동에 필수적이며 비활성화할 수 없습니다.',
+        },
+        functional: {
+          title: '기능성 쿠키',
+          description:
+            '선택하신 체크인·체크아웃 날짜, 인원수, 표시 통화 및 언어 설정 등을 기억하여 더욱 편리한 예약 경험을 제공합니다.',
+        },
+        performance: {
+          title: '성능 분석 쿠키',
+          description:
+            '익명화된 방문 통계를 통해 투숙객이 객실과 카모테스 가이드를 어떻게 탐색하는지 파악하고 페이지 속도와 사용성을 개선합니다.',
+        },
+        targeting: {
+          title: '맞춤형 프로모션 쿠키',
+          description:
+            '여행 프로모션 효과를 측정하고 소셜 플랫폼에서 관련 숙박 소식을 전달하는 데 사용됩니다. 비활성화 시 맞춤형 프로모션이 표시되지 않습니다.',
+        },
+      },
     },
   },
 
@@ -1055,6 +1162,7 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         4: 'とても良い滞在',
         5: '最高の癒やしの滞在',
       },
+      ratingOutOfFive: (n) => `5つ星のうち${n}つ星`,
     },
     datePicker: {
       checkIn: 'チェックイン',
@@ -1095,6 +1203,14 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
         'これから訪れるお客様のために、お部屋や島でのご滞在の感想をぜひお聞かせください。',
       bookARoom: '客室を予約する',
       checkStatus: '予約確認',
+      sanctuaryPhotosSoon:
+        'サンクチュアリのハイライト写真はまもなく公開されます。',
+      prevHeroSlide: '前のスライドへ',
+      nextHeroSlide: '次のスライドへ',
+      playSlideshow: 'スライドショーを再生',
+      pauseSlideshow: 'スライドショーを一時停止',
+      heroSlidesLabel: 'ヒーロースライド一覧',
+      goToSlide: (n) => `スライド${n}へ移動`,
     },
     roomsPage: {
       eyebrow: 'ご宿泊・客室',
@@ -1174,6 +1290,7 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       reviewingAs: (guest, room, ref) =>
         `${guest}様 · ${room}（${ref}）のご感想`,
       yourRating: '評価（星を選択） *',
+      rateStarAria: (n) => `5段階中${n}つ星を選択`,
       fromOptional: 'お住まいの地域（任意）',
       fromPlaceholder: '例：東京都',
       headlineOptional: 'タイトル（任意）',
@@ -1212,6 +1329,9 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       photoCount: (n) => `${n}枚の写真`,
       exploreAllPictures: 'すべての写真を拡大表示',
       browseRooms: '客室を見る',
+      curatingTitle: 'ギャラリー写真を準備中です',
+      curatingDesc:
+        '現在リゾートの写真を更新しております。ぜひ客室一覧をご覧ください。',
     },
     reviewsPage: {
       eyebrow: 'ゲストの声',
@@ -1293,6 +1413,9 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       writeMessagePlaceholder: 'メッセージを入力...',
       close: '閉じる',
       chatWithUs: 'チャット相談',
+      openChatAria: 'チャットサポートを開く',
+      closeChatAria: 'チャットサポートを閉じる',
+      sendMessageAria: 'メッセージを送信',
     },
     cookies: {
       bannerBody:
@@ -1300,11 +1423,37 @@ export const TRANSLATIONS: Record<LocaleCode, TranslationDictionary> = {
       cookiePreferences: 'Cookie設定',
       agree: '同意する',
       privacyCenterTitle: 'プライバシー設定センター',
+      closePrivacyCenterAria: 'プライバシー設定センターを閉じる',
+      readPrivacyNotice: 'プライバシーとCookieに関する案内を読む',
+      hidePrivacyNotice: 'プライバシーとCookieに関する案内を閉じる',
       manageConsentPreferences: '同意設定の管理',
       alwaysActive: '常に有効',
       essentialOnly: '必須のみ許可',
       allowAll: 'すべて許可',
       confirmChoices: '設定を保存する',
+      toggleCategoryAria: (title) => `${title}を切り替え`,
+      categories: {
+        necessary: {
+          title: '必須Cookie',
+          description:
+            '空室検索、予約フォームのセキュリティ、お支払い証明のアップロード、同意設定の保持など、サイトの基本機能に不可欠であり無効にすることはできません。',
+        },
+        functional: {
+          title: '機能性Cookie',
+          description:
+            'チェックイン・チェックアウト日、人数、表示通貨や言語設定などを記憶し、よりスムーズなご予約体験を提供します。',
+        },
+        performance: {
+          title: 'パフォーマンスCookie',
+          description:
+            '匿名化された統計情報を通じて客室や観光ガイドの閲覧状況を把握し、ページの表示速度や使いやすさの向上に役立てます。',
+        },
+        targeting: {
+          title: 'ターゲティングCookie',
+          description:
+            'キャンペーンの効果測定やSNSでの最新情報のご案内などに使用されます。無効にするとターゲティング広告は配信されません。',
+        },
+      },
     },
   },
 }

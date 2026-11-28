@@ -560,7 +560,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       <div className="space-y-1">
                         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                           <Clock className="w-3 h-3 text-amber-800" />
-                          Distance
+                          {t.explore.distance}
                         </dt>
                         <dd className="text-stone-800 font-medium">
                           {activeSpot.travelTime}
@@ -571,7 +571,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       <div className="space-y-1">
                         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                           <Sun className="w-3 h-3 text-amber-800" />
-                          Best Time
+                          {t.explore.bestTime}
                         </dt>
                         <dd className="text-stone-800 font-medium">
                           {activeSpot.bestTime}
@@ -582,7 +582,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                       <div className="space-y-1">
                         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-stone-400 font-semibold">
                           <Ticket className="w-3 h-3 text-amber-800" />
-                          Fee / Access
+                          {t.explore.feeAccess}
                         </dt>
                         <dd className="text-stone-800 font-medium">
                           {activeSpot.entranceFee}
@@ -595,7 +595,7 @@ export function ExploreGuideView({ exploreSection }: ExploreGuideViewProps) {
                 {activeSpot.tips && (
                   <div className="rounded-2xl bg-white border border-stone-200/80 px-4 py-3 text-xs text-stone-600 leading-relaxed">
                     <span className="font-semibold text-amber-900 uppercase tracking-[0.14em] text-[10px] mr-2">
-                      Guest Tip
+                      {t.explore.guestTip}
                     </span>
                     {activeSpot.tips}
                   </div>

@@ -52,4 +52,25 @@ describe('PhoneNumberInput', () => {
     fireEvent.change(input, { target: { value: '' } })
     expect(screen.getByTestId('stored-phone')).toHaveTextContent('')
   })
+
+  it('caps national input to selected country max digits and preserves unsupported +country numbers via INTL', () => {
+    render(<Harness />)
+
+    const input = document.getElementById('guest-phone') as HTMLInputElement
+
+    // Select Singapore (+65, 8 digits max) and type extra digits
+    fireEvent.click(screen.getByRole('button', { name: /Philippines \+63/i }))
+    fireEvent.click(screen.getByRole('option', { name: /Singapore.*\+65/i }))
+    fireEvent.change(input, { target: { value: '8123456799' } })
+    expect(input.value).toBe('81234567')
+    expect(screen.getByTestId('stored-phone')).toHaveTextContent('6581234567')
+
+    // Paste an unsupported +91 (India) number: switches to INTL (+) and preserves 919876543210
+    fireEvent.change(input, { target: { value: '+91 98765 43210' } })
+    expect(
+      screen.getByRole('button', { name: /Other \/ International \+/i }),
+    ).toBeInTheDocument()
+    expect(input.value).toBe('919876543210')
+    expect(screen.getByTestId('stored-phone')).toHaveTextContent('919876543210')
+  })
 })

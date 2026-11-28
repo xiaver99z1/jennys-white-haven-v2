@@ -205,7 +205,7 @@ export function ReviewsPageView({ summary }: ReviewsPageViewProps) {
                         />
                       ))}
                       <span className="sr-only">
-                        {review.rating} out of 5 stars
+                        {t.common.ratingOutOfFive(review.rating)}
                       </span>
                     </div>
 

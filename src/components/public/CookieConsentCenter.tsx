@@ -18,35 +18,11 @@ interface CookieConsentCenterProps {
 
 type CategoryKey = 'necessary' | keyof EditableCookieCategories
 
-const COOKIE_CATEGORY_DETAILS: Array<{
-  key: CategoryKey
-  title: string
-  description: string
-}> = [
-  {
-    key: 'necessary',
-    title: 'Strictly Necessary Cookies',
-    description:
-      'Essential for the website to function properly, including room availability searches, reservation form security, payment proof uploads, and remembering your privacy preferences. These cookies cannot be switched off.',
-  },
-  {
-    key: 'functional',
-    title: 'Functional Cookies',
-    description:
-      'Allow the website to remember choices you make during your visit—such as selected check-in and check-out dates, guest count, and display preferences—to provide a smoother booking experience.',
-  },
-  {
-    key: 'performance',
-    title: 'Performance Cookies',
-    description:
-      'Help us understand how guests navigate our rooms and Camotes Island guide by collecting anonymous, aggregated traffic statistics so we can improve page speed and usability.',
-  },
-  {
-    key: 'targeting',
-    title: 'Targeting Cookies',
-    description:
-      'Used to measure the effectiveness of our travel promotions and share relevant staycation updates on social platforms. If disabled, you will not receive targeted promotions from this site.',
-  },
+const COOKIE_CATEGORY_KEYS: readonly CategoryKey[] = [
+  'necessary',
+  'functional',
+  'performance',
+  'targeting',
 ]
 
 export function CookieConsentCenter({
@@ -267,7 +243,7 @@ export function CookieConsentCenter({
                 ref={closeBtnRef}
                 type="button"
                 onClick={handleCloseModal}
-                aria-label="Close privacy preferences center"
+                aria-label={t.cookies.closePrivacyCenterAria}
                 className="p-2 rounded-full hover:bg-stone-100 text-stone-600 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -310,8 +286,8 @@ export function CookieConsentCenter({
                     className="text-xs font-semibold text-amber-900 underline underline-offset-4 hover:text-stone-900 cursor-pointer"
                   >
                     {showPrivacyNotice
-                      ? 'Hide Privacy & Cookie Notice'
-                      : 'Read Privacy & Cookie Notice'}
+                      ? t.cookies.hidePrivacyNotice
+                      : t.cookies.readPrivacyNotice}
                   </button>
                 </div>
 
@@ -354,8 +330,8 @@ export function CookieConsentCenter({
                 </h3>
 
                 <div className="border border-stone-200 rounded-xl overflow-hidden bg-white divide-y divide-stone-200">
-                  {COOKIE_CATEGORY_DETAILS.map((cat) => {
-                    const catKey = cat.key
+                  {COOKIE_CATEGORY_KEYS.map((catKey) => {
+                    const cat = t.cookies.categories[catKey]
                     const isExpanded = expandedKeys.includes(catKey)
                     const isChecked =
                       catKey === 'necessary' ? true : draft[catKey]
@@ -386,7 +362,9 @@ export function CookieConsentCenter({
                               type="button"
                               role="switch"
                               aria-checked={isChecked}
-                              aria-label={`Toggle ${cat.title}`}
+                              aria-label={t.cookies.toggleCategoryAria(
+                                cat.title,
+                              )}
                               onClick={() => toggleCategory(catKey)}
                               className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900/30 ${
                                 isChecked ? 'bg-emerald-700' : 'bg-stone-300'

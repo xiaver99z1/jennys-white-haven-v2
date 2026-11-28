@@ -109,18 +109,17 @@ export function GalleryPageView({ gallerySection }: GalleryPageViewProps) {
             <Images className="w-8 h-8 text-stone-300 mx-auto" />
             <div className="space-y-1.5">
               <p className="font-serif text-xl text-stone-800">
-                Gallery photos are being curated
+                {t.gallery.curatingTitle}
               </p>
               <p className="text-sm text-stone-500 max-w-md mx-auto">
-                We are updating our island photography. Browse our suites and
-                rooms in the meantime.
+                {t.gallery.curatingDesc}
               </p>
             </div>
             <Link
               to="/rooms"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 text-[#FAF8F4] text-xs uppercase tracking-[0.16em] font-semibold hover:bg-amber-900 transition"
             >
-              <span>Browse Rooms</span>
+              <span>{t.gallery.browseRooms}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>

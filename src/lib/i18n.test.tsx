@@ -26,6 +26,15 @@ describe('i18n utilities and I18nProvider', () => {
     expect(detectBrowserLocale('en-GB')).toBe('en')
 
     expect(formatStayDateForLocale('2026-12-05', 'en')).toBe('Dec 5, 2026')
+    expect(
+      formatStayDateForLocale(new Date('2026-12-05T00:00:00.000Z'), 'en'),
+    ).toBe('Dec 5, 2026')
+    expect(
+      formatStayDateForLocale(new Date('2026-12-05T14:00:00+08:00'), 'en'),
+    ).toBe('Dec 5, 2026')
+    expect(
+      formatStayDateForLocale(new Date('2026-12-05T00:00:00+08:00'), 'en'),
+    ).toBe('Dec 5, 2026')
     expect(formatStayDateForLocale('2026-12-05', 'ko')).toContain('2026')
     expect(formatStayDateForLocale('2026-12-05', 'ja')).toContain('2026')
     expect(formatStayDateForLocale('', 'en')).toBe('')

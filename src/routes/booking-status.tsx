@@ -426,7 +426,7 @@ function BookingStatusPage() {
                       <button
                         key={star}
                         type="button"
-                        aria-label={`Rate ${star} out of 5 stars`}
+                        aria-label={t.bookingLookup.rateStarAria(star)}
                         onMouseEnter={() => setHoverRating(star)}
                         onMouseLeave={() => setHoverRating(null)}
                         onClick={() => setRating(star)}

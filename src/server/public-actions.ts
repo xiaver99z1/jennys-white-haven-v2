@@ -431,15 +431,35 @@ export async function createPublicBookingHandler({
       }
 
       if (!guest) {
-        guest = await tx.guest.findFirst({
-          where: {
-            deletedAt: null,
-            phone,
-            firstName: { equals: firstName, mode: 'insensitive' },
-            lastName: { equals: lastName, mode: 'insensitive' },
-          },
-          select: { id: true },
-        })
+        if (
+          typeof (tx.guest as { findMany?: typeof prisma.guest.findMany })
+            .findMany === 'function'
+        ) {
+          const sameNameGuests = await tx.guest.findMany({
+            where: {
+              deletedAt: null,
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+            },
+            select: { id: true, phone: true },
+          })
+          const matchedByPhone = sameNameGuests.find((candidate) =>
+            phonesMatch(candidate.phone, phone),
+          )
+          if (matchedByPhone) {
+            guest = { id: matchedByPhone.id }
+          }
+        } else {
+          guest = await tx.guest.findFirst({
+            where: {
+              deletedAt: null,
+              phone,
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
+            },
+            select: { id: true },
+          })
+        }
       }
 
       if (!guest) {

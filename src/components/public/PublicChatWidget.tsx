@@ -555,7 +555,7 @@ export function PublicChatWidget({
                 />
                 <button
                   type="submit"
-                  aria-label="Send message"
+                  aria-label={t.chat.sendMessageAria}
                   disabled={!replyText.trim() || isSending}
                   className="h-9 w-9 rounded-xl bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] flex items-center justify-center transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                 >
@@ -577,7 +577,7 @@ export function PublicChatWidget({
         onClick={handleToggleOpen}
         aria-expanded={isOpen}
         aria-controls={isOpen ? 'public-live-chat-panel' : undefined}
-        aria-label={isOpen ? 'Close chat support' : 'Open chat support'}
+        aria-label={isOpen ? t.chat.closeChatAria : t.chat.openChatAria}
         className="relative inline-flex items-center gap-2.5 h-12 px-4 sm:px-5 rounded-full bg-stone-900 hover:bg-amber-900 text-[#FAF8F4] shadow-xl border border-stone-700/60 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-700"
       >
         <span className="relative flex items-center justify-center">

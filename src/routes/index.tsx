@@ -140,7 +140,7 @@ function LandingPage() {
                   </div>
                 ) : (
                   <div className="rounded-2xl bg-[#F3EFE7] border border-stone-200/80 p-6 text-xs text-stone-500">
-                    Sanctuary photo highlights will be shared here soon.
+                    {t.home.sanctuaryPhotosSoon}
                   </div>
                 )}
               </div>

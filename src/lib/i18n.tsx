@@ -17,7 +17,6 @@ import type {
   LocaleOption,
   TranslationDictionary,
 } from '#/lib/constants/locales'
-import { parseLocalIsoDate } from '#/lib/formatters'
 
 export { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, TRANSLATIONS }
 export type { LocaleCode, LocaleOption, TranslationDictionary }
@@ -27,6 +26,54 @@ const LOCALE_MAP = new Map<LocaleCode, LocaleOption>(
 )
 
 const stayDateFormatterCache = new Map<LocaleCode, Intl.DateTimeFormat>()
+const PH_RESORT_OFFSET_MS = 8 * 60 * 60 * 1000
+
+function toUtcCalendarDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [y, m, d] = trimmed.split('-').map(Number)
+      const utcDate = new Date(Date.UTC(y, m - 1, d))
+      if (
+        utcDate.getUTCFullYear() !== y ||
+        utcDate.getUTCMonth() !== m - 1 ||
+        utcDate.getUTCDate() !== d
+      ) {
+        return null
+      }
+      return utcDate
+    }
+  }
+
+  const parsed = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+
+  // Exact UTC midnight timestamps represent a calendar date directly; otherwise extract the Camotes (+08:00) calendar day
+  if (
+    parsed.getUTCHours() === 0 &&
+    parsed.getUTCMinutes() === 0 &&
+    parsed.getUTCSeconds() === 0 &&
+    parsed.getUTCMilliseconds() === 0
+  ) {
+    return new Date(
+      Date.UTC(
+        parsed.getUTCFullYear(),
+        parsed.getUTCMonth(),
+        parsed.getUTCDate(),
+      ),
+    )
+  }
+
+  const phDate = new Date(parsed.getTime() + PH_RESORT_OFFSET_MS)
+  return new Date(
+    Date.UTC(
+      phDate.getUTCFullYear(),
+      phDate.getUTCMonth(),
+      phDate.getUTCDate(),
+    ),
+  )
+}
 
 export function isSupportedLocale(value: unknown): value is LocaleCode {
   return typeof value === 'string' && LOCALE_MAP.has(value as LocaleCode)
@@ -50,15 +97,8 @@ export function formatStayDateForLocale(
   value: string | Date | null | undefined,
   locale: LocaleCode,
 ): string {
-  if (!value) return ''
-  let dt: Date | null
-  if (value instanceof Date) {
-    dt = Number.isNaN(value.getTime()) ? null : value
-  } else {
-    dt = parseLocalIsoDate(value) ?? new Date(value)
-    if (Number.isNaN(dt.getTime())) dt = null
-  }
-  if (!dt) return ''
+  const utcCalendarDate = toUtcCalendarDate(value)
+  if (!utcCalendarDate) return ''
   let formatter = stayDateFormatterCache.get(locale)
   if (!formatter) {
     const meta = getLocaleOption(locale)
@@ -66,10 +106,11 @@ export function formatStayDateForLocale(
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: 'UTC',
     })
     stayDateFormatterCache.set(locale, formatter)
   }
-  return formatter.format(dt)
+  return formatter.format(utcCalendarDate)
 }
 
 export interface I18nContextValue {

@@ -16,6 +16,7 @@ export type PhoneCountryIso =
   | 'NZ'
   | 'MY'
   | 'TH'
+  | 'INTL'
 
 export interface PhoneCountryOption {
   iso: PhoneCountryIso
@@ -149,7 +150,7 @@ export const PHONE_COUNTRIES: readonly PhoneCountryOption[] = [
     stripLeadingZero: true,
     placeholder: '151 23456789',
     minNationalDigits: 9,
-    maxNationalDigits: 11,
+    maxNationalDigits: 12,
   },
   {
     iso: 'FR',
@@ -200,5 +201,15 @@ export const PHONE_COUNTRIES: readonly PhoneCountryOption[] = [
     placeholder: '81 234 5678',
     minNationalDigits: 8,
     maxNationalDigits: 9,
+  },
+  {
+    iso: 'INTL',
+    name: 'Other / International',
+    dialCode: '+',
+    dialDigits: '',
+    stripLeadingZero: false,
+    placeholder: '91 98765 43210',
+    minNationalDigits: 7,
+    maxNationalDigits: 15,
   },
 ] as const

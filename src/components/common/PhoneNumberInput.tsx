@@ -166,7 +166,9 @@ export function PhoneNumberInput({
           id={inputId}
           type="tel"
           inputMode="numeric"
-          autoComplete="tel-national"
+          autoComplete={
+            activeCountry.iso === 'INTL' ? 'tel' : 'tel-national'
+          }
           required={required}
           disabled={disabled}
           value={nationalNumber}
